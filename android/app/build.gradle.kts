@@ -9,7 +9,7 @@ plugins {
 }
 
 android {
-    namespace = "io.github.apontetechservices.fidelis"
+    namespace = "com.studiofideli.fidelis"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -24,7 +24,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "io.github.apontetechservices.fidelis"
+        applicationId = "com.studiofideli.fidelis"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
