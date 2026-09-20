@@ -13,12 +13,14 @@ class StationInfo {
   final String title;
   final String titleLa; // Latin title
   final String meditation; // Short meditation prompt
+  final String image; // Sacred art illustration asset
 
   const StationInfo({
     required this.number,
     required this.title,
     required this.titleLa,
     required this.meditation,
+    required this.image,
   });
 }
 
@@ -27,84 +29,98 @@ const List<StationInfo> stationInfo = [
     number: 1,
     title: 'Jesus is Condemned to Death',
     titleLa: 'Iesus ad mortem damnatur',
+    image: 'assets/stations/station_01.jpg',
     meditation: 'Jesus stands silent before Pilate. He accepts the unjust sentence for our sake.',
   ),
   StationInfo(
     number: 2,
     title: 'Jesus Carries His Cross',
     titleLa: 'Iesus crucem suam baiulat',
+    image: 'assets/stations/station_02.jpg',
     meditation: 'Jesus takes up the heavy Cross. He carries the weight of our sins.',
   ),
   StationInfo(
     number: 3,
     title: 'Jesus Falls the First Time',
     titleLa: 'Iesus primum cadit',
+    image: 'assets/stations/station_03.jpg',
     meditation: 'Jesus falls under the weight of the Cross. He rises again for us.',
   ),
   StationInfo(
     number: 4,
     title: 'Jesus Meets His Mother',
     titleLa: 'Iesus Matrem suam occurrit',
+    image: 'assets/stations/station_04.jpg',
     meditation: 'Mary meets her Son on the way of sorrow. Their hearts are pierced with grief.',
   ),
   StationInfo(
     number: 5,
     title: 'Simon of Cyrene Helps Jesus',
     titleLa: 'Simon Cyrenaeus Iesu adjuvat',
+    image: 'assets/stations/station_05.jpg',
     meditation: 'Simon is forced to help carry the Cross. We too are called to bear one another\'s burdens.',
   ),
   StationInfo(
     number: 6,
     title: 'Veronica Wipes the Face of Jesus',
     titleLa: 'Veronica faciem Iesu terget',
+    image: 'assets/stations/station_06.jpg',
     meditation: 'Veronica steps forward with courage and compassion. She is rewarded with His holy image.',
   ),
   StationInfo(
     number: 7,
     title: 'Jesus Falls the Second Time',
     titleLa: 'Iesus secundo cadit',
+    image: 'assets/stations/station_07.jpg',
     meditation: 'Jesus falls again, exhausted. He rises once more, sustained by love.',
   ),
   StationInfo(
     number: 8,
     title: 'Jesus Meets the Women of Jerusalem',
     titleLa: 'Iesus mulieres Hierosolymitanas occurrit',
+    image: 'assets/stations/station_08.jpg',
     meditation: 'Jesus comforts the weeping women. He turns their grief toward repentance.',
   ),
   StationInfo(
     number: 9,
     title: 'Jesus Falls the Third Time',
     titleLa: 'Iesus tertio cadit',
+    image: 'assets/stations/station_09.jpg',
     meditation: 'Jesus falls a third time, nearly spent. Yet He will not give up.',
   ),
   StationInfo(
     number: 10,
     title: 'Jesus is Stripped of His Garments',
     titleLa: 'Iesus vestimentis spoliatur',
+    image: 'assets/stations/station_10.jpg',
     meditation: 'Jesus is stripped and exposed. He endures this humiliation for our sake.',
   ),
   StationInfo(
     number: 11,
     title: 'Jesus is Nailed to the Cross',
     titleLa: 'Iesus cruci affigitur',
+    image: 'assets/stations/station_11.jpg',
     meditation: 'The nails pierce His hands and feet. Every blow is borne in love.',
   ),
   StationInfo(
     number: 12,
     title: 'Jesus Dies on the Cross',
     titleLa: 'Iesus in cruce moritur',
+    image: 'assets/stations/station_12.jpg',
     meditation: 'Jesus breathes His last. The Son of God gives His life for the world.',
   ),
   StationInfo(
     number: 13,
     title: 'Jesus is Taken Down from the Cross',
     titleLa: 'Iesus de cruce deponitur',
+    image: 'assets/stations/station_13.jpg',
     meditation: 'Mary receives the lifeless body of her Son. Her sorrow is beyond words.',
   ),
   StationInfo(
     number: 14,
     title: 'Jesus is Laid in the Tomb',
     titleLa: 'Iesus in sepulcro ponitur',
+    image: 'assets/stations/station_14.jpg',
     meditation: 'Jesus is laid to rest. The stone is rolled shut. Holy Saturday begins.',
   ),
 ];

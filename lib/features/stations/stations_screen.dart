@@ -120,6 +120,22 @@ class _StationsScreenState extends State<StationsScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         child: Row(
                           children: [
+                            // Sacred art thumbnail
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.asset(
+                                station.image,
+                                width: 56,
+                                height: 84,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, _, _) => Container(
+                                  width: 56,
+                                  height: 84,
+                                  color: accentColor.withValues(alpha: 0.15),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
                             // Roman numeral circle
                             Container(
                               width: 44,
