@@ -47,3 +47,4 @@ app.*.map.json
 # Signing secrets
 *.keystore
 android/key.properties
+android/upload_certificate.pem
