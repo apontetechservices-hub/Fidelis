@@ -121,14 +121,16 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Sacred art illustration
+                    // Sacred art illustration — full portrait artwork, no cropping
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.asset(
-                        _info.image,
-                        height: 260,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                      child: AspectRatio(
+                        aspectRatio: 1024 / 1536,
+                        child: Image.asset(
+                          _info.image,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, _, _) => const SizedBox.shrink(),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
