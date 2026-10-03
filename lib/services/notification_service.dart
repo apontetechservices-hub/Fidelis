@@ -11,10 +11,15 @@ class NotificationService {
   static const _rosaryChannelId = 'fidelis_rosary_popup';
   static const _chapletChannelId = 'fidelis_chaplet_popup';
 
+  static const _angelusChannelId = 'fidelis_angelus_popup';
+
   // Notification IDs
   static const _massId = 1;
   static const _rosaryId = 2;
   static const _chapletId = 3;
+  static const _angelusMorningId = 4;
+  static const _angelusNoonId = 5;
+  static const _angelusEveningId = 6;
 
   /// Initialize notifications and timezone data
   static Future<void> initialize() async {
@@ -72,6 +77,13 @@ class NotificationService {
       _chapletChannelId,
       'Chaplet Reminders',
       description: 'Daily reminder to pray the Divine Mercy Chaplet',
+      importance: Importance.max,
+      enableVibration: true,
+    ));
+    await androidPlugin?.createNotificationChannel(const AndroidNotificationChannel(
+      _angelusChannelId,
+      'Angelus Reminders',
+      description: 'Pray the Angelus at 6 AM, noon, and 6 PM',
       importance: Importance.max,
       enableVibration: true,
     ));
@@ -211,6 +223,43 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  /// Schedule Angelus reminders at 6 AM, noon, and 6 PM
+  static Future<void> scheduleAngelusReminders({bool enabled = true}) async {
+    await initialize();
+    final plugin = FlutterLocalNotificationsPlugin();
+    await plugin.cancel(id: _angelusMorningId);
+    await plugin.cancel(id: _angelusNoonId);
+    await plugin.cancel(id: _angelusEveningId);
+    if (!enabled) return;
+
+    final angelusTimes = <(int, int, String, String)>[
+      (_angelusMorningId, 6, 'The Angelus', 'Dawn — the Angel of the Lord declared unto Mary. Pray the Angelus.'),
+      (_angelusNoonId, 12, 'The Angelus', 'Midday — the bell tolls. Pause and pray the Angelus.'),
+      (_angelusEveningId, 18, 'The Angelus', 'At the close of day — pray the Angelus.'),
+    ];
+    for (final entry in angelusTimes) {
+      await plugin.zonedSchedule(
+        id: entry.$1,
+        title: entry.$3,
+        body: entry.$4,
+        scheduledDate: _nextInstanceOfTime(entry.$2, 0),
+        notificationDetails: const NotificationDetails(
+          android: AndroidNotificationDetails(
+            _angelusChannelId,
+            'Angelus Reminders',
+            channelDescription: 'Pray the Angelus at 6 AM, noon, and 6 PM',
+            importance: Importance.max,
+            priority: Priority.max,
+            fullScreenIntent: true,
+          ),
+          iOS: DarwinNotificationDetails(),
+        ),
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
   }
 
   /// Cancel a specific notification by id

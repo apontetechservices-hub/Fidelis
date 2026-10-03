@@ -5,6 +5,7 @@ import '../features/prayers/prayers_screen.dart';
 import '../features/saints/saints_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/stations/stations_screen.dart';
+import '../features/daily/daily_prayers_screen.dart';
 import '../home_screen.dart';
 
 class AppRoutes {
@@ -15,6 +16,7 @@ class AppRoutes {
   static const String saints = '/saints';
   static const String settings = '/settings';
   static const String stations = '/stations';
+  static const String daily = '/daily';
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomeScreen(),
@@ -30,5 +32,6 @@ class AppRoutes {
     saints: (context) => const SaintsScreen(),
     settings: (context) => const SettingsScreen(),
     stations: (context) => const StationsScreen(),
+    daily: (context) => const DailyPrayersScreen(),
   };
 }

@@ -13,6 +13,7 @@ import 'features/prayers/prayers_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/chaplet/chaplet_list_screen.dart';
 import 'features/stations/stations_screen.dart';
+import 'features/daily/daily_prayers_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
 
@@ -205,6 +206,13 @@ class _DashboardPageState extends State<_DashboardPage> {
 
             // Quick actions
             Text('Quick Actions', style: theme.textTheme.titleLarge),
+            const SizedBox(height: 12),
+            _QuickActionWide(
+              icon: Icons.access_time_rounded,
+              label: 'Daily Prayers',
+              color: FidelisTheme.deepRed,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyPrayersScreen())),
+            ),
             const SizedBox(height: 12),
             IntrinsicHeight(
               child: Row(
