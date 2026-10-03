@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:flutter_timezone/flutter_timezone.dart';
@@ -124,7 +125,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _alarmMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -156,7 +157,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _alarmMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -188,7 +189,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _alarmMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -220,7 +221,7 @@ class NotificationService {
         ),
         iOS: DarwinNotificationDetails(),
       ),
-      androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+      androidScheduleMode: await _alarmMode(),
       matchDateTimeComponents: DateTimeComponents.time,
     );
   }
@@ -256,9 +257,41 @@ class NotificationService {
           ),
           iOS: DarwinNotificationDetails(),
         ),
-        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        androidScheduleMode: await _alarmMode(),
         matchDateTimeComponents: DateTimeComponents.time,
       );
+    }
+  }
+
+  /// Prefer exact alarms; degrade gracefully to inexact when the exact-alarm
+  /// special permission has not been granted (Android 12+).
+  static Future<AndroidScheduleMode> _alarmMode() async {
+    try {
+      final androidPlugin = FlutterLocalNotificationsPlugin()
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+      final canExact = await androidPlugin?.canScheduleExactAlarms();
+      if (canExact ?? false) return AndroidScheduleMode.exactAllowWhileIdle;
+    } catch (_) {
+      // fall through to inexact
+    }
+    return AndroidScheduleMode.inexactAllowWhileIdle;
+  }
+
+  /// Reapply every saved reminder after app launch — belt-and-suspenders on
+  /// top of the boot receiver so alarms always exist after restarts.
+  static Future<void> rescheduleSaved() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('mass_reminder') ?? false) {
+      await scheduleMassReminder(hour: prefs.getInt('mass_hour') ?? 7, minute: prefs.getInt('mass_minute') ?? 0);
+    }
+    if (prefs.getBool('rosary_reminder') ?? false) {
+      await scheduleRosaryReminder(hour: prefs.getInt('rosary_hour') ?? 18, minute: prefs.getInt('rosary_minute') ?? 0);
+    }
+    if (prefs.getBool('chaplet_reminder') ?? false) {
+      await scheduleChapletReminder(hour: prefs.getInt('chaplet_hour') ?? 15, minute: prefs.getInt('chaplet_minute') ?? 0);
+    }
+    if (prefs.getBool('angelus_reminder') ?? false) {
+      await scheduleAngelusReminders();
     }
   }
 

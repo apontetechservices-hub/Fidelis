@@ -10,5 +10,6 @@ void main() {
     DeviceOrientation.portraitDown,
   ]);
   NotificationService.initialize();
+  NotificationService.rescheduleSaved();
   runApp(const FidelisApp());
 }
