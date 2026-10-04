@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/constants.dart';
 import '../../config/theme.dart';
+import 'prayer_translations.dart';
 import 'litany_reader_screen.dart';
 import '../rosary/litany_of_loreto.dart';
 import '../chaplet/chaplet_list_screen.dart';
@@ -96,7 +99,7 @@ class _PrayerCard extends StatelessWidget {
     );
   }
 
-  void _showPrayer(BuildContext context, _PrayerEntry prayer) {
+  Future<void> _showPrayer(BuildContext context, _PrayerEntry prayer) async {
     if (prayer.isChaplet) {
       Navigator.push(
         context,
@@ -106,13 +109,16 @@ class _PrayerCard extends StatelessWidget {
     }
 
     if (prayer.isLitany && prayer.title == 'Litany of Loreto') {
+      final prefs = await SharedPreferences.getInstance();
+      final lang =
+          prefs.getString('prayer_language') ?? AppConstants.langEnglish;
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => LitanyReaderScreen(
             title: prayer.title,
-            invocations: LitanyOfLoreto.getInvocations('en'),
-            closingPrayer: LitanyOfLoreto.getClosingPrayer('en'),
+            invocations: LitanyOfLoreto.getInvocations(lang),
+            closingPrayer: LitanyOfLoreto.getClosingPrayer(lang),
           ),
         ),
       );
@@ -143,23 +149,89 @@ class _PrayerCard extends StatelessWidget {
   }
 }
 
-class _PrayerDetailScreen extends StatelessWidget {
+class _PrayerDetailScreen extends StatefulWidget {
   final _PrayerEntry prayer;
   const _PrayerDetailScreen({required this.prayer});
 
   @override
+  State<_PrayerDetailScreen> createState() => _PrayerDetailScreenState();
+}
+
+class _PrayerDetailScreenState extends State<_PrayerDetailScreen> {
+  String _lang = AppConstants.langEnglish;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLanguage();
+  }
+
+  Future<void> _loadLanguage() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    setState(() =>
+        _lang = prefs.getString('prayer_language') ?? AppConstants.langEnglish);
+  }
+
+  Future<void> _setLanguage(String lang) async {
+    setState(() => _lang = lang);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('prayer_language', lang);
+  }
+
+  String get _prayerText {
+    switch (_lang) {
+      case AppConstants.langLatin:
+        return PrayerTranslations.latin[widget.prayer.title] ??
+            widget.prayer.text;
+      case AppConstants.langSpanish:
+        return PrayerTranslations.spanish[widget.prayer.title] ??
+            widget.prayer.text;
+      default:
+        return widget.prayer.text;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasLatin = PrayerTranslations.latin.containsKey(widget.prayer.title);
+    final hasSpanish =
+        PrayerTranslations.spanish.containsKey(widget.prayer.title);
+
+    final options = <(String, String)>[
+      ('English', AppConstants.langEnglish),
+      if (hasLatin) ('Latin', AppConstants.langLatin),
+      if (hasSpanish) ('Español', AppConstants.langSpanish),
+    ];
+
     return Scaffold(
-      appBar: AppBar(title: Text(prayer.title)),
+      appBar: AppBar(title: Text(widget.prayer.title)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (options.length > 1) ...[
+              SegmentedButton<String>(
+                segments: [
+                  for (final o in options)
+                    ButtonSegment(value: o.$2, label: Text(o.$1)),
+                ],
+                selected: {
+                  options.any((o) => o.$2 == _lang)
+                      ? _lang
+                      : options.first.$2,
+                },
+                onSelectionChanged: (selection) => _setLanguage(selection.first),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+              const SizedBox(height: 16),
+            ],
             SelectableText(
-              prayer.text,
-              style: theme.textTheme.bodyLarge?.copyWith(height: 1.9, fontSize: 17),
+              _prayerText,
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(height: 1.9, fontSize: 17),
               textAlign: TextAlign.center,
             ),
           ],
