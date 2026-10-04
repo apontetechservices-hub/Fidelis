@@ -124,7 +124,7 @@ class _PrayerCard extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (context) => LitanyReaderScreen(
-            title: prayer.title,
+            title: AppStrings.isSpanish ? (PrayerTranslations.titlesEs[prayer.title] ?? prayer.title) : prayer.title,
             invocations: LitanyOfLoreto.getInvocations(lang),
             closingPrayer: LitanyOfLoreto.getClosingPrayer(lang),
           ),
@@ -140,7 +140,7 @@ class _PrayerCard extends StatelessWidget {
         context,
         MaterialPageRoute(
           builder: (context) => LitanyReaderScreen(
-            title: prayer.title,
+            title: AppStrings.isSpanish ? (PrayerTranslations.titlesEs[prayer.title] ?? prayer.title) : prayer.title,
             invocations: lines,
           ),
         ),

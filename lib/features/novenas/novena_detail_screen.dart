@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import '../../services/notification_service.dart';
 import 'novena_data.dart';
 import 'novena_storage.dart';
@@ -84,14 +85,14 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Reset Novena?'),
-        content: const Text('This will clear all your progress. Are you sure?'),
+        title: Text(AppStrings.t('reset_novena_q')),
+        content: Text(AppStrings.t('reset_novena_body')),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(AppStrings.t('cancel'))),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: FidelisTheme.deepRed),
-            child: const Text('Reset', style: TextStyle(color: Colors.white)),
+            child: Text(AppStrings.t('reset'), style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -183,7 +184,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: _resetNovena,
-              tooltip: 'Reset novena',
+              tooltip: AppStrings.t('reset_novena_tooltip'),
             ),
         ],
       ),
@@ -249,7 +250,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                       child: ElevatedButton.icon(
                         onPressed: _startNovena,
                         icon: const Icon(Icons.play_arrow),
-                        label: const Text('Begin This Novena'),
+                        label: Text(AppStrings.t('begin_this_novena')),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                           foregroundColor: Colors.white,
@@ -269,10 +270,10 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Your Progress',
+                                Text(AppStrings.t('your_progress'),
                                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
                                 Text(
-                                  _progress!.completedDays.length >= 9 ? 'Complete ✓' : '${_progress!.completedDays.length}/9 days',
+                                  _progress!.completedDays.length >= 9 ? AppStrings.t('complete_check') : AppStrings.t('days_done').replaceAll('{{n}}', '${_progress!.completedDays.length}'),
                                   style: theme.textTheme.titleMedium?.copyWith(
                                     color: _progress!.completedDays.length >= 9 ? Colors.green : FidelisTheme.gold,
                                     fontWeight: FontWeight.w600,
@@ -314,7 +315,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('Daily Reminder', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                                Text(AppStrings.t('daily_reminder'), style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
                                 Switch(
                                   value: _progress!.notificationEnabled,
                                   onChanged: _progress!.completedDays.length >= 9 ? null : _toggleNotification,
@@ -409,7 +410,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Text(
-                                  'Day $day',
+                                  AppStrings.t('day_template').replaceAll('{{n}}', '$day'),
                                   style: theme.textTheme.bodyLarge?.copyWith(
                                     fontWeight: isCurrent || isCompleted ? FontWeight.w600 : FontWeight.normal,
                                     color: _progress == null
@@ -462,7 +463,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
               children: [
                 Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 20),
-                Text('Day $day of 9',
+                Text(AppStrings.t('day_of_nine').replaceAll('{{n}}', '$day'),
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).hintColor),
                   textAlign: TextAlign.center,
                 ),
@@ -489,7 +490,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                         Navigator.pop(context);
                       },
                       icon: const Icon(Icons.check_circle_outline),
-                      label: Text('Mark Day $day Complete'),
+                      label: Text(AppStrings.t('mark_day_complete').replaceAll('{{n}}', '$day')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.green,
                         foregroundColor: Colors.white,
@@ -506,7 +507,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                         Navigator.pop(context);
                       },
                       icon: const Icon(Icons.undo),
-                      label: Text('Undo Day $day'),
+                      label: Text(AppStrings.t('undo_day').replaceAll('{{n}}', '$day')),
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),

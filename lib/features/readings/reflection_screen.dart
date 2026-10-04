@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'reflection_service.dart';
 
 class ReflectionScreen extends StatelessWidget {
@@ -15,7 +16,7 @@ class ReflectionScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Daily Reflection'),
+        title: Text(AppStrings.t('daily_reflection')),
         actions: [
           if (reflection.link.isNotEmpty)
             IconButton(

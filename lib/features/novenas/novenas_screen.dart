@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'novena_data.dart';
 import 'novena_storage.dart';
 import 'novena_detail_screen.dart';
@@ -30,7 +31,7 @@ class _NovenasScreenState extends State<NovenasScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Novenas')),
+      appBar: AppBar(title: Text(AppStrings.t('novenas'))),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: catholicNovenas.length,

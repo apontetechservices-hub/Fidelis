@@ -400,7 +400,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
   Widget _buildNovusOrdoReadings(BuildContext context) {
     final readings = _usccbReadings;
     if (readings == null) {
-      return const Center(child: Text('No readings available for this date.'));
+      return Center(child: Text(AppStrings.t('no_readings')));
     }
 
     final isDark = Theme.of(context).brightness == Brightness.dark;

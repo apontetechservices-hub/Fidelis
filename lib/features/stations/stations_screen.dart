@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'stations_data.dart';
 import 'stations_prayer_screen.dart';
 import 'stabat_mater_screen.dart';
@@ -46,7 +47,7 @@ class _StationsScreenState extends State<StationsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stations of the Cross'),
+        title: Text(AppStrings.t('stations')),
         actions: [
           IconButton(
             icon: const Icon(Icons.library_music),
@@ -66,14 +67,14 @@ class _StationsScreenState extends State<StationsScreen> {
             child: Row(
               children: [
                 _MethodChip(
-                  label: 'St. Francis',
+                  label: AppStrings.t('st_francis'),
                   selected: _method == 'francis',
                   color: accentColor,
                   onTap: () => _saveMethod('francis'),
                 ),
                 const SizedBox(width: 12),
                 _MethodChip(
-                  label: 'Traditional',
+                  label: AppStrings.t('traditional'),
                   selected: _method == 'traditional',
                   color: accentColor,
                   onTap: () => _saveMethod('traditional'),
@@ -85,8 +86,8 @@ class _StationsScreenState extends State<StationsScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
             child: Text(
               _method == 'francis'
-                  ? 'Method of St. Francis of Assisi'
-                  : 'Traditional method with Stabat Mater',
+                  ? AppStrings.t('method_st_francis')
+                  : AppStrings.t('traditional_method_stabat'),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 fontStyle: FontStyle.italic,

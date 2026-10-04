@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'chaplet_data.dart';
 import 'chaplet_prayer_screen.dart';
 
@@ -10,7 +11,7 @@ class ChapletListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('More Chaplets'),
+        title: Text(AppStrings.t('more_chaplets')),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),

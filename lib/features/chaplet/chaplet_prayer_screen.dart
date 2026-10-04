@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'chaplet_data.dart';
 
 class ChapletPrayerScreen extends StatefulWidget {
@@ -228,7 +229,7 @@ class _ChapletPrayerScreenState extends State<ChapletPrayerScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: isFirstStep ? null : _previousStep,
-                child: const Text('Previous'),
+                child: Text(AppStrings.t('previous')),
               ),
             ),
             const SizedBox(width: 12),
@@ -249,13 +250,13 @@ class _ChapletPrayerScreenState extends State<ChapletPrayerScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('${_meta.emoji} ${_meta.name} Complete'),
-        content: const Text('May God bless your prayers. Amen.'),
+        title: Text(AppStrings.isSpanish ? '${_meta.emoji} ${_meta.name} — Completada' : '${_meta.emoji} ${_meta.name} Complete'),
+        content: Text(AppStrings.t('may_god_bless')),
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
             style: ElevatedButton.styleFrom(backgroundColor: _meta.accentColor, foregroundColor: Colors.white),
-            child: const Text('Amen'),
+            child: Text(AppStrings.t('amen')),
           ),
         ],
       ),

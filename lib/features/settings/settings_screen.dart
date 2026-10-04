@@ -113,7 +113,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text(AppStrings.t('title_settings'))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         children: [
@@ -307,7 +307,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const Divider(height: 1),
                 ListTile(
-                  title: const Text('Liturgical Data'),
+                  title: Text(AppStrings.t('liturgical_data')),
                   subtitle: Text(
                     '1962 Missal: Missale Meum (MIT)\n'
                     'Novus Ordo: USCCB (bible.usccb.org)',
@@ -349,7 +349,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(
-                'SELECT MISSAL',
+                AppStrings.t('select_missal'),
                 style: TextStyle(
                   color: FidelisTheme.gold,
                   fontWeight: FontWeight.bold,
@@ -360,8 +360,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.history_edu, color: FidelisTheme.gold),
-              title: const Text('Traditional (1962 Roman Missal)'),
-              subtitle: const Text('Tridentine Mass — Extraordinary Form'),
+              title: Text(AppStrings.t('traditional_1962_missal')),
+              subtitle: Text(AppStrings.t('tridentine_mass')),
               trailing: _missal == '1962' ? const Icon(Icons.check, color: FidelisTheme.gold) : null,
               onTap: () => Navigator.pop(context, '1962'),
             ),

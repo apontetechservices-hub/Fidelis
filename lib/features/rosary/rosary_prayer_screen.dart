@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import '../../config/constants.dart';
 import 'rosary_controller.dart';
 import 'rosary_prayers.dart';
@@ -38,6 +39,56 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   bool _showLitany = false;
   int _litanyIndex = 0;
   late String _language;
+
+  static const List<String> _laOrdinals = ['Primum', 'Secundum', 'Tertium', 'Quartum', 'Quintum'];
+
+  String _ordinalFor(int n) {
+    if (_language == 'es') return n == 1 ? '1er' : '$nº';
+    if (_language == 'la') return _laOrdinals[(n - 1).clamp(0, 4)];
+    const suf = ['st', 'nd', 'rd', 'th', 'th'];
+    return '$n${suf[(n - 1).clamp(0, 4)]}';
+  }
+
+  String _stepLabel(RosaryStep step) {
+    String F(String key) => AppStrings.tFor(key, _language);
+    final dec = step.mysteryIndex == null ? null : step.mysteryIndex! + 1;
+    switch (step.type) {
+      case RosaryStepType.signOfTheCross:
+        return F('lbl_sign_of_cross');
+      case RosaryStepType.creed:
+        return F('lbl_creed');
+      case RosaryStepType.ourFather:
+        return dec == null ? F('lbl_our_father') : F('lbl_our_father_decade').replaceAll('{{n}}', '$dec');
+      case RosaryStepType.hailMary:
+        final n = step.hailMaryCount ?? 1;
+        final m = dec == null ? 3 : 10;
+        final base = F('lbl_hail_mary').replaceAll('{{n}}', '$n').replaceAll('{{m}}', '$m');
+        return dec == null ? base : '$base — ${F('lbl_decade').replaceAll('{{n}}', '$dec')}';
+      case RosaryStepType.gloryBe:
+        return dec == null ? F('lbl_glory_be') : F('lbl_glory_be_decade').replaceAll('{{n}}', '$dec');
+      case RosaryStepType.fatimaPrayer:
+        return F('lbl_fatima').replaceAll('{{n}}', '$dec');
+      case RosaryStepType.hailHolyQueen:
+        return F('lbl_hail_holy_queen');
+      case RosaryStepType.litany:
+        return F('lbl_litany_bvm');
+      case RosaryStepType.concludingPrayer:
+        return F('lbl_concluding');
+      case RosaryStepType.deProfundis:
+        return F('lbl_de_profundis');
+      case RosaryStepType.eternalRest:
+        return F('lbl_eternal_rest').replaceAll('{{n}}', '$dec');
+      case RosaryStepType.deadRosaryClosing:
+        return F('lbl_dead_closing');
+      case RosaryStepType.mysteryAnnouncement:
+      case RosaryStepType.mysteryMeditation:
+        try {
+          return MysteryData.getMysteries(widget.mysteryType)[_step.mysteryIndex!].title(_language);
+        } catch (_) {
+          return step.label;
+        }
+    }
+  }
   final ScrollController _scrollController = ScrollController();
 
   // GlobalKey per litany line for precise scroll positioning
@@ -113,7 +164,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
                 children: [
                   // Step label
                   Text(
-                    _step.label,
+                    _stepLabel(_step),
                     style: theme.textTheme.titleLarge?.copyWith(
                       color: FidelisTheme.gold,
                     ),
@@ -231,7 +282,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
           // Spiritual fruit
           const SizedBox(height: 8),
           Text(
-            'Spiritual Fruit: ${mystery.fruit(_language)}',
+            AppStrings.tFor('lbl_spiritual_fruit', _language).replaceAll('{{v}}', mystery.fruit(_language)),
             style: theme.textTheme.bodyMedium?.copyWith(
               color: isDarkMode(context) ? FidelisTheme.gold : FidelisTheme.deepRed,
               fontWeight: FontWeight.w600,
@@ -512,7 +563,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             Expanded(
               child: OutlinedButton(
                 onPressed: isFirstStep ? null : _previousStep,
-                child: const Text('Previous'),
+                child: Text(AppStrings.t('previous')),
               ),
             ),
             const SizedBox(width: 12),
@@ -628,7 +679,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('🌹 Rosary Complete'),
+        title: Text(AppStrings.t('rosary_complete')),
         content: Text(
           widget.isForDead
               ? 'You have completed the Rosary for the Dead. May the souls of the faithful departed rest in peace.'
@@ -637,7 +688,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         actions: [
           ElevatedButton(
             onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-            child: const Text('Amen'),
+            child: Text(AppStrings.t('amen')),
           ),
         ],
       ),
@@ -650,26 +701,26 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Leave Rosary?'),
-        content: const Text('Your progress will be saved. Resume from the Rosary tab later.'),
+        title: Text(AppStrings.t('leave_rosary')),
+        content: Text(AppStrings.t('progress_saved_note')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Stay'),
+            child: Text(AppStrings.t('stay')),
           ),
           ElevatedButton(
             onPressed: () {
               _saveState(); // Ensure state is saved before leaving
               Navigator.pop(dialogContext); // Close dialog
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Progress saved! Resume from the Rosary tab.'),
+                SnackBar(
+                  content: Text(AppStrings.t('progress_saved_toast')),
                   duration: Duration(seconds: 3),
                 ),
               );
               Navigator.of(context).popUntil((route) => route.isFirst); // Go to home
             },
-            child: const Text('Leave'),
+            child: Text(AppStrings.t('leave')),
           ),
         ],
       ),

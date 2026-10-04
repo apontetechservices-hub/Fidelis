@@ -176,7 +176,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Text('Resume Rosary', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              Text(AppStrings.t('resume_rosary'), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                               const SizedBox(height: 2),
                               Text(
                                 _getResumeLabel(),
@@ -191,7 +191,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                             RosaryState.clear();
                             setState(() => _savedState = null);
                           },
-                          tooltip: 'Discard saved progress',
+                          tooltip: AppStrings.t('discard_progress'),
                         ),
                       ],
                     ),
@@ -205,7 +205,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             ElevatedButton.icon(
               onPressed: () => _startRosary(mysteryType: todayMystery),
               icon: const Icon(Icons.play_arrow),
-              label: const Text('Pray Today\'s Rosary'),
+              label: Text(AppStrings.t('pray_todays_rosary')),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 backgroundColor: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
@@ -226,7 +226,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             const SizedBox(height: 24),
 
             // Pray a specific mystery set
-            Text('Pray a Specific Mystery', style: theme.textTheme.titleLarge),
+            Text(AppStrings.t('pray_specific_mystery'), style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
             _MysterySetCard(
               type: AppConstants.joyfulMysteries,
@@ -323,7 +323,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
         String pronoun = 'him'; // default
         return StatefulBuilder(
           builder: (context, setState) => AlertDialog(
-            title: const Text('Rosary for the Dead'),
+            title: Text(AppStrings.t('rosary_for_the_dead')),
             insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
             content: SingleChildScrollView(
               child: Column(
@@ -335,9 +335,9 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                   ),
                   const SizedBox(height: 16),
                   TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Name of the deceased',
-                      hintText: 'Enter name',
+                    decoration: InputDecoration(
+                      labelText: AppStrings.t('name_of_deceased'),
+                      hintText: AppStrings.t('enter_name'),
                       border: OutlineInputBorder(),
                     ),
                     onChanged: (value) => name = value,
@@ -539,7 +539,7 @@ class _LanguageToggle extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Prayer Language', style: theme.textTheme.titleLarge),
+        Text(AppStrings.t('prayer_language'), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         SegmentedButton<String>(
           segments: const [

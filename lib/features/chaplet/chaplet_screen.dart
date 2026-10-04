@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import '../../features/rosary/rosary_prayers.dart';
 import 'chaplet_prayers.dart';
 
@@ -186,7 +187,7 @@ class _ChapletScreenState extends State<ChapletScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: isFirstStep ? null : _previousStep,
-                      child: const Text('Previous'),
+                      child: Text(AppStrings.t('previous')),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -332,7 +333,7 @@ class _ChapletScreenState extends State<ChapletScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('🙏 Chaplet Complete'),
+        title: Text(AppStrings.t('chaplet_complete')),
         content: const Text(
           'You have completed the Chaplet of Divine Mercy. May His mercy flow through you and upon the whole world.',
         ),
@@ -343,7 +344,7 @@ class _ChapletScreenState extends State<ChapletScreen> {
               backgroundColor: const Color(0xFFE57373),
               foregroundColor: Colors.white,
             ),
-            child: const Text('Amen'),
+            child: Text(AppStrings.t('amen')),
           ),
         ],
       ),
@@ -354,12 +355,12 @@ class _ChapletScreenState extends State<ChapletScreen> {
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Leave Chaplet?'),
-        content: const Text('Your progress will be lost. Are you sure?'),
+        title: Text(AppStrings.t('leave_chaplet')),
+        content: Text(AppStrings.t('progress_will_be_lost')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Stay'),
+            child: Text(AppStrings.t('stay')),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -370,7 +371,7 @@ class _ChapletScreenState extends State<ChapletScreen> {
               Navigator.pop(dialogContext);
               Navigator.of(context).popUntil((route) => route.isFirst);
             },
-            child: const Text('Leave'),
+            child: Text(AppStrings.t('leave')),
           ),
         ],
       ),

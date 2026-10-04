@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'stations_data.dart';
 
 class StationsPrayerScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
       canPop: true,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Stations of the Cross'),
+          title: Text(AppStrings.t('stations')),
         ),
         body: SafeArea(
           child: Column(
@@ -205,7 +206,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isFirst ? null : _previousStation,
-                      child: const Text('Previous'),
+                      child: Text(AppStrings.t('previous')),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -216,7 +217,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
                         backgroundColor: accentColor,
                         foregroundColor: Colors.white,
                       ),
-                      child: Text(_isLast ? 'Finish' : 'Next'),
+                      child: Text(_isLast ? AppStrings.t('finish') : AppStrings.t('next')),
                     ),
                   ),
                 ],
@@ -437,7 +438,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('✝️ Stations Complete'),
+        title: Text(AppStrings.t('stations_complete')),
         content: SingleChildScrollView(
           child: Text(
             widget.method == 'francis' ? stFrancisClosing : traditionalClosing,
@@ -451,7 +452,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
               backgroundColor: accentColor,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Amen'),
+            child: Text(AppStrings.t('amen')),
           ),
         ],
       ),

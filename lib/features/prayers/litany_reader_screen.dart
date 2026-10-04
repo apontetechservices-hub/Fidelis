@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 
 /// A step-by-step litany reader with auto-scroll to keep current line visible.
 /// Used for any litany prayer that has repeated invocations.
@@ -201,7 +202,7 @@ class _LitanyReaderScreenState extends State<LitanyReaderScreen> {
                   Expanded(
                     child: OutlinedButton(
                       onPressed: _isFirst ? null : _previousLine,
-                      child: const Text('Previous'),
+                      child: Text(AppStrings.t('previous')),
                     ),
                   ),
                   const SizedBox(width: 12),
