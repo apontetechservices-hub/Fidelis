@@ -132,7 +132,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             tooltip: AppStrings.t('select_missal'),
             onSelected: _switchMissal,
             itemBuilder: (context) => [
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: '1962',
                 child: ListTile(
                   leading: Icon(Icons.history_edu),
@@ -140,7 +140,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
-              const PopupMenuItem(
+              PopupMenuItem(
                 value: 'novus_ordo',
                 child: ListTile(
                   leading: Icon(Icons.church),
@@ -189,7 +189,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               AppStrings.t('please_check_connection'),
               textAlign: TextAlign.center,
             ),
@@ -206,7 +206,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadReadings,
-              child: const Text(AppStrings.t('retry')),
+              child: Text(AppStrings.t('retry')),
             ),
           ],
         ),
@@ -218,7 +218,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
 
   Widget _buildTraditionalReadings(BuildContext context) {
     if (_propers == null || _propers!.isEmpty) {
-      return const Center(child: Text(AppStrings.t('no_readings')));
+      return Center(child: Text(AppStrings.t('no_readings')));
     }
 
     final proper = _propers!.first;

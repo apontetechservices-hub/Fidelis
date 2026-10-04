@@ -82,7 +82,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(AppStrings.t('title_holy_rosary')),
+        title: Text(AppStrings.t('title_holy_rosary')),
         actions: [
           // Rosary type dropdown
           Padding(
@@ -96,7 +96,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                 color: theme.brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
               ),
               dropdownColor: theme.brightness == Brightness.dark ? const Color(0xFF1E2D3D) : Colors.white,
-              items: const [
+              items: [
                 DropdownMenuItem(
                   value: AppConstants.rosaryTraditional,
                   child: Text(AppStrings.t('traditional')),
@@ -126,7 +126,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                 color: theme.brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
               ),
               dropdownColor: theme.brightness == Brightness.dark ? const Color(0xFF1E2D3D) : Colors.white,
-              items: const [
+              items: [
                 DropdownMenuItem(value: AppConstants.langEnglish, child: Text('🇺🇸 EN')),
                 DropdownMenuItem(value: AppConstants.langLatin, child: Text('🏛️ LA')),
                 DropdownMenuItem(value: AppConstants.langSpanish, child: Text('🇪🇸 ES')),
@@ -217,7 +217,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             OutlinedButton.icon(
               onPressed: () => _startDeadRosary(),
               icon: const Icon(Icons.church),
-              label: const Text(AppStrings.t('rosary_for_the_dead')),
+              label: Text(AppStrings.t('rosary_for_the_dead')),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -348,7 +348,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                       labelText: 'Sex',
                       border: OutlineInputBorder(),
                     ),
-                    items: const [
+                    items: [
                       DropdownMenuItem(value: 'him', child: Text(AppStrings.t('male'))),
                       DropdownMenuItem(value: 'her', child: Text(AppStrings.t('female'))),
                     ],
@@ -360,7 +360,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text(AppStrings.t('cancel')),
+                child: Text(AppStrings.t('cancel')),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -379,7 +379,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                     ),
                   );
                 },
-                child: const Text(AppStrings.t('begin')),
+                child: Text(AppStrings.t('begin')),
               ),
             ],
           ),

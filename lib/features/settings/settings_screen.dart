@@ -301,7 +301,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           Card(
             child: Column(
               children: [
-                const ListTile(
+                ListTile(
                   title: Text('Fidelis'),
                   subtitle: Text(AppStrings.t('traditional_catholic_app')),
                 ),
@@ -323,7 +323,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const Divider(height: 1),
                 ListTile(
                   title: Text(AppStrings.t('no_ads')),
-                  subtitle: const Text(AppStrings.t('prayer_is_sacred')),
+                  subtitle: Text(AppStrings.t('prayer_is_sacred')),
                   leading: const Icon(Icons.block, color: FidelisTheme.deepRed),
                 ),
               ],

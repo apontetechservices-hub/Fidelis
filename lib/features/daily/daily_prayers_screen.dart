@@ -46,6 +46,8 @@ class DailyPrayersScreen extends StatefulWidget {
 }
 
 class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
+  String nm(String t) =>
+      AppStrings.isSpanish ? (PrayerTranslations.titlesEs[t] ?? t) : t;
   bool _reminder = false;
   final Map<String, bool> _done = {};
   late final String _dayKey;
@@ -91,8 +93,6 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
   /// The day's prayers — the Angelus becomes the Regina Caeli in Eastertide.
   List<(String lookup, String display, IconData)> _dayList() {
     final easter = DailyPrayersScreen.isEasterSeason(DateTime.now());
-    String nm(String t) =>
-        AppStrings.isSpanish ? (PrayerTranslations.titlesEs[t] ?? t) : t;
     final angelusKey = easter ? 'Regina Caeli (Easter Angelus)' : 'The Angelus';
     return [
       ('Morning Offering', nm('Morning Offering'), Icons.wb_sunny),

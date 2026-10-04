@@ -672,7 +672,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     widget.onTabChange(1);
                   },
                   icon: const Icon(Icons.auto_awesome),
-                  label: const Text(AppStrings.t('go_to_rosary')),
+                  label: Text(AppStrings.t('go_to_rosary')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
                     foregroundColor: Colors.white,

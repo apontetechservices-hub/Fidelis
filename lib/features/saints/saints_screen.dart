@@ -481,9 +481,9 @@ class _SaintsScreenState extends State<SaintsScreen> {
             const SizedBox(height: 16),
             Text('Unable to load calendar', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            const Text(AppStrings.t('check_connection')),
+            Text(AppStrings.t('check_connection')),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadCalendar, child: const Text(AppStrings.t('retry'))),
+            ElevatedButton(onPressed: _loadCalendar, child: Text(AppStrings.t('retry'))),
           ],
         ),
       ),
@@ -503,7 +503,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
     final day = _getDay(date);
     if (day == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text(AppStrings.t('no_data_for_date'))),
+        SnackBar(content: Text(AppStrings.t('no_data_for_date'))),
       );
       return;
     }
@@ -594,7 +594,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
                         Navigator.pushNamed(context, '/readings', arguments: date);
                       },
                       icon: const Icon(Icons.menu_book),
-                      label: const Text(AppStrings.t('mass_readings')),
+                      label: Text(AppStrings.t('mass_readings')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                         foregroundColor: Colors.white,
