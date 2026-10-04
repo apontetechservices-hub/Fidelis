@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../rosary/rosary_prayers.dart';
+import '../../config/app_strings.dart';
 
 /// Step types for chaplet prayer screens
 enum ChapletStepType {
@@ -126,21 +128,31 @@ const _apostlesCreed = 'I believe in God, the Father Almighty, Creator of heaven
 const _ourFather = 'Our Father, Who art in Heaven, hallowed be Thy name; Thy kingdom come; Thy will be done on earth as it is in Heaven. Give us this day our daily bread; and forgive us our trespasses as we forgive those who trespass against us; and lead us not into temptation, but deliver us from evil. Amen.';
 const _hailMary = 'Hail Mary, full of grace, the Lord is with thee. Blessed art thou amongst women, and blessed is the fruit of thy womb, Jesus. Holy Mary, Mother of God, pray for us sinners, now and at the hour of our death. Amen.';
 const _gloryBe = 'Glory be to the Father, and to the Son, and to the Holy Spirit. As it was in the beginning, is now, and ever shall be, world without end. Amen.';
+const _eternalFatherEn = 'Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.';
+const _eternalFatherEs = 'Padre Eterno, te ofrezco el Cuerpo y la Sangre, el Alma y la Divinidad de tu amadísimo Hijo, Nuestro Señor Jesucristo, en reparación por nuestros pecados y los del mundo entero.';
+const _sorrowfulPassionEn = 'For the sake of His sorrowful Passion, have mercy on us and on the whole world.';
+const _sorrowfulPassionEs = 'Por Su dolorosa Pasión, ten misericordia de nosotros y del mundo entero.';
+const _holyGodEn = 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us and on the whole world.';
+const _holyGodEs = 'Santo Dios, Santo Fuerte, Santo Inmortal, ten misericordia de nosotros y del mundo entero.';
+const _closingEn = 'Eternal God, in whom mercy is endless and the treasury of compassion inexhaustible, look kindly upon us and increase Your mercy in us, that in difficult moments we might not despair nor become despondent, but with great confidence submit ourselves to Your holy will, which is Love and Mercy itself. Amen.';
+const _closingEs = 'Dios Eterno, en quien la misericordia es infinita y el tesoro de compasión inagotable, míranos con bondad y aumenta en nosotros Tu misericordia, para que en los momentos difíciles no nos desesperemos ni nos desalentemos, sino con gran confianza nos sometamos a Tu santa voluntad, que es Amor y Misericordia misma. Amén.';
 // ─── Divine Mercy Chaplet ───────────────────────────────────────
 
-List<ChapletPrayerStep> buildDivineMercySteps() {
+List<ChapletPrayerStep> buildDivineMercySteps({String language = 'en'}) {
   final steps = <ChapletPrayerStep>[];
   const totalDecades = 5;
+  final es = language == 'es';
+  String T(String key) => AppStrings.tFor(key, language);
 
-  steps.add(const ChapletPrayerStep(type: ChapletStepType.signOfCross, label: 'Sign of the Cross', prayerText: _signOfTheCross));
-  steps.add(const ChapletPrayerStep(type: ChapletStepType.creed, label: 'Apostles\' Creed', prayerText: _apostlesCreed));
-  steps.add(const ChapletPrayerStep(type: ChapletStepType.ourFather, label: 'Our Father', prayerText: _ourFather));
+  steps.add(ChapletPrayerStep(type: ChapletStepType.signOfCross, label: T('lbl_sign_of_cross'), prayerText: RosaryPrayers.get('sign_of_the_cross', language)));
+  steps.add(ChapletPrayerStep(type: ChapletStepType.creed, label: T('lbl_creed'), prayerText: RosaryPrayers.get('apostles_creed', language)));
+  steps.add(ChapletPrayerStep(type: ChapletStepType.ourFather, label: T('lbl_our_father'), prayerText: RosaryPrayers.get('our_father', language)));
 
   for (int i = 1; i <= 3; i++) {
     steps.add(ChapletPrayerStep(
       type: ChapletStepType.hailMary,
-      label: 'Hail Mary ($i of 3)',
-      prayerText: _hailMary,
+      label: T('lbl_hail_mary').replaceAll('{{n}}', '$i').replaceAll('{{m}}', '3'),
+      prayerText: RosaryPrayers.get('hail_mary', language),
       beadIndex: i,
       totalBeads: 3,
     ));
@@ -149,8 +161,8 @@ List<ChapletPrayerStep> buildDivineMercySteps() {
   for (int d = 1; d <= totalDecades; d++) {
     steps.add(ChapletPrayerStep(
       type: ChapletStepType.customPrayer,
-      label: 'Eternal Father (Decade $d)',
-      prayerText: 'Eternal Father, I offer You the Body and Blood, Soul and Divinity of Your dearly beloved Son, Our Lord Jesus Christ, in atonement for our sins and those of the whole world.',
+      label: T('lbl_eternal_father').replaceAll('{{n}}', '$d'),
+      prayerText: es ? _eternalFatherEs : _eternalFatherEn,
       decadeIndex: d,
       totalDecades: totalDecades,
     ));
@@ -158,8 +170,8 @@ List<ChapletPrayerStep> buildDivineMercySteps() {
     for (int h = 1; h <= 10; h++) {
       steps.add(ChapletPrayerStep(
         type: ChapletStepType.hailMary,
-        label: 'Sorrowful Passion ($h of 10) — Decade $d',
-        prayerText: 'For the sake of His sorrowful Passion, have mercy on us and on the whole world.',
+        label: T('lbl_sorrowful_passion').replaceAll('{{n}}', '$h').replaceAll('{{d}}', '$d'),
+        prayerText: es ? _sorrowfulPassionEs : _sorrowfulPassionEn,
         beadIndex: h,
         totalBeads: 10,
         decadeIndex: d,
@@ -171,17 +183,18 @@ List<ChapletPrayerStep> buildDivineMercySteps() {
   for (int i = 1; i <= 3; i++) {
     steps.add(ChapletPrayerStep(
       type: ChapletStepType.customPrayer,
-      label: 'Holy God ($i of 3)',
-      prayerText: 'Holy God, Holy Mighty One, Holy Immortal One, have mercy on us and on the whole world.',
+      label: T('lbl_holy_god').replaceAll('{{n}}', '$i'),
+      prayerText: es ? _holyGodEs : _holyGodEn,
       repeatIndex: i,
       totalRepeats: 3,
     ));
   }
 
-  steps.add(const ChapletPrayerStep(
+  steps.add(ChapletPrayerStep(
     type: ChapletStepType.closing,
-    label: 'Closing Prayer',
-    prayerText: 'Eternal God, in whom mercy is endless and the treasury of compassion inexhaustible, look kindly upon us and increase Your mercy in us, that in difficult moments we might not despair nor become despondent, but with great confidence submit ourselves to Your holy will, which is Love and Mercy itself. Amen.',
+    label: T('lbl_concluding'),
+    prayerText: es ? _closingEs : _closingEn,
+    // (the Eternal God mercy text moved below into consts) and the treasury of compassion inexhaustible, look kindly upon us and increase Your mercy in us, that in difficult moments we might not despair nor become despondent, but with great confidence submit ourselves to Your holy will, which is Love and Mercy itself. Amen.',
   ));
 
   steps.add(const ChapletPrayerStep(type: ChapletStepType.signOfCross, label: 'Sign of the Cross', prayerText: _signOfTheCross));
@@ -713,10 +726,10 @@ List<ChapletPrayerStep> buildHolySpirit7BeadsSteps() {
 
 // ─── Builder function ────────────────────────────────────────────
 
-List<ChapletPrayerStep> buildChapletSteps(ChapletId id) {
+List<ChapletPrayerStep> buildChapletSteps(ChapletId id, {String language = 'en'}) {
   switch (id) {
     case ChapletId.divineMercy:
-      return buildDivineMercySteps();
+      return buildDivineMercySteps(language: language);
     case ChapletId.sevenSorrows:
       return buildSevenSorrowsSteps();
     case ChapletId.stMichael:

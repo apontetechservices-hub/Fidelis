@@ -312,6 +312,259 @@ V. Jesús, manso y humilde de corazón.
 R. Haz nuestro corazón semejante al tuyo.
 
 OREMOS: Todopoderoso y eterno Dios, mira el Corazón de tu Hijo bienamado, y las alabanzas y satisfacciones que te ofrece en nombre de los pecadores; y, aplacado, concede el perdón a los que imploren tu misericordia, en el nombre del mismo Jesucristo, tu Hijo, que vive y reina por los siglos de los siglos. Amén.''',
+    'Morning Prayer (Prime)':
+        '''En el nombre del Padre, y del Hijo, y del Espíritu Santo. Amén.
+
+Padre nuestro, Dios te salve María, Creo en Dios.
+
+V. Oh Dios, ven en mi auxilio.
+R. Señor, apresúrate a socorrerme.
+Gloria al Padre, y al Hijo, y al Espíritu Santo. Como era en el principio, ahora y siempre, y por los siglos de los siglos. Amén. Aleluya.
+
+
+HIMNO
+
+La estrella de la mañana va tras la noche;
+por eso suplicamos humildemente:
+que Dios, en nuestras palabras y obras,
+nos guarde de todo mal durante este día.
+
+Que sea Él quien, amoroso, nos frene
+de gritos de contienda y palabras nocivas,
+y envuelva y cierre nuestros ojos
+ante las vanidades atractivas de la tierra.
+
+Que ni en nuestro pecho more la ira,
+ni los pensamientos que engendran vergüenza,
+y que el ayuno doloroso domine
+la soberbia de la carne voluptuosa;
+
+para que cuando el día cansado cesare,
+y la noche y el silencio vuelvan,
+inmaculados y limpios del polvo del mundo
+podamos repetir con gozo reverente
+
+Al Dios Padre sea la gloria,
+y a su Hijo Unigénito,
+y al Espíritu, Uno y Trino,
+mientras corren los siglos sin fin. Amén.
+
+
+SALMO 54 (53)
+
+Sálvame, oh Dios, por tu nombre, y hazme justicia con tu poder.
+Escucha mi oración, oh Dios; presta oído a las palabras de mi boca.
+Porque se levantaron hombres insolentes contra mí, y hombres violentos buscan mi vida; no ponen a Dios delante de sí.
+Mira, Dios es mi auxiliador; el Señor sostiene mi vida.
+Él devolverá el mal a mis enemigos; en tu fidelidad, acaba con ellos.
+Con ofrenda voluntaria te sacrificaré; daré gracias a tu nombre, oh Señor, porque es bueno.
+Porque me libraste de toda aflicción, y mis ojos verán la ruina de mis enemigos.
+Gloria al Padre.
+
+
+SALMO 118 (119): 1-32
+
+Dichosos los que andan por el camino de la perfección, los que proceden conforme a la ley del Señor!
+Dichosos los que guardan sus preceptos, y lo buscan de todo corazón,
+y los que no proceden inicuamente, sino caminando por sus sendas!
+Tú promulgaste tus mandatos, para que se cumplieran fielmente.
+Ojalá se enmienden mis senderos, para guardar tus preceptos!
+Entonces no me avergonzaré, al considerar todos tus mandamientos.
+Te daré gracias con un corazón recto, cuando aprenda tus justos juicios.
+Guardaré tus preceptos; no me abandones del todo.
+¿Con qué purifica el joven su sendero? Con guardar según tu palabra.
+De todo corazón te busco; no me dejes errar de tus mandamientos!
+En mi corazón atesoro tus promesas, para no pecar contra ti.
+Bendito eres, oh Señor; enséñame tus preceptos!
+Con mis labios he contado todos los juicios de tu boca.
+En la senda de tus preceptos me deleito más que en toda riqueza.
+Meditaré sobre tus mandamientos, y miraré tus senderos.
+Me deleitaré en tus preceptos; no olvidaré tu palabra.
+Trata con generosidad a tu siervo, para que viva y guarde tu palabra.
+Abre mis ojos, y contemplaré las maravillas de tu ley.
+Soy forastero en la tierra; no escondas de mí tus mandamientos!
+Mi alma se consume ansiando continuamente tus decretos.
+Tú amenazas a los soberbios, malditos los que se desvían de tus mandamientos;
+líbrame de su insulto y desprecio, porque guardo tus preceptos.
+Aunque los príncipes se sentaron a hablar contra mí, tu siervo meditará tus preceptos;
+pues tus preceptos son mi delicia, y mis consejeros tus preceptos.
+Mi alma se pega al polvo: devuélveme a la vida según tu palabra!
+Te manifesté mis senderos, y tú me respondiste; enséñame tus decretos!
+Hazme penetrar en el sentido de tus preceptos, y meditaré tus maravillas.
+Mi alma se consume de tristeza: confirma mis senderos con tu palabra!
+Aparta de mí el sendero de la mentira; concédeme tu ley en tu gracia!
+Elijo la vía de la fidelidad, ante mí pongo tus decretos.
+Me adhiero a tus preceptos, oh Señor; no me avergüences!
+Corro por el sendero de tus mandamientos, cuando dilatas mi corazón.
+Gloria al Padre.
+
+
+CAPÍTULO
+
+Al Rey de los siglos, el Inmortal, el Invisible, el solo Dios, sean honor y gloria por los siglos de los siglos.
+R. Loado sea Dios.
+
+
+RESPONSORIO BREVE
+
+Cristo, Hijo de Dios vivo, ten piedad de nosotros.
+R. Cristo, Hijo de Dios vivo, ten piedad de nosotros.
+V. Tú que estás sentado a la diestra del Padre.
+R. Ten piedad de nosotros.
+V. Gloria al Padre, y al Hijo, y al Espíritu Santo.
+R. Cristo, Hijo de Dios vivo, ten piedad de nosotros.
+V. Levántate, oh Cristo, y socórrenos.
+R. Líbranos por tu nombre.
+
+
+ORACIONES
+
+V. Señor, escucha mi oración.
+R. Y mi clamor llegue a Ti.
+V. Dígnate, Señor, guardar este día
+R. Sin pecado.
+V. Ten piedad de nosotros, Señor.
+R. Ten piedad de nosotros.
+V. Sea tu misericordia, Señor, sobre nosotros.
+R. Como hemos esperado en Ti.
+
+
+COLECTA
+
+Oh Señor Dios Todopoderoso, que nos has traído al comienzo de este día: que tu poder nos defienda en él, para que hoy no caigamos en pecado, y que todos nuestros pensamientos, palabras y obras se dirijan siempre a lo que es justo a tus ojos. Por nuestro Señor Jesucristo, tu Hijo, que vive y reina contigo en la unidad del Espíritu Santo, un solo Dios, por los siglos de los siglos. Amén.''',
+    'Evening Prayer (Compline)':
+        '''En el nombre del Padre, y del Hijo, y del Espíritu Santo. Amén.
+
+V. Oh Dios, ven en mi auxilio.
+R. Señor, apresúrate a socorrerme.
+Gloria al Padre, y al Hijo, y al Espíritu Santo. Como era en el principio, ahora y siempre, y por los siglos de los siglos. Amén. Aleluya.
+
+
+LECCIÓN BREVE
+
+Sed sobrios, sed vigilantes. Tu adversario el diablo, como león rugiente, ronda buscando a quién devorar, al cual resistid firmes en la fe. Y que el Señor, oh Dios de los ejércitos, tenga misericordia de nosotros.
+R. Loado sea Dios.
+
+V. Nuestro auxilio está en el nombre del Señor.
+R. Que hizo el cielo y la tierra.
+
+
+SALMO 4 (3)
+
+Cuando invoqué, me respondiste, Dios de mi justicia; en la tribulación me diste sosiego. Ten piedad de mí, y escucha mi oración!
+Hijos de hombres, ¿hasta cuándo mi gloria sufrirá vergüenza? ¿Hasta cuándo amaréis la vanidad, y buscaréis la mentira?
+Sabed que el Señor ha santificado a su propio fiel; el Señor escuchará cuando yo clamare a Él.
+Temblad y no pequéis; hablad en vuestros corazones, en vuestros lechos, y callaos.
+Ofreced sacrificios de justicia, y poned vuestra confianza en el Señor.
+Muchos dicen: ¿Quién nos mostrará el bien? Se ha alzado sobre nosotros la luz de tu rostro, ¡Señor!
+Multiplicaste la alegría en mi corazón más que en el tiempo de su trigo y su vino.
+En paz me acostaré, y en seguida dormiré; porque Tú, Señor, me has hecho vivir en confianza.
+Gloria al Padre.
+
+
+SALMO 31 (30)
+
+En Ti, Señor, busqué refugio; nunca quede confundido; en tu justicia, líbrame!
+Inclina tu oído hacia mí; apresúrate a librarme! Sé mi roca, mi fortaleza, una fortaleza para salvarme!
+Porque Tú eres mi roca y mi castillo; y por tu nombre me dirigirás y me guiarás.
+Me sacarás de la red que ocultaron para mí, pues Tú eres mi refugio.
+En tus manos encomiendo mi espíritu; Tú me has redimido, Señor, Dios fiel.
+Gloria al Padre.
+
+
+SALMO 91 (90)
+
+Quien habita al abrigo del Altísimo, que mora bajo la sombra del Omnipotente, dirá al Señor: Refugio mío y fortaleza mía, mi Dios, en quien confío.
+Pues Él te librará del lazo del cazador, y de la peste funesta.
+Él te cubrirá con sus plumas, y bajo sus alas hallarás refugio; su fidelidad será tu escudo y pavesa.
+No temerás el espanto nocturno, ni la flecha que vuela de día,
+ni el contagio que acecha en las tinieblas, ni el mal que desola al mediodía.
+Caerán mil a tu lado, diez mil a tu derecha, pero el mal no se te acercará.
+Con tus ojos mirarás, y verás la recompensa de los impíos.
+Porque dijiste: El Señor es mi refugio; he puesto al Altísimo por mi protección.
+No se te acercará el mal, y ningún azote llegará a tu morada,
+pues ha dado orden a sus Ángeles acerca de ti, para que te guarden en todos tus caminos.
+En las manos te llevarán, para que tu pie no tropiece en piedra.
+Sobre el león y el basilisco pisarás; pisotearás al leoncillo y al dragón.
+Porque en mí ha puesto su amor, yo lo salvaré; lo pondré a salvo, porque ha conocido mi nombre.
+Me invocará y yo lo responderé; con él estaré en el peligro; lo libraré y le daré gloria.
+Con larga vida lo satisfaceré, y le mostraré mi salvación.
+Gloria al Padre.
+
+
+SALMO 134 (133)
+
+He aquí, bendecid al Señor, todos vosotros los siervos del Señor, que estáis de noche en la casa del Señor!
+Alzad vuestras manos hacia el santuario y bendecid al Señor!
+Que el Señor te bendiga desde Sión, Él que hizo el cielo y la tierra!
+Gloria al Padre.
+
+
+HIMNO
+
+Ahora que la luz del día muere,
+por toda tu gracia y amor,
+Te suplicamos, Hacedor del mundo,
+que vigiles nuestro lecho.
+
+Que los sueños se aparten y vuelen los fantasmas,
+engendros de la noche;
+guardanos, como santuarios, bajo tu Ojo,
+puros frente a los enemigos.
+
+Esta gracia confiere a tus redimidos,
+Padre, Hijo Coigual,
+y Espíritu Santo, el Consolador,
+Uno y Trino eternamente. Amén.
+
+
+CAPÍTULO
+
+Tú, Señor, estás entre nosotros, y tu Santo Nombre es invocado sobre nosotros: no nos desampares, Señor Dios nuestro.
+R. gracias a Dios.
+
+
+RESPONSORIO
+
+En tus manos, Señor, encomiendo mi espíritu.
+R. En tus manos, Señor, encomiendo mi espíritu.
+V. Tú nos has redimido, Señor, Dios de verdad.
+R. Encomiendo mi espíritu.
+V. Gloria al Padre, y al Hijo, y al Espíritu Santo.
+R. En tus manos, Señor, encomiendo mi espíritu.
+V. Guárdanos, Señor, como la pupila de tu ojo.
+R. Protégenos bajo la sombra de tus alas.
+
+
+CÁNTICO DE SIMEÓN (NUNC DIMITTIS)
+
+Ant. Sálvanos, Señor, velando, guardanos durmiendo: que velemos con Cristo, y descansemos en paz.
+
+Ahora, Señor, despedes a tu siervo irse en paz, según tu palabra;
+porque mis ojos han visto tu salvación,
+la que has preparado delante de todos los pueblos:
+luz para iluminar a los gentiles, y gloria de tu pueblo Israel.
+Gloria al Padre.
+
+
+COLECTA
+
+Visita, Te lo pedimos, Señor, esta morada, y aleja de ella todas las asechanzas del enemigo: que tus Santos Ángeles habiten en ella para conservarnos en paz, y que tu bendición permanezca siempre sobre nosotros. Por nuestro Señor Jesucristo, tu Hijo, que vive y reina contigo en la unidad del Espíritu Santo, un solo Dios, por los siglos de los siglos. Amén.
+
+
+BENEDICIÓN
+
+Que el Señor Todopoderoso y Misericordioso nos bendiga; el Padre, el Hijo, y el Espíritu Santo.
+R. Amén.
+
+
+ANTÍFONA MARIANA
+
+Ver Salve Regina (Oraciones Marianas) o la antífona de cada estación:
+• Alma Redemptoris Mater (Adviento hasta la Purificación)
+• Ave Regina Caelorum (Purificación hasta la Semana Santa)
+• Regina Caeli (Pascua hasta la Trinidad)
+• Salve Regina (Trinidad hasta el Adviento)''',
   };
 
   /// Display names in Spanish (lookup keys stay English).

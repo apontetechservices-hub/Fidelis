@@ -20,7 +20,7 @@ class _ChapletPrayerScreenState extends State<ChapletPrayerScreen> {
   @override
   void initState() {
     super.initState();
-    _steps = buildChapletSteps(widget.chapletId);
+    _steps = buildChapletSteps(widget.chapletId, language: AppStrings.locale);
   }
 
   @override
