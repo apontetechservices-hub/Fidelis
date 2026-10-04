@@ -111,6 +111,207 @@ class PrayerTranslations {
         'San Miguel Arcángel, defiéndenos en la batalla; sé nuestro amparo contra la maldad y las asechanzas del demonio. Que Dios le reprenda, es nuestra humilde súplica; y tú, Príncipe de la milicia celestial, arroja al infierno con el poder divino a Satanás y a todos los espíritus malignos que andan por el mundo para la perdición de las almas. Amén.',
     'Prayer before a Crucifix':
         'He aquí, oh Jesús bueno y dulcísimo, me postro ante tu presencia, y con el más ferviente anhelo de mi alma te ruego y suplico imprimas en mi corazón vivos sentimientos de fe, esperanza y caridad, verdadero arrepentimiento de mis pecados y firme propósito de enmendarme, mientras que con profundo cariño y dolor de alma contemplo mentalmente tus cinco llagas más preciosa, teniendo ante mis ojos aquellas palabras que David, tu profeta, puso en tu boca acerca de Ti: "Atravesaron mis manos y mis pies; he contado todos mis huesos."',
+    'Short Morning Prayer':
+        '''En el nombre del Padre, y del Hijo, y del Espíritu Santo. Amén.
+
+VEN, ESPÍRITU SANTO
+Ven, Espíritu Santo, llena el corazón de tus fieles, y enciende en ellos el fuego de tu amor.
+
+V. Envía tu Espíritu, y serán creados.
+R. Y renovarás la faz de la tierra.
+
+OREMOS
+Oh Dios, que por la luz del Espíritu Santo instruíste los corazones de los fieles, concédenos que, por ese mismo Espíritu, seamos siempre sabios, y gocemos de sus consolaciones. Por Cristo nuestro Señor. Amén.
+
+
+PADRE NUESTRO
+Padre nuestro, que estás en el cielo; santificado sea tu Nombre; venga a nosotros tu Reino; hágase tu voluntad, en la tierra como en el cielo. Danos hoy nuestro pan de cada día; perdona nuestras ofensas, como también nosotros perdonamos a los que nos ofenden; no nos dejes caer en la tentación, y líbranos del mal. Amén.
+
+DIOS TE SALVE MARÍA
+Dios te salve María, llena eres de gracia, el Señor es contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros, los pecadores, ahora y en la hora de nuestra muerte. Amén.
+
+CREO EN DIOS
+Creo en Dios, Padre todopoderoso, Creador del cielo y de la tierra. Creo en Jesucristo, su único Hijo, nuestro Señor, que fue concebido por obra y gracia del Espíritu Santo, nació de Santa María Virgen, padeció bajo el poder de Poncio Pilato, fue crucificado, muerto y sepultado, descendió a los infiernos, al tercer día resucitó de entre los muertos, subió a los cielos y está sentado a la derecha de Dios, Padre todopoderoso. Desde allí ha de venir a juzgar a los vivos y a los muertos. Creo en el Espíritu Santo, la santa Iglesia católica, la comunión de los santos, el perdón de los pecados, la resurrección de la carne y la vida eterna. Amén.
+
+
+CONSAGRACIÓN DEL DÍA
+Oh Señor Dios, Rey del cielo y de la tierra, que este día te dignes en ordenar y santificar, regir y gobernar nuestros corazones y cuerpos, nuestros pensamientos, palabras y obras, conforme a tu ley y al cumplimiento de tus mandamientos, para que, ayudados por Ti, seamos dignos de ser salvos y librados, oh Salvador del mundo, que vives y reinas por los siglos de los siglos. Amén.
+
+
+ACTO DE FE
+Dios mío, creo firmemente que Tú eres un solo Dios en tres Personas divinas: Padre, Hijo y Espíritu Santo; creo que tu Hijo divino se hizo hombre por nuestros pecados y murió por nosotros, y que ha de venir a juzgar a los vivos y a los muertos. Creo éstas y todas las verdades que enseña la Santa Iglesia Católica, porque Tú las has revelado, que no puedes engañar ni ser engañado.
+
+
+ACTO DE ESPERANZA
+Dios mío, esperando en tu omnipotencia e infinita bondad, y confiando en tus promesas, espero obtener el perdón de mis pecados, el auxilio de tu gracia y la vida eterna, por los méritos de Jesucristo, mi Señor y Redentor.
+
+
+ACTO DE CARIDAD
+Dios mío, porque eres todo bondad y digno de ser amado sobre todas las cosas, te amo con todo mi corazón y con toda mi alma; y por amor a Ti amo a mi prójimo como a mí mismo, y perdono de corazón a todos los que me han ofendido, y suplico perdón a todos los que he ofendido.
+
+
+ORACIÓN POR LA INTERCESIÓN DE LOS SANTOS
+Que la Bienaventurada Virgen María y todos los Santos intercedan por nosotros ante el Señor, para que seamos ayudados y salvados por Él, que vive y reina por los siglos de los siglos. Amén.''',
+    'Short Evening Prayer':
+        '''En el nombre del Padre, y del Hijo, y del Espíritu Santo. Amén.
+
+
+EXAMEN DE CONCIENCIA
+Oh Dios mío, juez soberano de los hombres, que no quieres la muerte del pecador, sino que se convierta y viva, ilumina mi mente para que conozca los pecados que hoy he cometido en pensamiento, palabra, obra y omisión, y concédeme la gracia de una verdadera contrición.
+
+(Aquí examina tu conciencia.)
+
+
+ACTO DE CONTRICIÓN
+Dios mío, me arrepiento de corazón y me pesa haberte ofendido, porque eres infinitamente bueno y el pecado te desagrada infinitamente. Te pido humildemente misericordia y perdón, por los méritos infinitos de Jesucristo. Resuelvo, con el auxilio de tu gracia, hacer penitencia de mis pecados, y procurar no ofenderte en adelante.
+
+YO CONFIESO
+Yo confieso ante Dios Todopoderoso, y ante Santa María, siempre Virgen, ante San Miguel Arcángel, ante San Juan Bautista, a los Santos Apóstoles Pedro y Pablo, y a todos los Santos, que he pecado mucho en pensamiento, palabra y obra: por mi culpa, por mi culpa, por mi gran culpa. Por eso suplico a Santa María siempre Virgen, a San Miguel Arcángel, a San Juan Bautista, a los Santos Apóstoles Pedro y Pablo, y a todos los Santos, que intercedan por mí ante Dios Nuestro Señor.
+
+Que Dios Todopoderoso y Misericordioso nos conceda el perdón, la absolución y la remisión de nuestros pecados. Amén.
+
+
+PADRE NUESTRO
+Padre nuestro, que estás en el cielo; santificado sea tu Nombre; venga a nosotros tu Reino; hágase tu voluntad, en la tierra como en el cielo. Danos hoy nuestro pan de cada día; perdona nuestras ofensas, como también nosotros perdonamos a los que nos ofenden; no nos dejes caer en la tentación, y líbranos del mal. Amén.
+
+DIOS TE SALVE MARÍA
+Dios te salve María, llena eres de gracia, el Señor es contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros, los pecadores, ahora y en la hora de nuestra muerte. Amén.
+
+CREO EN DIOS
+Creo en Dios, Padre todopoderoso, Creador del cielo y de la tierra. Creo en Jesucristo, su único Hijo, nuestro Señor, que fue concebido por obra y gracia del Espíritu Santo, nació de Santa María Virgen, padeció bajo el poder de Poncio Pilato, fue crucificado, muerto y sepultado, descendió a los infiernos, al tercer día resucitó de entre los muertos, subió a los cielos y está sentado a la derecha de Dios, Padre todopoderoso. Desde allí ha de venir a juzgar a los vivos y a los muertos. Creo en el Espíritu Santo, la santa Iglesia católica, la comunión de los santos, el perdón de los pecados, la resurrección de la carne y la vida eterna. Amén.
+
+
+ACCIÓN DE GRACIAS
+Oh Dios mío, me presento ante Ti al final de otro día, para ofrecerte de nuevo el homenaje de mi corazón. Te adoro humildemente, Creador mío, Redentor y Juez. Creo en Ti, porque eres Verdad misma; espero en Ti, porque eres fiel a tus promesas; te amo con todo mi corazón, porque eres infinitamente digno de ser amado; y por Ti amo a mi prójimo como a mí mismo.
+
+Hazme, oh Dios mío, dar gracias como debo por todas tus inestimables bendiciones y favores. Me has pensado y amado desde toda la eternidad; me has formado de la nada; entregaste a tu Hijo amado a la muerte ignominiosa de la Cruz por mi redención; me has hecho miembro de tu Santa Iglesia; me has preservado de caer en el abismo de la miseria eterna, aunque mis pecados merecían castigo; y con bondad me has tenido paciencia, aunque no he cesado de ofenderte. ¿Qué retorno, oh Dios mío, puedo hacerte por tus incontables bendiciones, y en particular por los favores de este día?
+
+
+ORACIÓN PARA UNA MUERTE FELIZ
+Oh Dios, grande y omnipotente Juez de los vivos y de los muertos, hemos de comparecer ante Ti después de esta breve vida para dar cuenta de nuestras obras. Concédenos que, acompañados de la Bienaventurada Virgen María y de todos los Santos, seamos hallados dignos de entrar en tu eterna alegría. Por Jesucristo, nuestro Señor, que vive y reina contigo en la unidad del Espíritu Santo, un solo Dios, por los siglos de los siglos. Amén.
+
+
+ORACIÓN POR LA INTERCESIÓN DE LOS SANTOS
+Que la Bienaventurada Virgen María y todos los Santos intercedan por nosotros ante el Señor, para que seamos ayudados y salvados por Él, que vive y reina por los siglos de los siglos. Amén.
+
+
+ORACIÓN POR LOS FIELES DIFUNTOS
+Concédeles, Señor, el descanso eterno, y brille para ellos la luz perpetua. Descansen en paz. Amén.''',
+    'Litany of the Saints':
+        '''Señor, ten piedad de nosotros.
+Cristo, ten piedad de nosotros.
+Señor, ten piedad de nosotros. Cristo, escúchanos. Cristo, óyenos.
+
+Dios Padre celestial, ten piedad de nosotros.
+Dios Hijo, Redentor del mundo, ten piedad de nosotros.
+Dios Espíritu Santo, ten piedad de nosotros.
+Santísima Trinidad, un solo Dios, ten piedad de nosotros.
+
+Santa María, ruega por nosotros.
+Santa Madre de Dios, ruega por nosotros.
+Santa Virgen de las vírgenes, ruega por nosotros.
+San Miguel, ruega por nosotros.
+San Gabriel, ruega por nosotros.
+San Rafael, ruega por nosotros.
+Todos los Santos Ángeles y Arcángeles, ruega por nosotros.
+Todos los coros de los espíritus bienaventurados, ruega por nosotros.
+
+San Juan Bautista, ruega por nosotros.
+San José, ruega por nosotros.
+Todos los Santos Patriarcas y Profetas, ruega por nosotros.
+San Pedro, ruega por nosotros.
+San Pablo, ruega por nosotros.
+San Andrés, ruega por nosotros.
+San Juan, ruega por nosotros.
+Todos los Santos Apóstoles y Evangelistas, ruega por nosotros.
+
+San Esteban, ruega por nosotros.
+San Lorenzo, ruega por nosotros.
+Todos los Santos Mártires, ruega por nosotros.
+San Gregorio, ruega por nosotros.
+San Agustín, ruega por nosotros.
+Todos los Santos Obispos y Confesores, ruega por nosotros.
+
+San Benito, ruega por nosotros.
+San Francisco, ruega por nosotros.
+Santo Domingo, ruega por nosotros.
+Todos los Santos Monjes y Ermitaños, ruega por nosotros.
+
+Santa María Magdalena, ruega por nosotros.
+Santa Inés, ruega por nosotros.
+Santa Cecilia, ruega por nosotros.
+Todas las Santas Vírgenes y Viudas, ruega por nosotros.
+Todos los Santos de Dios, ruega por nosotros.
+
+Sed misericordioso, perdónanos, Señor.
+Sed misericordioso, escúchanos, Señor.
+
+De todo mal, Señor, líbranos.
+De todo pecado, Señor, líbranos.
+De tu ira, Señor, líbranos.
+De muerte súbita e imprevista, Señor, líbranos.
+De las asechanzas del demonio, Señor, líbranos.
+De la ira, del odio y de toda mala voluntad, Señor, líbranos.
+Del rayo y de la tempestad, Señor, líbranos.
+Del flagelo del terremoto, Señor, líbranos.
+De peste, hambre y guerra, Señor, líbranos.
+De la muerte eterna, Señor, líbranos.
+
+A nosotros pecadores, Te suplicamos, óyenos.
+Que perdones, Te lo suplicamos, óyenos.
+Que nos traigas a penitencia verdadera, Te lo suplicamos, óyenos.
+Que gobiernes y conserves tu Santa Iglesia, Te lo suplicamos, óyenos.
+Que conserves a nuestro Santo Padre, Te lo suplicamos, óyenos.
+Que des paz y unión a todo el pueblo cristiano, Te lo suplicamos, óyenos.
+
+Cordero de Dios, que quitas el pecado del mundo, perdónanos, Señor.
+Cordero de Dios, que quitas el pecado del mundo, escúchanos, Señor.
+Cordero de Dios, que quitas el pecado del mundo, ten piedad de nosotros.
+
+Cristo, escúchanos. Cristo, óyenos.
+Señor, ten piedad. Cristo, ten piedad. Señor, ten piedad.''',
+    'Litany of the Sacred Heart':
+        '''Señor, ten piedad de nosotros. Cristo, ten piedad de nosotros.
+Señor, ten piedad de nosotros. Cristo, escúchanos. Cristo, óyenos.
+
+Dios Padre celestial, ten piedad de nosotros.
+Dios Hijo, Redentor del mundo, ten piedad de nosotros.
+Dios Espíritu Santo, ten piedad de nosotros.
+Santísima Trinidad, un solo Dios, ten piedad de nosotros.
+
+Corazón de Jesús, Hijo del Padre Eterno, ten piedad de nosotros.
+Corazón de Jesús, formado por el Espíritu Santo en el seno de la Virgen Madre, ten piedad de nosotros.
+Corazón de Jesús, unido sustancialmente al Verbo de Dios, ten piedad de nosotros.
+Corazón de Jesús, de majestad infinita, ten piedad de nosotros.
+Corazón de Jesús, templo sagrado de Dios, ten piedad de nosotros.
+Corazón de Jesús, tabernáculo del Altísimo, ten piedad de nosotros.
+Corazón de Jesús, casa de Dios y puerta del Cielo, ten piedad de nosotros.
+Corazón de Jesús, horno ardiente de caridad, ten piedad de nosotros.
+Corazón de Jesús, refugio de los afligidos, ten piedad de nosotros.
+Corazón de Jesús, paciente y misericordiosísimo, ten piedad de nosotros.
+Corazón de Jesús, generoso para todos los que te invocan, ten piedad de nosotros.
+Corazón de Jesús, fuente de vida y santidad, ten piedad de nosotros.
+Corazón de Jesús, propiciación de nuestros pecados, ten piedad de nosotros.
+Corazón de Jesús, cargado de oprobios, ten piedad de nosotros.
+Corazón de Jesús, manso y humilde de corazón, ten piedad de nosotros.
+Corazón de Jesús, obediente hasta la muerte, ten piedad de nosotros.
+Corazón de Jesús, atravesado por la lanza, ten piedad de nosotros.
+Corazón de Jesús, fuente de toda consolación, ten piedad de nosotros.
+Corazón de Jesús, nuestra vida y resurrección, ten piedad de nosotros.
+Corazón de Jesús, nuestra paz y reconciliación, ten piedad de nosotros.
+Corazón de Jesús, víctima de los pecadores, ten piedad de nosotros.
+Corazón de Jesús, salvación de los que en ti confían, ten piedad de nosotros.
+Corazón de Jesús, esperanza de los que mueren en ti, ten piedad de nosotros.
+Corazón de Jesús, delicia de todos los Santos, ten piedad de nosotros.
+
+Cordero de Dios, que quitas el pecado del mundo, perdónanos, Señor.
+Cordero de Dios, que quitas el pecado del mundo, escúchanos, Señor.
+Cordero de Dios, que quitas el pecado del mundo, ten piedad de nosotros.
+
+V. Jesús, manso y humilde de corazón.
+R. Haz nuestro corazón semejante al tuyo.
+
+OREMOS: Todopoderoso y eterno Dios, mira el Corazón de tu Hijo bienamado, y las alabanzas y satisfacciones que te ofrece en nombre de los pecadores; y, aplacado, concede el perdón a los que imploren tu misericordia, en el nombre del mismo Jesucristo, tu Hijo, que vive y reina por los siglos de los siglos. Amén.''',
   };
 
   /// Display names in Spanish (lookup keys stay English).
