@@ -48,7 +48,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadTodayFeast() async {
     try {
       final now = DateTime.now();
-      final calendar = (await MissalCache.getCalendar(now.year)) ?? await MissalService.getCalendar(now.year);
+      final calendar = (await MissalCache.getCalendar(now.year)) ??
+          await MissalService.getCalendar(now.year, lang: AppStrings.locale);
       await MissalCache.saveCalendar(now.year, calendar);
       final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       for (final day in calendar) {

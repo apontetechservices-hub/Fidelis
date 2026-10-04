@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import 'missal_service.dart';
+import '../../config/app_strings.dart';
 import 'usccb_service.dart';
 
 /// Local SQLite cache for Missal API data.
@@ -157,7 +158,7 @@ class MissalCache {
           await saveUsccbReadings(dateStr, readings);
         } else {
           if (await isProperFresh(dateStr)) continue;
-          final propers = await MissalService.getProper(date);
+          final propers = await MissalService.getProper(date, lang: AppStrings.locale);
           await saveProper(dateStr, propers);
         }
       } catch (_) {

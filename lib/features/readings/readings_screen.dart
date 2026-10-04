@@ -68,7 +68,8 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
   Future<void> _loadTraditionalReadings(String dateStr) async {
     List<Proper> propers;
     try {
-      propers = await MissalService.getProper(_selectedDate);
+      propers =
+          await MissalService.getProper(_selectedDate, lang: AppStrings.locale);
       await MissalCache.saveProper(dateStr, propers);
     } catch (e) {
       final cached = await MissalCache.getProper(dateStr);

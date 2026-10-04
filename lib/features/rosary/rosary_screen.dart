@@ -33,7 +33,8 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _rosaryType = prefs.getString('rosary_type') ?? AppConstants.rosaryTraditional;
-      _language = prefs.getString('rosary_language') ?? AppConstants.langEnglish;
+        _language =
+      prefs.getString('rosary_language') ?? AppStrings.locale;
     });
   }
 
