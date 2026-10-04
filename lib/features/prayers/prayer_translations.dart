@@ -15,7 +15,7 @@ class PrayerTranslations {
     'Anima Christi':
         'Anima Christi, sanctifica me.\nCorpus Christi, salva me.\nSanguis Christi, inebria me.\nAqua lateris Christi, lava me.\nPassio Christi, conforta me.\nO bone Jesu, exaudi me.\nIntra tua vulnera absconde me.\nNe permittas me separari a Te.\nAb hoste maligno defende me.\nIn hora mortis meæ voca me.\nEt iube me venire ad Te,\nut cum Sanctis tuis laudem Te\nin sæcula sæculorum. Amen.',
     'Prayer before Mass':
-        'Omnipotens sempiterne Deus, ecce accedo ad Sacramentum unigeniti Filii tui, Domini nostri Iesu Christi: ego ægrotus venio ad Medicaæ vitae; immundus ad Fontem misericordiæ; cæcus ad Lucem æternæ claritatis; pauper et egenus ad Dominum cæli et terræ. Deprecor igitur immensam largitatem tuæ divitiae, ut sanes et mundes me, omnes maculas vitiorum eveillas, atque omnia in me secundum præcepta tua disponas, ut, Te adiuvante, hic et in futurum digne servari merear, o Salvator mundi, qui vivis et regnas in sæcula sæculorum. Amen.',
+        'Omnipotens sempiterne Deus, ecce accedo ad Sacramentum unigeniti Filii tui, Domini nostri Iesu Christi: ego ægrotus venio ad Medicam vitae; immundus ad Fontem misericordiæ; cæcus ad Lucem æternæ claritatis; pauper et egenus ad Dominum cæli et terræ. Deprecor igitur immensam largitatem tuæ divitiae, ut sanes et mundes me, omnes maculas vitiorum eveillas, atque omnia in me secundum præcepta tua disponas, ut, Te adiuvante, hic et in futurum digne servari merear, o Salvator mundi, qui vivis et regnas in sæcula sæculorum. Amen.',
     'Prayer before Communion':
         'Domine, non sum dignus ut intres sub tectum meum: sed tantum dic verbo, et sanabitur anima mea. Te, Domine, indignum confiteor ad recipientum Corpus tuum sacrum et Sanguinem pretiosum. Credo firmiter, et confiteor, Te esse Christum, Filium Dei vivi, qui in mundum venisti ut salvares peccatores, quorum primus ego sum. Quare, Domine, obsecro, ut gratia tua, quæ infinita est, suppleat quæ in me desunt, ut digne accedam ad hoc sanctissimum Sacramentum. Amen.',
     'Prayer after Communion':
@@ -23,7 +23,7 @@ class PrayerTranslations {
     'Anima Christi (after Communion)':
         'Anima Christi, sanctifica me.\nCorpus Christi, salva me.\nSanguis Christi, inebria me.\nAqua lateris Christi, lava me.\nPassio Christi, conforta me.\nO bone Jesu, exaudi me.\nIntra tua vulnera absconde me.\nNe permittas me separari a Te.\nAb hoste maligno defende me.\nIn hora mortis meæ voca me.\nEt iube me venire ad Te,\nut cum Sanctis tuis laudem Te\nin sæcula sæculorum. Amen.',
     'Prayer of St. Thomas Aquinas before Communion':
-        'Omnipotens sempiterne Deus, ecce accedo ad Sacramentum unigeniti Filii tui, Domini nostri Iesu Christi, tanquam æger ad Medicaæ vitae, immundus ad Fontem misericordiæ, cæcus ad Lucem æternæ claritatis, pauper et egenus ad Dominum cæli et terræ. Te, igitur, deprecor, immensæ divitiæ tuæ abundantia, ut emundare et sanare digneris cor meum, sanctificare animam meam, et dignum facere Corpus et Sanguinem Filii tui accipere. Qui vivis et regnas in sæcula sæculorum. Amen.',
+        'Omnipotens sempiterne Deus, ecce accedo ad Sacramentum unigeniti Filii tui, Domini nostri Iesu Christi, tanquam æger ad Medicam vitae, immundus ad Fontem misericordiæ, cæcus ad Lucem æternæ claritatis, pauper et egenus ad Dominum cæli et terræ. Te, igitur, deprecor, immensæ divitiæ tuæ abundantia, ut emundare et sanare digneris cor meum, sanctificare animam meam, et dignum facere Corpus et Sanguinem Filii tui accipere. Qui vivis et regnas in sæcula sæculorum. Amen.',
     'Prayer of St. Thomas Aquinas after Communion':
         'Gratias tibi ago, sancte Pater, Domine omnipotens, æterne Deus, quia me peccatorem, indignum famulum tuum, ex mera et larga tua benignitate dignatus es pascere sacro Corpore et Sanguine Filii tui, Domini nostri Iesu Christi. Sit mihi hæc Communio non in condemnationem, sed in salutem; sit mihi armorum fidei, spei et caritatis lorica, bonæ conscientiæ scutum, omniumque virtutum munimentum. Qui vivis et regnas in sæcula sæculorum. Amen.',
     'Prayer after Mass (Thanksgiving)':
@@ -111,6 +111,7 @@ class PrayerTranslations {
         'San Miguel Arcángel, defiéndenos en la batalla; sé nuestro amparo contra la maldad y las asechanzas del demonio. Que Dios le reprenda, es nuestra humilde súplica; y tú, Príncipe de la milicia celestial, arroja al infierno con el poder divino a Satanás y a todos los espíritus malignos que andan por el mundo para la perdición de las almas. Amén.',
     'Prayer before a Crucifix':
         'He aquí, oh Jesús bueno y dulcísimo, me postro ante tu presencia, y con el más ferviente anhelo de mi alma te ruego y suplico imprimas en mi corazón vivos sentimientos de fe, esperanza y caridad, verdadero arrepentimiento de mis pecados y firme propósito de enmendarme, mientras que con profundo cariño y dolor de alma contemplo mentalmente tus cinco llagas más preciosa, teniendo ante mis ojos aquellas palabras que David, tu profeta, puso en tu boca acerca de Ti: "Atravesaron mis manos y mis pies; he contado todos mis huesos."',
+  };
 
   /// Display names in Spanish (lookup keys stay English).
   static const Map<String, String> titlesEs = const {
@@ -158,7 +159,5 @@ class PrayerTranslations {
     'Litanies': 'Letanías',
     'Prayers for the Dead': 'Oraciones por los Difuntos',
     'Devotions': 'Devociones',
-  };
-
   };
 }
