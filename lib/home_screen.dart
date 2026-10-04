@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'config/theme.dart';
 import 'config/constants.dart';
+import 'config/app_strings.dart';
 import 'features/rosary/rosary_screen.dart';
 import 'features/rosary/rosary_prayer_screen.dart';
 import 'features/readings/readings_screen.dart';
@@ -96,11 +97,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           indicatorColor: isDark ? FidelisTheme.gold.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.2),
           labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
           destinations: [
-            NavigationDestination(icon: Icon(Icons.home, color: isDark ? FidelisTheme.gold : Colors.white), label: 'Home'),
-            NavigationDestination(icon: Icon(Icons.auto_awesome, color: isDark ? FidelisTheme.gold : Colors.white), label: 'Rosary'),
-            NavigationDestination(icon: Icon(Icons.menu_book, color: isDark ? FidelisTheme.gold : Colors.white), label: 'Readings'),
-            NavigationDestination(icon: Icon(Icons.church, color: isDark ? FidelisTheme.gold : Colors.white), label: 'Prayers'),
-            NavigationDestination(icon: Icon(Icons.calendar_month, color: isDark ? FidelisTheme.gold : Colors.white), label: 'Calendar'),
+            NavigationDestination(icon: Icon(Icons.home, color: isDark ? FidelisTheme.gold : Colors.white), label: AppStrings.t('nav_home')),
+            NavigationDestination(icon: Icon(Icons.auto_awesome, color: isDark ? FidelisTheme.gold : Colors.white), label: AppStrings.t('nav_rosary')),
+            NavigationDestination(icon: Icon(Icons.menu_book, color: isDark ? FidelisTheme.gold : Colors.white), label: AppStrings.t('nav_readings')),
+            NavigationDestination(icon: Icon(Icons.church, color: isDark ? FidelisTheme.gold : Colors.white), label: AppStrings.t('nav_prayers')),
+            NavigationDestination(icon: Icon(Icons.calendar_month, color: isDark ? FidelisTheme.gold : Colors.white), label: AppStrings.t('nav_calendar')),
           ],
         ),
       ),
@@ -111,18 +112,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Exit Fidelis?'),
-        content: const Text('Are you sure you want to close the app?'),
+        title: Text(AppStrings.t('exit_title')),
+        content: Text(AppStrings.t('exit_body')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Stay'),
+            child: Text(AppStrings.t('stay')),
           ),
           ElevatedButton(
             onPressed: () {
               SystemNavigator.pop();
             },
-            child: const Text('Exit'),
+            child: Text(AppStrings.t('exit')),
           ),
         ],
       ),
@@ -205,11 +206,11 @@ class _DashboardPageState extends State<_DashboardPage> {
             const SizedBox(height: 20),
 
             // Quick actions
-            Text('Quick Actions', style: theme.textTheme.titleLarge),
+            Text(AppStrings.t('quick_actions'), style: theme.textTheme.titleLarge),
             const SizedBox(height: 12),
             _QuickActionWide(
               icon: Icons.access_time_rounded,
-              label: 'Daily Prayers',
+              label: AppStrings.t('daily_prayers'),
               color: FidelisTheme.deepRed,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DailyPrayersScreen())),
             ),
@@ -220,14 +221,14 @@ class _DashboardPageState extends State<_DashboardPage> {
                 children: [
                   Expanded(child: _QuickAction(
                     icon: Icons.wb_twilight,
-                    label: hour < 18 ? 'Morning Prayer' : 'Evening Prayer',
+                    label: AppStrings.t(hour < 18 ? 'morning_prayer' : 'evening_prayer'),
                     color: hour < 18 ? FidelisTheme.gold : const Color(0xFF7E57C2),
                     onTap: () => PrayersScreen.openPrayerByName(context, hour < 18 ? 'Short Morning Prayer' : 'Short Evening Prayer'),
                   )),
                   const SizedBox(width: 12),
                   Expanded(child: _QuickAction(
                     icon: Icons.local_florist,
-                    label: 'Novenas',
+                    label: AppStrings.t('novenas'),
                     color: const Color(0xFFEC407A),
                     onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NovenasScreen())),
                   )),
@@ -241,14 +242,14 @@ class _DashboardPageState extends State<_DashboardPage> {
                 children: [
                   Expanded(child: _QuickAction(
                     icon: Icons.favorite_border,
-                    label: 'More Chaplets',
+                    label: AppStrings.t('more_chaplets'),
                     color: const Color(0xFFE57373),
                     onTap: () => _startChapletList(context),
                   )),
                   const SizedBox(width: 12),
                   Expanded(child: _QuickAction(
                     icon: Icons.menu_book_outlined,
-                    label: 'About the Rosary',
+                    label: AppStrings.t('about_rosary'),
                     color: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
                     onTap: () => _showRosaryGuide(context),
                   )),
@@ -258,7 +259,7 @@ class _DashboardPageState extends State<_DashboardPage> {
             const SizedBox(height: 12),
             _QuickActionWide(
               icon: Icons.church,
-              label: 'Stations of the Cross',
+              label: AppStrings.t('stations'),
               color: FidelisTheme.deepPurple,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StationsScreen())),
             ),
@@ -671,7 +672,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     widget.onTabChange(1);
                   },
                   icon: const Icon(Icons.auto_awesome),
-                  label: const Text('Go to Rosary'),
+                  label: const Text(AppStrings.t('go_to_rosary')),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
                     foregroundColor: Colors.white,

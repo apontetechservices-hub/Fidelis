@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import '../readings/missal_service.dart';
 
 class SaintsScreen extends StatefulWidget {
@@ -50,11 +51,11 @@ class _SaintsScreenState extends State<SaintsScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('1962 Calendar'),
+        title: Text(AppStrings.t('title_saints')),
         actions: [
           IconButton(
             icon: const Icon(Icons.calendar_month),
-            tooltip: 'Go to today',
+            tooltip: AppStrings.t('go_to_today'),
             onPressed: () {
               setState(() {
                 _year = today.year;
@@ -480,9 +481,9 @@ class _SaintsScreenState extends State<SaintsScreen> {
             const SizedBox(height: 16),
             Text('Unable to load calendar', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
-            const Text('Check your connection and try again.'),
+            const Text(AppStrings.t('check_connection')),
             const SizedBox(height: 16),
-            ElevatedButton(onPressed: _loadCalendar, child: const Text('Retry')),
+            ElevatedButton(onPressed: _loadCalendar, child: const Text(AppStrings.t('retry'))),
           ],
         ),
       ),
@@ -502,7 +503,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
     final day = _getDay(date);
     if (day == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No data available for this date')),
+        const SnackBar(content: Text(AppStrings.t('no_data_for_date'))),
       );
       return;
     }
@@ -593,7 +594,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
                         Navigator.pushNamed(context, '/readings', arguments: date);
                       },
                       icon: const Icon(Icons.menu_book),
-                      label: const Text('Mass Readings'),
+                      label: const Text(AppStrings.t('mass_readings')),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                         foregroundColor: Colors.white,

@@ -111,5 +111,54 @@ class PrayerTranslations {
         'San Miguel Arcángel, defiéndenos en la batalla; sé nuestro amparo contra la maldad y las asechanzas del demonio. Que Dios le reprenda, es nuestra humilde súplica; y tú, Príncipe de la milicia celestial, arroja al infierno con el poder divino a Satanás y a todos los espíritus malignos que andan por el mundo para la perdición de las almas. Amén.',
     'Prayer before a Crucifix':
         'He aquí, oh Jesús bueno y dulcísimo, me postro ante tu presencia, y con el más ferviente anhelo de mi alma te ruego y suplico imprimas en mi corazón vivos sentimientos de fe, esperanza y caridad, verdadero arrepentimiento de mis pecados y firme propósito de enmendarme, mientras que con profundo cariño y dolor de alma contemplo mentalmente tus cinco llagas más preciosa, teniendo ante mis ojos aquellas palabras que David, tu profeta, puso en tu boca acerca de Ti: "Atravesaron mis manos y mis pies; he contado todos mis huesos."',
+
+  /// Display names in Spanish (lookup keys stay English).
+  static const Map<String, String> titlesEs = const {
+    'Divine Mercy Chaplet': 'Coronilla de la Divina Misericordia',
+    'The Angelus': 'El Ángelus',
+    'Regina Caeli (Easter Angelus)': 'Regina Caeli (Ángelus Pascual)',
+    'Morning Offering': 'Ofrecimiento de la Mañana',
+    'Act of Contrition': 'Acto de Contrición',
+    'Anima Christi': 'Anima Christi',
+    'Prayer before Mass': 'Oración antes de la Misa',
+    'Prayer before Communion': 'Oración antes de Comulgar',
+    'Prayer after Communion': 'Oración después de Comulgar',
+    'Anima Christi (after Communion)': 'Anima Christi (después de Comulgar)',
+    'Prayer of St. Thomas Aquinas before Communion': 'Oración de San Tomás de Aquino antes de Comulgar',
+    'Prayer of St. Thomas Aquinas after Communion': 'Oración de San Tomás de Aquino después de Comulgar',
+    'Prayer after Mass (Thanksgiving)': 'Oración después de la Misa (Acción de Gracias)',
+    'Night Prayer': 'Oración de la Noche',
+    'Morning Prayer (Prime)': 'Oración de la Mañana (Prima)',
+    'Prayer of Consecration of the Day': 'Consagración del Día',
+    'Evening Prayer (Compline)': 'Oración de la Noche (Completas)',
+    'Short Morning Prayer': 'Oración Breve de la Mañana',
+    'Short Evening Prayer': 'Oración Breve de la Noche',
+    'Salve Regina': 'Salve Regina',
+    'Memorare': 'Memorare',
+    'Sub Tuum Praesidium': 'Sub Tuum Praesidium',
+    'Ave Maris Stella': 'Ave Maris Stella',
+    'Litany of Loreto': 'Letanía de Loreto',
+    'Litany of the Saints': 'Letanía de los Santos',
+    'Litany of the Sacred Heart': 'Letanía al Sagrado Corazón de Jesús',
+    'De Profundis (Psalm 130)': 'De Profundis (Salmo 130)',
+    'Eternal Rest': 'Descanso Eterno',
+    'Prayer for the Dead': 'Oración por los Difuntos',
+    'Act of Faith': 'Acto de Fe',
+    'Act of Hope': 'Acto de Esperanza',
+    'Act of Charity': 'Acto de Caridad',
+    'Prayer to St. Michael the Archangel': 'Oración a San Miguel Arcángel',
+    'Prayer before a Crucifix': 'Oración ante un Crucifijo',
+  };
+
+  /// Category display names in Spanish.
+  static const Map<String, String> catEs = const {
+    'Daily Prayers': 'Oraciones Diarias',
+    'Morning & Evening Prayer': 'Oración Matutina y Vespertina',
+    'Marian Prayers': 'Oraciones Marianas',
+    'Litanies': 'Letanías',
+    'Prayers for the Dead': 'Oraciones por los Difuntos',
+    'Devotions': 'Devociones',
+  };
+
   };
 }

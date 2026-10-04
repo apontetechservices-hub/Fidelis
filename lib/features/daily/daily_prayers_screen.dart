@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
+import '../prayers/prayer_translations.dart';
 import '../../services/notification_service.dart';
 import '../prayers/prayers_screen.dart';
 import '../chaplet/chaplet_list_screen.dart';
@@ -87,16 +89,17 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
       '_${t.toLowerCase().replaceAll(RegExp('[^a-z]+'), '_')}';
 
   /// The day's prayers — the Angelus becomes the Regina Caeli in Eastertide.
-  List<(String, IconData)> _dayList() {
+  List<(String lookup, String display, IconData)> _dayList() {
     final easter = DailyPrayersScreen.isEasterSeason(DateTime.now());
+    String nm(String t) =>
+        AppStrings.isSpanish ? (PrayerTranslations.titlesEs[t] ?? t) : t;
+    final angelusKey = easter ? 'Regina Caeli (Easter Angelus)' : 'The Angelus';
     return [
-      ('Morning Offering', Icons.wb_sunny),
-      (
-        easter ? 'Regina Caeli (Easter Angelus)' : 'The Angelus',
-        easter ? Icons.celebration_outlined : Icons.church_outlined,
-      ),
-      ('Act of Contrition', Icons.favorite_border),
-      ('Night Prayer', Icons.nightlight),
+      ('Morning Offering', nm('Morning Offering'), Icons.wb_sunny),
+      (angelusKey, nm(angelusKey),
+          easter ? Icons.celebration_outlined : Icons.church_outlined),
+      ('Act of Contrition', nm('Act of Contrition'), Icons.favorite_border),
+      ('Night Prayer', nm('Night Prayer'), Icons.nightlight),
     ];
   }
 
@@ -107,18 +110,18 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
     final easter = DailyPrayersScreen.isEasterSeason(now);
     final angelus = easter ? 'Regina Caeli (Easter Angelus)' : 'The Angelus';
     if (h >= 5 && h < 11) {
-      return ('Morning Offering', 'Begin the day — offer everything to God', Icons.wb_sunny);
+      return ('Morning Offering', AppStrings.t('sub_morning'), Icons.wb_sunny);
     }
     if (h >= 11 && h < 14) {
-      return (angelus, 'Midday — the bell tolls for the Angelus', Icons.access_time_rounded);
+      return (angelus, AppStrings.t('sub_midday'), Icons.access_time_rounded);
     }
     if (h >= 15 && h < 16) {
-      return ('Divine Mercy Chaplet', 'The Hour of Great Mercy — 3 PM', Icons.favorite);
+      return ('Divine Mercy Chaplet', AppStrings.t('sub_mercy'), Icons.favorite);
     }
     if (h >= 17 && h < 20) {
-      return (angelus, 'At the close of day', Icons.wb_twilight);
+      return (angelus, AppStrings.t('sub_evening'), Icons.wb_twilight);
     }
-    return ('Night Prayer', 'End the day in peace', Icons.nightlight);
+    return ('Night Prayer', AppStrings.t('sub_night'), Icons.nightlight);
   }
 
   void _openDevotion(String title) {
@@ -139,7 +142,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
     final s = _suggestion();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Daily Prayers')),
+      appBar: AppBar(title: Text(AppStrings.t('title_daily'))),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         children: [
@@ -165,7 +168,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'NOW IS A GOOD TIME FOR',
+                      AppStrings.t('now_good_time_for'),
                       style: theme.textTheme.labelSmall?.copyWith(
                         color: isDark ? FidelisTheme.gold : Colors.white70,
                         letterSpacing: 1.2,
@@ -178,7 +181,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            s.$1,
+                            nm(s.$1),
                             style: theme.textTheme.titleLarge?.copyWith(
                               color: Colors.white,
                               fontWeight: FontWeight.bold,
@@ -200,7 +203,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
 
           // The day's prayers
           Text(
-            "The Day's Prayers",
+            "AppStrings.t('the_days_prayers')",
             style: theme.textTheme.titleLarge?.copyWith(color: FidelisTheme.gold),
           ),
           const SizedBox(height: 8),
@@ -208,8 +211,8 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
             Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
-                leading: Icon(p.$2, color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed),
-                title: Text(p.$1, style: theme.textTheme.bodyLarge),
+                leading: Icon(p.$3, color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed),
+                title: Text(p.$2, style: theme.textTheme.bodyLarge),
                 onTap: () => _openDevotion(p.$1),
                 trailing: Checkbox(
                   value: _done[p.$1] ?? false,
@@ -223,12 +226,12 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
 
           // Reminders
           Text(
-            'Reminders',
+            AppStrings.t('reminders'),
             style: theme.textTheme.titleLarge?.copyWith(color: FidelisTheme.gold),
           ),
           SwitchListTile(
-            title: const Text('Angelus reminders'),
-            subtitle: const Text('6 AM · noon · 6 PM'),
+            title: Text(AppStrings.t('angelus_reminders')),
+            subtitle: Text(AppStrings.t('angelus_times')),
             value: _reminder,
             onChanged: _setReminder,
             activeColor: FidelisTheme.gold,

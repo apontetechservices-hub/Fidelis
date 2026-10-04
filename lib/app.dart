@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'config/theme.dart';
+import 'config/app_strings.dart';
 import 'config/routes.dart';
 import 'splash_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,12 +23,19 @@ class _FidelisAppState extends State<FidelisApp> {
   @override
   void initState() {
     super.initState();
-    _loadTheme();
+    _loadSettings();
+    AppStrings.localeNotifier.addListener(_onLocaleChanged);
   }
 
-  Future<void> _loadTheme() async {
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadSettings() async {
+    await AppStrings.load();
     final prefs = await SharedPreferences.getInstance();
     final darkMode = prefs.getBool('dark_mode') ?? false;
+    if (!mounted) return;
     setState(() {
       _themeMode = darkMode ? ThemeMode.dark : ThemeMode.light;
     });
@@ -44,11 +52,13 @@ class _FidelisAppState extends State<FidelisApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      key: ValueKey('app-${AppStrings.locale}'),
       title: 'Fidelis',
       debugShowCheckedModeBanner: false,
       theme: FidelisTheme.lightTheme,
       darkTheme: FidelisTheme.darkTheme,
       themeMode: _themeMode,
+      locale: Locale(AppStrings.locale),
       initialRoute: '/splash',
       routes: {
         '/splash': (context) => const SplashScreen(),

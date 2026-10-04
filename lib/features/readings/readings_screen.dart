@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'missal_service.dart';
 import 'missal_cache.dart';
 import 'usccb_service.dart';
@@ -123,19 +124,19 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Daily Mass Readings'),
+        title: Text(AppStrings.t('title_readings')),
         actions: [
           // Missal toggle
           PopupMenuButton<String>(
             icon: const Icon(Icons.menu_book),
-            tooltip: 'Select Missal',
+            tooltip: AppStrings.t('select_missal'),
             onSelected: _switchMissal,
             itemBuilder: (context) => [
               const PopupMenuItem(
                 value: '1962',
                 child: ListTile(
                   leading: Icon(Icons.history_edu),
-                  title: Text('Traditional (1962)'),
+                  title: Text(AppStrings.t('traditional_1962')),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -143,7 +144,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
                 value: 'novus_ordo',
                 child: ListTile(
                   leading: Icon(Icons.church),
-                  title: Text('Novus Ordo'),
+                  title: Text(AppStrings.t('novus_ordo')),
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
@@ -184,12 +185,12 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             const Icon(Icons.cloud_off, size: 48, color: FidelisTheme.gold),
             const SizedBox(height: 16),
             Text(
-              'Unable to load readings',
+              AppStrings.t('unable_to_load'),
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
             const Text(
-              'Please check your internet connection and try again.',
+              AppStrings.t('please_check_connection'),
               textAlign: TextAlign.center,
             ),
             if (_error != null) ...[
@@ -205,7 +206,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadReadings,
-              child: const Text('Retry'),
+              child: const Text(AppStrings.t('retry')),
             ),
           ],
         ),
@@ -217,7 +218,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
 
   Widget _buildTraditionalReadings(BuildContext context) {
     if (_propers == null || _propers!.isEmpty) {
-      return const Center(child: Text('No readings available for this date.'));
+      return const Center(child: Text(AppStrings.t('no_readings')));
     }
 
     final proper = _propers!.first;
@@ -574,7 +575,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     return Center(
       child: FilterChip(
         label: Text(
-          _missal == '1962' ? '📖 1962 Roman Missal' : '📖 Novus Ordo',
+          _missal == '1962' ? '📖 ' + AppStrings.t('title_1962_missal') : '📖 ' + AppStrings.t('novus_ordo'),
         ),
         onSelected: (_) {
           _switchMissal(_missal == '1962' ? 'novus_ordo' : '1962');

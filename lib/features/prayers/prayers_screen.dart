@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../config/app_strings.dart';
 import '../../config/constants.dart';
 import '../../config/theme.dart';
 import 'prayer_translations.dart';
@@ -57,7 +58,9 @@ class PrayersScreen extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(top: 16, bottom: 8),
               child: Text(
-                category.name,
+                AppStrings.isSpanish
+                    ? (PrayerTranslations.catEs[category.name] ?? category.name)
+                    : category.name,
                 style: theme.textTheme.titleLarge?.copyWith(color: FidelisTheme.gold),
               ),
             ),
@@ -89,7 +92,12 @@ class _PrayerCard extends StatelessWidget {
               Icon(prayer.icon, size: 20, color: theme.brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(prayer.title, style: theme.textTheme.bodyLarge),
+                child: Text(
+                  AppStrings.isSpanish
+                      ? (PrayerTranslations.titlesEs[prayer.title] ?? prayer.title)
+                      : prayer.title,
+                  style: theme.textTheme.bodyLarge,
+                ),
               ),
               const Icon(Icons.chevron_right, size: 18),
             ],
@@ -160,6 +168,11 @@ class _PrayerDetailScreen extends StatefulWidget {
 class _PrayerDetailScreenState extends State<_PrayerDetailScreen> {
   String _lang = AppConstants.langEnglish;
 
+  String get _displayName =>
+      AppStrings.isSpanish
+          ? (PrayerTranslations.titlesEs[widget.prayer.title] ?? widget.prayer.title)
+          : widget.prayer.title;
+
   @override
   void initState() {
     super.initState();
@@ -170,7 +183,7 @@ class _PrayerDetailScreenState extends State<_PrayerDetailScreen> {
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
     setState(() =>
-        _lang = prefs.getString('prayer_language') ?? AppConstants.langEnglish);
+        _lang = prefs.getString('prayer_language') ?? AppStrings.locale);
   }
 
   Future<void> _setLanguage(String lang) async {
@@ -200,13 +213,14 @@ class _PrayerDetailScreenState extends State<_PrayerDetailScreen> {
         PrayerTranslations.spanish.containsKey(widget.prayer.title);
 
     final options = <(String, String)>[
-      ('English', AppConstants.langEnglish),
+      AppStrings.isSpanish
+          ? ('Español', AppConstants.langSpanish)
+          : ('English', AppConstants.langEnglish),
       if (hasLatin) ('Latin', AppConstants.langLatin),
-      if (hasSpanish) ('Español', AppConstants.langSpanish),
     ];
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.prayer.title)),
+      appBar: AppBar(title: Text(_displayName)),
       body: SingleChildScrollView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         child: Column(

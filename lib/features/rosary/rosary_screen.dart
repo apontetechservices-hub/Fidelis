@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import '../../config/constants.dart';
 import 'rosary_prayer_screen.dart';
 import 'rosary_state.dart';
@@ -81,7 +82,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Holy Rosary'),
+        title: const Text(AppStrings.t('title_holy_rosary')),
         actions: [
           // Rosary type dropdown
           Padding(
@@ -98,11 +99,11 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
               items: const [
                 DropdownMenuItem(
                   value: AppConstants.rosaryTraditional,
-                  child: Text('Traditional'),
+                  child: Text(AppStrings.t('traditional')),
                 ),
                 DropdownMenuItem(
                   value: AppConstants.rosaryNovusOrdo,
-                  child: Text('Novus Ordo'),
+                  child: Text(AppStrings.t('novus_ordo')),
                 ),
               ],
               onChanged: (value) {
@@ -216,7 +217,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             OutlinedButton.icon(
               onPressed: () => _startDeadRosary(),
               icon: const Icon(Icons.church),
-              label: const Text('Rosary for the Dead'),
+              label: const Text(AppStrings.t('rosary_for_the_dead')),
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
               ),
@@ -348,8 +349,8 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(value: 'him', child: Text('Male')),
-                      DropdownMenuItem(value: 'her', child: Text('Female')),
+                      DropdownMenuItem(value: 'him', child: Text(AppStrings.t('male'))),
+                      DropdownMenuItem(value: 'her', child: Text(AppStrings.t('female'))),
                     ],
                     onChanged: (value) => setState(() => pronoun = value ?? 'him'),
                   ),
@@ -359,7 +360,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
+                child: const Text(AppStrings.t('cancel')),
               ),
               ElevatedButton(
                 onPressed: () {
@@ -378,7 +379,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
                     ),
                   );
                 },
-                child: const Text('Begin'),
+                child: const Text(AppStrings.t('begin')),
               ),
             ],
           ),
