@@ -135,7 +135,10 @@ class _PrayerCard extends StatelessWidget {
 
     // For other litany-style prayers with long text, also use the reader
     if (prayer.isLitany) {
-      final lines = prayer.text.split('\n').where((l) => l.trim().isNotEmpty).toList();
+      final litText = AppStrings.isSpanish
+          ? (PrayerTranslations.spanish[prayer.title] ?? prayer.text)
+          : prayer.text;
+      final lines = litText.split('\n').where((l) => l.trim().isNotEmpty).toList();
       Navigator.push(
         context,
         MaterialPageRoute(
