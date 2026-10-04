@@ -99,7 +99,11 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
       if (cached != null) {
         readings = cached;
       } else {
-        rethrow;
+        throw Exception(
+          'The Novus Ordo readings feed is unreachable — the source website is blocking app connections right now. '
+          'Cached readings will appear for days you have viewed before. Your 1962 Missal readings are unaffected and work '
+          'offline — switch the readings mode to 1962 if you need today\'s readings.',
+        );
       }
     }
     setState(() {

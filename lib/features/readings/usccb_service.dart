@@ -15,12 +15,21 @@ class UsccbService {
   static const Duration _timeout = Duration(seconds: 15);
   static const int _maxRetries = 3;
 
+  /// Browser-like headers — the source's firewall rejects bare app user-agents with 403.
+  static const Map<String, String> _headers = {
+    'User-Agent':
+        'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36',
+    'Accept':
+        'text/html,application/xhtml+xml,application/json;q=0.9,text/plain,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+  };
+
   /// HTTP GET with timeout and retries with backoff.
   static Future<http.Response> _getWithRetry(Uri url) async {
     Exception? lastException;
     for (int attempt = 0; attempt < _maxRetries; attempt++) {
       try {
-        final response = await http.get(url).timeout(_timeout);
+        final response = await http.get(url, headers: _headers).timeout(_timeout);
         if (response.statusCode == 200) return response;
         if (response.statusCode >= 500 && attempt < _maxRetries - 1) {
           await _backoff(attempt);
