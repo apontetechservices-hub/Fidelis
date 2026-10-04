@@ -42,6 +42,16 @@ class MysteryData {
     }
   }
 
+  String verseRefFor(String lang) {
+    if (lang == 'es') return mysteryVersesEs[id]?[0] ?? verseRef;
+    return verseRef;
+  }
+
+  String verseTextFor(String lang) {
+    if (lang == 'es') return mysteryVersesEs[id]?[1] ?? verseText;
+    return verseText;
+  }
+
   String meditation(String lang) {
     switch (lang) {
       case 'la': return meditationLa;
@@ -421,3 +431,87 @@ class MysteryData {
     }
   }
 }
+
+/// Spanish scripture verses per mystery (id -> [ref, text])
+const Map<String, List<String>> mysteryVersesEs = {
+  'joyful_1': [
+    'Lucas 1:26-38',
+    '''En el sexto mes, el ángel Gabriel fue enviado por Dios a una ciudad de Galilea llamada Nazaret, a una virgen desposada con un hombre llamado José, de la casa de David; y el nombre de la virgen era María. Entrando, le dijo: «Dios te salve, llena de gracia, el Señor es contigo». Pero ella se turbó y pensaba qué sería esta salutación. Y el ángel le dijo: «No temas, María, porque has hallado gracia ante Dios. Concebirás en tu vientre y darás a luz un hijo, al que pondrás por nombre Jesús. Él será grande y llamado Hijo del Altísimo, y el Señor Dios le dará el trono de David su padre, y su reino no tendrá fin». María dijo al ángel: «¿Cómo será esto, ya que no conozco varón?». El ángel le dijo: «El Espíritu Santo vendrá sobre ti y el poder del Altísimo te cubrirá; por eso el Santo que ha de nacer será llamado Hijo de Dios. Tu pariente Isabel también ha concebido un hijo en su vejez, pues nada es imposible para Dios». María dijo: «He aquí la esclava del Señor; hágase en mí según tu palabra». Y el ángel se fue de su presencia.''',
+  ],
+  'joyful_2': [
+    'Lucas 1:39-45',
+    '''En aquellos días, María se levantó y fue con prontitud a la región montañosa, a una ciudad de Judá. Entró en la casa de Zacarías y saludó a Isabel. Aconteció que en cuanto Isabel oyó la salutación de María, saltó el niño en su vientre; e Isabel, llena del Espíritu Santo, exclamó a gran voz: «Bendita tú entre todas las mujeres, y bendito el fruto de tu vientre. ¿Por qué a mí se me concede que venga a verme la madre de mi Señor? Pues al oír tu salutación, saltó de júbilo el niño en mi vientre. Bienaventurada la que ha creído que se cumplirá lo dicho por el Señor».''',
+  ],
+  'joyful_3': [
+    'Lucas 2:1-7',
+    '''En aquellos días salió un decreto de César Augusto ordenando que se hiciera el censo de todo el mundo, el primero siendo Quirino gobernador de Siria. Todos iban a empadronarse, cada uno a su ciudad. José también subió de Galilea, de la ciudad de Nazaret, a Judea, a la ciudad de David llamada Belén, por ser de la casa y familia de David, para empadronarse con María, su esposa, que estaba encinta. Y sucedió que, mientras estaban allí, se cumplieron los días de su alumbramiento, y dio a luz a su hijo primogénito, lo envolvió en pañales y lo recostó en un pesebre, porque no había lugar para ellos en el mesón.''',
+  ],
+  'joyful_4': [
+    'Lucas 2:22-35',
+    '''Cuando se cumplieron los días de su purificación según la Ley de Moisés, lo llevaron a Jerusalén para presentarle al Señor... y para sacrificar, según lo dicho en la Ley del Señor, «un par de tórtolas o dos palominos». Había en Jerusalén un hombre llamado Simeón, justo y piadoso, que aguardaba la consolación de Israel, y el Espíritu Santo estaba sobre él; le había sido revelado que no vería la muerte antes de ver al Cristo del Señor. Movido por el Espíritu, vino al Templo; y cuando los padres introdujeron al niño Jesús, lo tomó en sus brazos, bendijo a Dios y dijo: «Ahora, Señor, despides a tu siervo en paz, según tu palabra; porque mis ojos han visto tu salvación, la que has preparado ante todos los pueblos: luz para iluminar a los gentiles y gloria de tu pueblo Israel».''',
+  ],
+  'joyful_5': [
+    'Lucas 2:41-52',
+    '''Los padres de Jesús iban todos los años a Jerusalén a la fiesta de la Pascua. Cuando tuvo doce años, subieron como de costumbre; pero al terminar la fiesta, se quedó el niño Jesús en Jerusalén sin saberlo sus padres. Creyéndolo en la caravana, caminaron un día de camino; y lo buscaban entre los parientes y conocidos; al no encontrarlo, volvieron a Jerusalén buscándolo. Al tercer día lo hallaron en el Templo, sentado en medio de los maestros, escuchándolos y preguntándoles; y todos se admiraban de su inteligencia y de sus respuestas. Su madre le dijo: «Hijo, ¿por qué nos has hecho esto? Tu padre y yo te buscábamos afligidísimos». Él les dijo: «¿Por qué me buscabais? ¿No sabíais que en las cosas de mi Padre me es necesario estar?»''',
+  ],
+  'sorrowful_1': [
+    'Mateo 26:36-46',
+    '''Entonces Jesús fue con ellos a un lugar llamado Getsemaní, y dijo a sus discípulos: «Sentaos aquí mientras voy allí a orar». Tomando consigo a Pedro y a los dos hijos de Zebedeo, comenzó a entristecerse y angustiarse, y les dijo: «Mi alma está triste hasta la muerte; quedaos aquí y velad conmigo». Adelantándose un poco, cayó sobre su rostro, orando: «Padre mío, si es posible, pase de mí esta copa; pero no sea como yo quiero, sino como Tú». Volvió y los halló dormidos; dijo a Pedro: «¿No habéis podido velar conmigo una sola hora? Velad y orad, para no entrar en tentación; el espíritu está dispuesto, pero la carne es débil». Por segunda vez se fue y oró: «Padre mío, si esta copa no puede pasar sin que yo la beba, hágase tu voluntad».''',
+  ],
+  'sorrowful_2': [
+    'Juan 19:1',
+    '''Entonces Pilato tomó a Jesús y lo azotó.''',
+  ],
+  'sorrowful_3': [
+    'Mateo 27:27-31',
+    '''Los soldados del gobernador llevaron a Jesús al pretorio y reunieron junto a él toda la cohorte. Lo desnudaron y le pusieron un manto escarlata; trenzando una corona de espinas, la pusieron sobre su cabeza, y una caña en su mano derecha; arrodillándose ante él, lo escarnecían: «¡Salve, Rey de los judíos!». Escupiéndole, tomaban la caña y le golpeaban la cabeza. Después de escarnecerlo, le quitaron el manto, le vistieron sus ropas y lo condujeron a crucificar.''',
+  ],
+  'sorrowful_4': [
+    'Juan 19:17',
+    '''Y tomando a Jesús, este salió cargando su cruz, hacia el lugar llamado de la Calavera, que en hebreo se dice Gólgota.''',
+  ],
+  'sorrowful_5': [
+    'Juan 19:18-30',
+    '''Allí lo crucificaron, con dos otros, uno de cada lado, y Jesús en medio. Pilato escribió un título y lo puso sobre la cruz: «Jesús de Nazaret, el Rey de los judíos»... Después de esto, Jesús, sabiendo que todo estaba cumplido, dijo (para que se cumpliera la Escritura): «Tengo sed». Pusieron una esponja llena de vinagre en hisopo y la acercaron a su boca. Cuando Jesús tomó el vinagre, dijo: «Todo está cumplido»; e inclinando la cabeza, entregó el espíritu.''',
+  ],
+  'glorious_1': [
+    'Mateo 28:1-10',
+    '''Pasado el sábado, al amanecer del primer día de la semana, María Magdalena y la otra María fueron a ver el sepulcro. Hubo un gran terremoto: un ángel del Señor descendió del cielo, apartó la piedra y se sentó sobre ella. Su aspecto era como un relámpago, y su vestido blanco como la nieve. Los guardas temblaron y quedaron como muertos. El ángel dijo a las mujeres: «No temáis; sé que buscáis a Jesús crucificado. No está aquí, pues ha resucitado como dijo. Venid a ver el lugar donde estaba».''',
+  ],
+  'glorious_2': [
+    'Hechos 1:6-11',
+    '''Reunidos, le preguntaron: «Señor, ¿es este el tiempo en que restablecerás el reino de Israel?». Les dijo: «No os toca conocer los tiempos o momentos que el Padre fijó con su autoridad; pero recibiréis poder al venir el Espíritu Santo sobre vosotros, y seréis mis testigos en Jerusalén, en toda Judea y Samaria, y hasta el confín de la tierra». Dicho esto, fue alzado; una nube lo recibió y lo ocultó a sus ojos. Estando mirando al cielo, dos varones con vestiduras blancas dijeron: «Varones galileos, ¿por qué miráis al cielo? Este Jesús, alzado de entre vosotros al cielo, vendrá como lo habéis visto ir».''',
+  ],
+  'glorious_3': [
+    'Hechos 2:1-4',
+    '''Cumpliéndose el día de Pentecostés, estaban todos en un mismo. Y de repente vino del cielo un estruendo como de un viento recio que llenó toda la casa; se les aparecieron lenguas repartidas como de fuego, reposando sobre cada uno; y fueron todos llenos del Espíritu Santo y comenzaron a hablar en otras lenguas, según el Espíritu les daba hablar.''',
+  ],
+  'glorious_4': [
+    'Apocalipsis 12:1',
+    '''Y un gran portento apareció en el cielo: una mujer vestida del sol, con la luna bajo sus pies, y sobre su cabeza una corona de doce estrellas.''',
+  ],
+  'glorious_5': [
+    'Apocalipsis 12:1',
+    '''Y un gran portento apareció en el cielo: una mujer vestida del sol, con la luna bajo sus pies, y sobre su cabeza una corona de doce estrellas.''',
+  ],
+  'luminous_1': [
+    'Mateo 3:13-17',
+    '''Entonces Jesús vino de Galilea al Jordán, a Juan, para ser bautizado por él. Juan lo impedía: «Yo necesito ser bautizado por ti, ¿y tú vienes a mí?». Respondió Jesús: «Deja ahora, conviene que cumplamos toda justicia». Entonces lo dejó. Y bautizado Jesús, subió inmediatamente del agua; he aquí los cielos se abrieron y vio al Espíritu de Dios descendiendo como paloma y viniendo sobre él; y he aquí una voz del cielo: «Este es mi Hijo amado, en quien tengo mis complacencias».''',
+  ],
+  'luminous_2': [
+    'Juan 2:1-11',
+    '''Al tercer día se celebraba unas bodas en Caná de Galilea, y estaba allí la madre de Jesús; también fue invitado Jesús con sus discípulos. Y faltando el vino, la madre de Jesús le dijo: «No tienen vino». Jesús le respondió: «¿Qué me va a mí y a ti, mujer? Aún no ha llegado mi hora». Su madre dijo a los sirvientes: «Haced lo que os dijere»... Este comienzo de los milagros lo hizo Jesús en Caná de Galilea y manifestó su gloria, y sus discípulos creyeron en él.''',
+  ],
+  'luminous_3': [
+    'Marcos 1:14-15',
+    '''Después de que Juan fue apresado, Jesús vino a Galilea predicando el Evangelio de Dios, y diciendo: «Se ha cumplido el tiempo, y el reino de Dios está cerca; convertíos y creed en el Evangelio».''',
+  ],
+  'luminous_4': [
+    'Mateo 17:1-8',
+    '''Pasados seis días, Jesús tomó a Pedro, a Santiago y a Juan, su hermano, y los llevó a un alto monte aparte. Y se transfiguró delante de ellos; brilló su rostro como el sol y sus vestidos se volvieron blancos como la luz. He aquí les aparecieron Moisés y Elías hablando con él... Y aún hablaba, cuando una nube luminosa los cubrió y he aquí una voz de la nube: «Este es mi Hijo amado, en quien tengo mis complacencias; escuchadlo».''',
+  ],
+  'luminous_5': [
+    '1 Corintios 11:23-26',
+    '''Yo recibí del Señor lo que os he entregado: que el Señor Jesús, la noche en que fue entregado, tomó el pan, y dando gracias, lo partió y dijo: «Esto es mi cuerpo por vosotros; haced esto en memoria mía». Asimismo la copa después de cenar: «Esta copa es la Nueva Alianza en mi Sangre; haced esto cuantas veces la bebiereis, en memoria mía». Porque cuantas veces coméis este pan y bebéis esta copa, anunciáis la muerte del Señor hasta que venga.''',
+  ],
+};

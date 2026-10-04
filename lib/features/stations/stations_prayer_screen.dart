@@ -163,7 +163,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        _info.meditation,
+                        _info.meditationFor(AppStrings.locale),
                         style: theme.textTheme.bodyLarge?.copyWith(
                           height: 1.7,
                           color: theme.colorScheme.onSurface.withValues(alpha: 0.85),

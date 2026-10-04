@@ -22,6 +22,17 @@ class StationInfo {
     required this.meditation,
     required this.image,
   });
+
+  String titleFor(String lang) {
+    if (lang == 'es') return stationTitlesEs[number]?[0] ?? title;
+    if (lang == 'la') return titleLa;
+    return title;
+  }
+
+  String meditationFor(String lang) {
+    if (lang == 'es') return stationTitlesEs[number]?[1] ?? meditation;
+    return meditation;
+  }
 }
 
 const List<StationInfo> stationInfo = [
@@ -565,3 +576,63 @@ const String ourFather = 'Our Father, who art in heaven, hallowed be Thy name. T
 const String hailMary = 'Hail Mary, full of grace, the Lord is with thee. Blessed art thou among women, and blessed is the fruit of thy womb, Jesus. Holy Mary, Mother of God, pray for us sinners, now and at the hour of our death. Amen.';
 
 const String gloryBe = 'Glory be to the Father, and to the Son, and to the Holy Spirit. As it was in the beginning, is now, and ever shall be, world without end. Amen.';
+
+/// Spanish station titles + meditations (station number -> [title, meditation])
+const Map<int, List<String>> stationTitlesEs = {
+  1: [
+    'Jesús es condenado a muerte',
+    '''Jesús guarda silencio ante Pilato. Acepta la sentencia injusta por nuestro amor.''',
+  ],
+  2: [
+    'Jesús lleva su cruz',
+    '''Jesús toma la pesada cruz. Lleva el peso de nuestros pecados.''',
+  ],
+  3: [
+    'Jesús cae por primera vez',
+    '''Jesús cae bajo el peso de la cruz. Se levanta de nuevo por nosotros.''',
+  ],
+  4: [
+    'Jesús encuentra a su Madre',
+    '''María encuentra a su Hijo en el camino del dolor. Sus corazones quedan atravesados de dolor.''',
+  ],
+  5: [
+    'Simón de Cirene ayuda a Jesús',
+    '''Simón es obligado a ayudar a llevar la cruz. También nosotros estamos llamados a llevarnos mutuamente las cargas.''',
+  ],
+  6: [
+    'Verónica enjaga el rostro de Jesús',
+    '''Verónica avanza con valentía y compasión. Como recompensa recibe su Santa Imagen.''',
+  ],
+  7: [
+    'Jesús cae por segunda vez',
+    '''Jesús cae de nuevo, agotado. Se levanta una vez más, sostenido por el amor.''',
+  ],
+  8: [
+    'Jesús consuela a las mujeres de Jerusalén',
+    '''Jesús conforta a las mujeres que lloran. Convierte su dolor hacia un arrepentimiento.''',
+  ],
+  9: [
+    'Jesús cae por tercera vez',
+    '''Jesús cae por tercera vez, casi sin fuerzas. Pero no se rinde.''',
+  ],
+  10: [
+    'Jesús es despojado de sus vestiduras',
+    '''Jesús es despojado y expuesto. Soporta esta humillación por nuestra causa.''',
+  ],
+  11: [
+    'Jesús es clavado en la cruz',
+    '''Los clavos atraviesan sus manos y sus pies. Cada golpe es recibido con amor.''',
+  ],
+  12: [
+    'Jesús muere en la cruz',
+    '''Jesús exhala su último suspiro. El Hijo de Dios entrega su vida por el mundo.''',
+  ],
+  13: [
+    'Jesús es bajado de la cruz',
+    '''María recibe el cuerpo sin vida de su Hijo. Su dolor sobrepasa las palabras.''',
+  ],
+  14: [
+    'Jesús es sepultado',
+    '''Jesús es puesto a descansar. Se cierra la piedra. Comienza el Sábado Santo.''',
+  ],
+};

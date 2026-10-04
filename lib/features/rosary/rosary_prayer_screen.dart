@@ -248,7 +248,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
               child: Column(
                 children: [
                   Text(
-                    mystery.verseRef,
+                    mystery.verseRefFor(_language),
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: isDarkMode(context) ? FidelisTheme.gold : FidelisTheme.deepRed,
                       fontWeight: FontWeight.bold,
@@ -258,7 +258,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    mystery.verseText,
+                    mystery.verseTextFor(_language),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       height: 1.6,
                       fontStyle: FontStyle.italic,

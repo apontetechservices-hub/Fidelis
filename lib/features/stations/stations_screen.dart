@@ -167,7 +167,7 @@ class _StationsScreenState extends State<StationsScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    station.title,
+                                    station.titleFor(AppStrings.locale),
                                     style: theme.textTheme.bodyLarge?.copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
