@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import '../config/app_strings.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz_data;
@@ -111,8 +112,8 @@ class NotificationService {
 
     await plugin.zonedSchedule(
       id: _massId,
-      title: 'Daily Mass',
-      body: 'Prepare your heart for the Holy Sacrifice of the Mass.',
+      title: AppStrings.t('notif_mass_t'),
+      body: AppStrings.t('notif_mass_b'),
       scheduledDate: _nextInstanceOfTime(hour, minute),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -143,8 +144,8 @@ class NotificationService {
 
     await plugin.zonedSchedule(
       id: _rosaryId,
-      title: 'Pray the Rosary',
-      body: 'Our Lady awaits your daily rosary.',
+      title: AppStrings.t('notif_rosary_t'),
+      body: AppStrings.t('notif_rosary_b'),
       scheduledDate: _nextInstanceOfTime(hour, minute),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -175,8 +176,8 @@ class NotificationService {
 
     await plugin.zonedSchedule(
       id: _chapletId,
-      title: 'Divine Mercy Chaplet',
-      body: 'It\'s the Hour of Mercy — pray the Chaplet.',
+      title: AppStrings.t('notif_chaplet_t'),
+      body: AppStrings.t('notif_chaplet_b'),
       scheduledDate: _nextInstanceOfTime(hour, minute),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -208,7 +209,7 @@ class NotificationService {
     await plugin.zonedSchedule(
       id: id,
       title: novenaTitle,
-      body: 'Day $day of 9 — Continue your novena prayer.',
+      body: AppStrings.t('notif_novena_b').replaceAll('{{n}}', '$day'),
       scheduledDate: _nextInstanceOfTime(hour, minute),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -236,9 +237,9 @@ class NotificationService {
     if (!enabled) return;
 
     final angelusTimes = <(int, int, String, String)>[
-      (_angelusMorningId, 6, 'The Angelus', 'Dawn — the Angel of the Lord declared unto Mary. Pray the Angelus.'),
-      (_angelusNoonId, 12, 'The Angelus', 'Midday — the bell tolls. Pause and pray the Angelus.'),
-      (_angelusEveningId, 18, 'The Angelus', 'At the close of day — pray the Angelus.'),
+      (_angelusMorningId, 6, AppStrings.t('lbl_announce').replaceAll('{{o}}', ''), AppStrings.t('notif_angelus_m')),
+      (_angelusNoonId, 12, AppStrings.t('lbl_sign_of_cross').contains('Señal') ? 'El Ángelus' : 'The Angelus', AppStrings.t('notif_angelus_n')),
+      (_angelusEveningId, 18, AppStrings.t('lbl_sign_of_cross').contains('Señal') ? 'El Ángelus' : 'The Angelus', AppStrings.t('notif_angelus_e')),
     ];
     for (final entry in angelusTimes) {
       await plugin.zonedSchedule(

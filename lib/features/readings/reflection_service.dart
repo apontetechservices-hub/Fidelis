@@ -1,6 +1,7 @@
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
+import '../../config/app_strings.dart';
 
 /// Daily Gospel reflection from My Catholic Life! (catholic-daily-reflections.com)
 /// RSS feed: https://catholic-daily-reflections.com/feed/
@@ -160,7 +161,7 @@ class ReflectionService {
 
   static String _dateKey(DateTime dt) {
     final months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    return '${months[dt.month - 1]} ${dt.day}, ${dt.year}';
+    return '${AppStrings.monthName(dt.month)} ${dt.day}, ${dt.year}';
   }
 
   static Future<DailyReflection?> _fetchFromRss() async {
@@ -238,7 +239,7 @@ class ReflectionService {
       final text = _stripHtml(match.group(1) ?? '').trim();
       if (text.isEmpty) continue;
       // Skip navigation/link lines
-      if (text.startsWith('Readings for') || text.startsWith('More Gospel') ||
+      if (text.startsWith(AppStrings.t('readings_for')) || text.startsWith('More Gospel') ||
           text.startsWith('Divine Mercy') || text.startsWith('All Saints') ||
           text.startsWith('Mass Reading') || text.contains('Easter Season Prayers')) {
         continue;

@@ -512,7 +512,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         children: [
           if (isIntroductory)
             Text(
-              'Three Hail Marys for the increase of Faith, Hope, and Charity',
+              AppStrings.t('three_hail_marys_note'),
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: FidelisTheme.gold,
                 fontWeight: FontWeight.w600,
@@ -683,7 +683,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         content: Text(
           widget.isForDead
               ? 'You have completed the Rosary for the Dead. May the souls of the faithful departed rest in peace.'
-              : 'You have completed the Holy Rosary. May the Blessed Virgin Mary intercede for you.',
+              : AppStrings.t('rosary_complete_body'),
         ),
         actions: [
           ElevatedButton(

@@ -77,7 +77,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search saints and feasts...',
+                hintText: AppStrings.t('search_saints'),
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
@@ -215,7 +215,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
                 },
               ),
               Text(
-                '${monthNames[_focusedMonth.month]} ${_focusedMonth.year}',
+                '${AppStrings.monthName(_focusedMonth.month)} ${_focusedMonth.year}',
                 style: theme.textTheme.titleLarge?.copyWith(color: FidelisTheme.gold),
               ),
               IconButton(
@@ -479,7 +479,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
           children: [
             const Icon(Icons.cloud_off, size: 48, color: FidelisTheme.gold),
             const SizedBox(height: 16),
-            Text('Unable to load calendar', style: Theme.of(context).textTheme.titleLarge),
+            Text(AppStrings.t('unable_to_load_calendar'), style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             Text(AppStrings.t('check_connection')),
             const SizedBox(height: 16),

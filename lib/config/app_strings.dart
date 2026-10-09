@@ -47,6 +47,15 @@ class AppStrings {
   /// (rosary steps follow the rosary's own selector, not the app locale).
   static String tFor(String key, String lang) =>
       _strings[key]?[lang] ?? _strings[key]?['en'] ?? key;
+  static const List<String> _monthsEn = ['', 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  static const List<String> _monthsEs = ['', 'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+
+  /// Localized month name (1-12), for date headers across screens.
+  static String monthName(int month) {
+    if (month < 1 || month > 12) return '';
+    return (isSpanish ? _monthsEs : _monthsEn)[month];
+  }
+
 
   static const Map<String, Map<String, String>> _strings = {
     // ---- Navigation ----
@@ -246,9 +255,55 @@ class AppStrings {
     'traditional': {'en': 'Traditional', 'es': 'Tradicional'},
     'male': {'en': 'Male', 'es': 'Hombre'},
     'female': {'en': 'Female', 'es': 'Mujer'},
+    'notif_mass_t': {'en': 'Daily Mass', 'es': 'Misa Diaria'},
+    'notif_mass_b': {'en': 'Prepare your heart for the Holy Sacrifice of the Mass.', 'es': 'Prepara tu corazón para el Santo Sacrificio de la Misa.'},
+    'notif_rosary_t': {'en': 'Pray the Rosary', 'es': 'Reza el Rosario'},
+    'notif_rosary_b': {'en': 'Our Lady awaits your daily rosary.', 'es': 'Nuestra Señora espera tu rosario diario.'},
+    'notif_chaplet_t': {'en': 'Divine Mercy Chaplet', 'es': 'Coronilla de la Divina Misericordia'},
+    'notif_chaplet_b': {'en': "It's the Hour of Mercy — pray the Chaplet.", 'es': 'Es la Hora de la Misericordia — reza la Coronilla.'},
+    'notif_angelus_m': {'en': 'Dawn — the Angel of the Lord declared unto Mary. Pray the Angelus.', 'es': 'El alba — el Ángel del Señor anunció a María. Reza el Ángelus.'},
+    'notif_angelus_n': {'en': 'Midday — the bell tolls. Pause and pray the Angelus.', 'es': 'Mediodía — dobla la campana. Haz una pausa y reza el Ángelus.'},
+    'notif_angelus_e': {'en': 'At the close of day — pray the Angelus.', 'es': 'Al caer la tarde — reza el Ángelus.'},
+    'notif_novena_b': {'en': 'Day {{n}} of 9 — Continue your novena prayer.', 'es': 'Día {{n}} de 9 — Continúa tu novena.'},
+    'guide_title': {'en': '📿 The Holy Rosary', 'es': '📿 El Santo Rosario'},
+    'guide_body': {'en': 'The Rosary is a meditative prayer honoring the Blessed Virgin Mary. It combines vocal prayer with meditation on the life of Christ and His Mother.', 'es': 'El Rosario es una oración meditada que honra a la Santísima Virgen María. Combina oración vocal con la meditación de la vida de Cristo y su Madre.'},
+    'guide_how': {'en': 'How to Pray', 'es': 'Cómo rezarlo'},
+    'guide_s1': {'en': '1. Make the Sign of the Cross and pray the Apostles\' Creed', 'es': '1. Haz la Señal de la Cruz y reza el Credo de los Apóstoles'},
+    'guide_s2': {'en': '2. Pray the Our Father', 'es': '2. Reza un Padre Nuestro'},
+    'guide_s3': {'en': '3. Pray 3 Hail Marys (for faith, hope, and charity)', 'es': '3. Reza tres Dios te Salve María (por la fe, la esperanza y la caridad)'},
+    'guide_s4': {'en': '4. Pray the Glory Be', 'es': '4. Reza un Gloria'},
+    'guide_step_announce': {'en': '• Announce the mystery and meditate on it', 'es': '• Anuncia el misterio y medítalo'},
+    'guide_step_prayers': {'en': '• Pray the Our Father', 'es': '• Reza un Padre Nuestro'},
+    'guide_step_glory': {'en': '• Pray the Glory Be and Fatima Prayer', 'es': '• Reza un Gloria y la oración de Fátima'},
+    'three_hail_marys_note': {'en': 'Three Hail Marys for the increase of Faith, Hope, and Charity', 'es': 'Tres Dios te salve María por la fe, la esperanza y la caridad'},
+    'rosary_complete_body': {'en': 'You have completed the Holy Rosary. May the Blessed Virgin Mary intercede for you.', 'es': 'Has terminado el Santo Rosario. Que la Santísima Virgen interceda por ti.'},
+    'chaplet_complete_body': {'en': 'You have completed the Chaplet of Divine Mercy. May His mercy flow through you and upon the whole world.', 'es': 'Has terminado la Coronilla de la Divina Misericordia. Que su Misericordia fluya a través de ti y por todo el mundo.'},
+    'intentions_world': {'en': 'For the whole world', 'es': 'Por el mundo entero'},
+    'intentions_priests': {'en': 'For the souls of priests and religious', 'es': 'Por las almas de los sacerdotes y religiosos'},
+    'intentions_sinners': {'en': 'For the conversion of sinners', 'es': 'Por la conversión de los pecadores'},
+    'intentions_dead': {'en': 'For the faithful departed', 'es': 'Por los fieles difuntos'},
+    'intentions_pope': {'en': 'For the intentions of the Holy Father', 'es': 'Por las intenciones del Santo Padre'},
+    'hymn_sorrowful_mother': {'en': 'Hymn of the Sorrowful Mother', 'es': 'Himno de la Madre Dolorosa'},
+    'readings_unreachable': {
+      'en': 'The Novus Ordo readings feed is unreachable — the source website is blocking app connections right now. Cached readings will appear for days you have viewed before. Your 1962 Missal readings are unaffected and work offline — switch the readings mode to 1962 if you need today\'s readings.',
+      'es': 'La fuente de lecturas Novus Ordo no responde — el sitio de origen está bloqueando conexiones de la app ahora mismo. Las lecturas guardadas aparecerán para los días que hayas visto antes. Tus lecturas del Misal 1962 no se ven afectadas y funcionan sin conexión — cambia el modo de lecturas a 1962 si necesitas las de hoy.',
+    },
+    'readings_for': {'en': 'Readings for', 'es': 'Lecturas para'},
+    'unable_today': {'en': 'Unable to load today', 'es': 'No se pudo cargar hoy'},
+    'liturgy_hours_coming': {'en': 'Liturgy of the Hours — coming in a future update!', 'es': 'Liturgia de las Horas — ¡próximamente!'},
+    'liturgy_hours': {'en': 'Liturgy of the Hours', 'es': 'Liturgia de las Horas'},
+
     'previous': {'en': 'Previous', 'es': 'Anterior', 'la': 'Recede'},
     'next': {'en': 'Next', 'es': 'Siguiente'},
     'finish': {'en': 'Finish', 'es': 'Terminar'},
+    'lbl_salutation': {'en': 'Salutation {{n}}', 'es': 'Salutación {{n}}'},
+    'opening_prayer': {'en': 'Opening Prayer', 'es': 'Oración Inicial'},
+    'tears_honor': {'en': "In Honor of Mary's Tears", 'es': 'En honor de las lágrimas de María'},
+    'name_unknown': {'en': 'Unknown', 'es': 'Desconocido'},
+    'act_of_consec_title': {'en': 'Act of Consecration', 'es': 'Acto de Consagración'},
+    'lbl_ejaculatory': {'en': 'Ejaculatory Prayer — Decade {{n}}', 'es': 'Oración Ejaculatoria — Decena {{n}}'},
+    'lbl_come_holy_spirit': {'en': 'Come, Holy Spirit', 'es': 'Ven, Espíritu Santo'},
+    'act_of_contr_title': {'en': 'Act of Contrition', 'es': 'Acto de Contrición'},
     'amen': {'en': 'Amen', 'es': 'Amén', 'la': 'Amen'},
     'leave': {'en': 'Leave', 'es': 'Salir'},
     'resume_rosary': {'en': 'Resume Rosary', 'es': 'Retomar el Rosario', 'la': 'Repete Rosarium'},

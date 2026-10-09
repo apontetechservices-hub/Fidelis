@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/theme.dart';
+import '../../config/app_strings.dart';
 import 'stations_data.dart';
 
 class StabatMaterScreen extends StatefulWidget {
@@ -55,7 +56,7 @@ class _StabatMaterScreenState extends State<StabatMaterScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Hymn of the Sorrowful Mother',
+                    AppStrings.t('hymn_sorrowful_mother'),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontStyle: FontStyle.italic,
                       color: FidelisTheme.gold,

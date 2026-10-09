@@ -311,7 +311,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
     final isForDead = _savedState!['isForDead'] as bool? ?? false;
     final mysteryType = _savedState!['mysteryType'] as String? ?? 'joyful';
     final typeName = MysteryData.getMysteries(mysteryType).isNotEmpty ? mysteryType : 'joyful';
-    final label = isForDead ? 'Rosary for the Dead' : '${typeName[0].toUpperCase()}${typeName.substring(1)} Mysteries';
+    final label = isForDead ? AppStrings.t('rosary_for_the_dead') : '${typeName[0].toUpperCase()}${typeName.substring(1)} Mysteries';
     return '$label \u2022 Step ${step + 1}';
   }
 

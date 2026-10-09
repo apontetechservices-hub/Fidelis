@@ -435,8 +435,8 @@ class _DashboardPageState extends State<_DashboardPage> {
         borderRadius: BorderRadius.circular(12),
         onTap: () {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Liturgy of the Hours — coming in a future update!'),
+            SnackBar(
+              content: Text(AppStrings.t('liturgy_hours_coming')),
               duration: Duration(seconds: 2),
             ),
           );
@@ -452,7 +452,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Liturgy of the Hours',
+                      AppStrings.t('liturgy_hours'),
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                         fontWeight: FontWeight.bold,
@@ -506,7 +506,7 @@ class _DashboardPageState extends State<_DashboardPage> {
             children: [
               Text('Daily Reflection', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
-              Text('Unable to load today\'s reflection. Check your connection and try again.',
+              Text(AppStrings.t('unable_today') + 's reflection. Check your connection and try again.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
@@ -610,26 +610,25 @@ class _DashboardPageState extends State<_DashboardPage> {
               ),
               const SizedBox(height: 16),
               Text(
-                '📿 The Holy Rosary',
+                AppStrings.t('guide_title'),
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: FidelisTheme.gold),
               ),
               const SizedBox(height: 16),
               Text(
-                'The Rosary is a meditative prayer honoring the Blessed Virgin Mary. '
-                'It combines vocal prayer with meditation on the life of Christ and His Mother.',
+                AppStrings.t('guide_body'),
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(height: 1.8),
               ),
               const SizedBox(height: 16),
-              _guideSection(context, 'How to Pray', [
-                '1. Make the Sign of the Cross and pray the Apostles\' Creed',
-                '2. Pray the Our Father',
-                '3. Pray 3 Hail Marys (for faith, hope, and charity)',
-                '4. Pray the Glory Be',
+              _guideSection(context, AppStrings.t('guide_how'), [
+                AppStrings.t('guide_s1'),
+                AppStrings.t('guide_s2'),
+                AppStrings.t('guide_s3'),
+                AppStrings.t('guide_s4'),
                 '5. For each decade:',
-                '   • Announce the mystery and meditate on it',
-                '   • Pray the Our Father',
+                AppStrings.t('guide_step_announce'),
+                AppStrings.t('guide_step_prayers'),
                 '   • Pray 10 Hail Marys',
-                '   • Pray the Glory Be and Fatima Prayer',
+                AppStrings.t('guide_step_glory'),
                 '6. After 5 decades: Hail Holy Queen',
                 '7. Pray the Litany of Loreto',
                 '8. Concluding prayers',

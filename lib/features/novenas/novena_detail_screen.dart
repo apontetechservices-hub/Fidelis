@@ -523,7 +523,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
 
   String _formatDate(DateTime date) {
     final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${months[date.month - 1]} ${date.day}';
+    return '${AppStrings.monthName(date.month)} ${date.day}';
   }
 
   String _formatTime(int hour, int minute) {
