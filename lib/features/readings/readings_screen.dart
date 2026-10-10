@@ -69,8 +69,8 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     List<Proper> propers;
     try {
       propers =
-          await MissalService.getProper(_selectedDate, lang: AppStrings.locale);
-      await MissalCache.saveProper(dateStr, propers, lang: AppStrings.locale);
+          await MissalService.getProper(_selectedDate, lang: 'en');
+      await MissalCache.saveProper(dateStr, propers, lang: 'en');
     } catch (e) {
       final cached = await MissalCache.getProper(dateStr);
       if (cached != null) {

@@ -49,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     try {
       final now = DateTime.now();
       final calendar = (await MissalCache.getCalendar(now.year, lang: AppStrings.locale)) ??
-          await MissalService.getCalendar(now.year, lang: AppStrings.locale);
+          await MissalService.getCalendar(now.year, lang: 'en');
       await MissalCache.saveCalendar(now.year, calendar, lang: AppStrings.locale);
       final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       for (final day in calendar) {

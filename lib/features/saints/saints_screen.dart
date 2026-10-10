@@ -27,7 +27,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
   Future<void> _loadCalendar() async {
     setState(() { _loading = true; _error = null; });
     try {
-      _calendar = await MissalService.getCalendar(_year, lang: AppStrings.locale);
+      _calendar = await MissalService.getCalendar(_year, lang: 'en');
       setState(() { _loading = false; });
     } catch (e) {
       setState(() { _error = e.toString(); _loading = false; });
