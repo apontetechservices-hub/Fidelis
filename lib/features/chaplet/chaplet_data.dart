@@ -61,6 +61,16 @@ class ChapletMeta {
   final String emoji;
   final Color accentColor;
 
+  String nameFor(String lang) {
+    if (lang == 'es') return _chapletsEs[id]?['name'] ?? name;
+    return name;
+  }
+
+  String shortDescFor(String lang) {
+    if (lang == 'es') return _chapletsEs[id]?['desc'] ?? shortDesc;
+    return shortDesc;
+  }
+
   const ChapletMeta({
     required this.id,
     required this.name,
@@ -121,6 +131,17 @@ const chapletList = [
     accentColor: Color(0xFFFFA726),
   ),
 ];
+
+/// Spanish chaplet metadata (id -> name/shortDesc)
+const Map<ChapletId, Map<String, String>> _chapletsEs = {
+  ChapletId.divineMercy: {'name': 'Coronilla de la Divina Misericordia', 'desc': 'Por Su dolorosa Pasi\u00f3n, ten misericordia de nosotros y del mundo entero.'},
+  ChapletId.sevenSorrows: {'name': 'Coronilla de los Siete Dolores', 'desc': 'Medita los siete dolores de la Sant\u00edsima Virgen Mar\u00eda.'},
+  ChapletId.stMichael: {'name': 'Coronilla de San Miguel Arc\u00e1ngel', 'desc': 'Honra los nueve coros de \u00c1ngeles por medio de San Miguel Arc\u00e1ngel.'},
+  ChapletId.stJude: {'name': 'Coronilla de San Judas Tadeo', 'desc': 'Ore con el santo patrono de los casos desesperados y dif\u00edciles.'},
+  ChapletId.sacredHeart: {'name': 'Coronilla del Sagrado Coraz\u00f3n', 'desc': 'Devoci\u00f3n al Sagrado Coraz\u00f3n de Jes\u00fas, meditando en su amor.'},
+  ChapletId.holySpirit: {'name': 'Coronilla del Esp\u00edritu Santo', 'desc': 'Meditando en los siete dones del Esp\u00edritu Santo.'},
+  ChapletId.holySpirit7Beads: {'name': 'Coronilla del Esp\u00edritu Santo (7 Cuentas)', 'desc': 'Una coronilla breve que honra los siete dones del Esp\u00edritu Santo.'},
+};
 
 // ─── Prayer texts (shared) ──────────────────────────────────────
 

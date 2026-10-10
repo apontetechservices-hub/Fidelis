@@ -71,7 +71,7 @@ class _ChapletCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      chaplet.name,
+                      chaplet.nameFor(AppStrings.locale),
                       style: theme.textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.bold,
                         color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
@@ -79,7 +79,7 @@ class _ChapletCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      chaplet.shortDesc,
+                      chaplet.shortDescFor(AppStrings.locale),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                         height: 1.4,

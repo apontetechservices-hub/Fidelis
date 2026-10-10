@@ -64,7 +64,7 @@ class _ChapletPrayerScreenState extends State<ChapletPrayerScreen> {
 
     return Scaffold(
         appBar: AppBar(
-          title: Text(_meta.name),
+          title: Text(_meta.nameFor(AppStrings.locale)),
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => Navigator.pop(context),
@@ -250,7 +250,7 @@ class _ChapletPrayerScreenState extends State<ChapletPrayerScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(AppStrings.isSpanish ? '${_meta.emoji} ${_meta.name} — Completada' : '${_meta.emoji} ${_meta.name} Complete'),
+        title: Text(AppStrings.isSpanish ? '${_meta.emoji} ${_meta.nameFor(AppStrings.locale)} — Completada' : '${_meta.emoji} ${_meta.nameFor(AppStrings.locale)} Complete'),
         content: Text(AppStrings.t('may_god_bless')),
         actions: [
           ElevatedButton(
