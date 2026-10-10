@@ -127,7 +127,8 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
               ),
               dropdownColor: theme.brightness == Brightness.dark ? const Color(0xFF1E2D3D) : Colors.white,
               items: [
-                DropdownMenuItem(value: AppConstants.langEnglish, child: Text('🇺🇸 EN')),
+                if (!AppStrings.isSpanish)
+                  DropdownMenuItem(value: AppConstants.langEnglish, child: Text('🇺🇸 EN')),
                 DropdownMenuItem(value: AppConstants.langLatin, child: Text('🏛️ LA')),
                 DropdownMenuItem(value: AppConstants.langSpanish, child: Text('🇪🇸 ES')),
               ],
@@ -540,7 +541,8 @@ class _LanguageToggle extends StatelessWidget {
         Text(AppStrings.t('prayer_language'), style: theme.textTheme.titleLarge),
         const SizedBox(height: 8),
         SegmentedButton<String>(
-          segments: const [
+          segments: [
+            if (!AppStrings.isSpanish)
             ButtonSegment(value: AppConstants.langEnglish, label: Text('🇺🇸 EN')),
             ButtonSegment(value: AppConstants.langLatin, label: Text('🏛️ LA')),
             ButtonSegment(value: AppConstants.langSpanish, label: Text('🇪🇸 ES')),
