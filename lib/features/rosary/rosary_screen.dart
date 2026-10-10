@@ -16,7 +16,7 @@ class RosaryScreen extends StatefulWidget {
 
 class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver {
   String _rosaryType = AppConstants.rosaryTraditional;
-  String _language = AppConstants.langEnglish;
+  String _language = AppStrings.locale;
   String _mysteryFilter = 'all';
   Map<String, dynamic>? _savedState;
   bool _checkingSaved = true;
@@ -33,8 +33,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
     final prefs = await SharedPreferences.getInstance();
     setState(() {
       _rosaryType = prefs.getString('rosary_type') ?? AppConstants.rosaryTraditional;
-        _language =
-      prefs.getString('rosary_language') ?? AppStrings.locale;
+        _language = AppStrings.locale;
     });
   }
 
@@ -135,7 +134,6 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
               onChanged: (value) {
                 if (value != null) {
                   setState(() => _language = value);
-                  _savePref('rosary_language', value);
                 }
               },
             ),

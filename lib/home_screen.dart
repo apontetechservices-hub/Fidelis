@@ -404,7 +404,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Pray Today\'s Rosary',
+                      AppStrings.t('pray_todays_rosary'),
                       style: theme.textTheme.titleLarge?.copyWith(
                         color: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
                         fontWeight: FontWeight.bold,
