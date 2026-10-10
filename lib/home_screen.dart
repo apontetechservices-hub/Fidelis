@@ -387,7 +387,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                 mysteryType: mysteryType,
                 includeLuminous: false,
                 isForDead: false,
-                language: AppConstants.langEnglish,
+                language: AppStrings.locale,
               ),
             ),
           );
