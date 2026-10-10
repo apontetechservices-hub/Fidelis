@@ -516,11 +516,11 @@ class _MysterySetCard extends StatelessWidget {
 
   String _getTitle() {
     switch (type) {
-      case AppConstants.joyfulMysteries: return '🌹 Joyful Mysteries';
-      case AppConstants.sorrowfulMysteries: return '✝️ Sorrowful Mysteries';
-      case AppConstants.gloriousMysteries: return '👑 Glorious Mysteries';
-      case AppConstants.luminousMysteries: return '☀️ Luminous Mysteries';
-      default: return 'Mysteries';
+      case AppConstants.joyfulMysteries: return AppStrings.tFor('myst_set_joyful', language);
+      case AppConstants.sorrowfulMysteries: return AppStrings.tFor('myst_set_sorrowful', language);
+      case AppConstants.gloriousMysteries: return AppStrings.tFor('myst_set_glorious', language);
+      case AppConstants.luminousMysteries: return AppStrings.tFor('myst_set_luminous', language);
+      default: return AppStrings.tFor('myst_set_glorious', language);
     }
   }
 }
