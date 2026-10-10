@@ -139,7 +139,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Today — ${MissalService.colorName(colorCode)}',
+                '${AppStrings.t('today_label')} — ${MissalService.colorName(colorCode, lang: AppStrings.locale)}',
                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
               ),
             ],
@@ -577,7 +577,7 @@ class _SaintsScreenState extends State<SaintsScreen> {
 
               // Info rows
               _infoRow('Rank', _rankName(day.rank)),
-              _infoRow('Color', MissalService.colorName(colorCode)),
+              _infoRow(AppStrings.t('color_label'), MissalService.colorName(colorCode, lang: AppStrings.locale)),
               if (day.commemorations.isNotEmpty)
                 _infoRow('Commemorations', day.commemorations.join(', ')),
               if (day.tags.isNotEmpty)

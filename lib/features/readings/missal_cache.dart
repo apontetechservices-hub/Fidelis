@@ -61,9 +61,10 @@ class MissalCache {
   // --- Calendar ---
 
   /// Get calendar data. Returns null only if no data exists at all.
-  static Future<List<CalendarDay>?> getCalendar(int year) async {
+  static Future<List<CalendarDay>?> getCalendar(int year, {String lang = 'en'}) async {
     final db = await database;
-    final rows = await db.query('calendar', where: 'year = ?', whereArgs: [year]);
+    final key = '$year-$lang';
+    final rows = await db.query('calendar', where: 'year = ?', whereArgs: [key]);
     if (rows.isEmpty) return null;
 
     final data = rows.first['data'] as String;
@@ -71,12 +72,12 @@ class MissalCache {
     return json.map((e) => CalendarDay.fromJson(e)).toList();
   }
 
-  static Future<void> saveCalendar(int year, List<CalendarDay> days) async {
+  static Future<void> saveCalendar(int year, List<CalendarDay> days, {String lang = 'en'}) async {
     final db = await database;
     final data = jsonEncode(days.map((d) => d.toJson()).toList());
     await db.insert(
       'calendar',
-      {'year': year, 'data': data, 'fetched_at': DateTime.now().millisecondsSinceEpoch},
+      {'year': '$year-$lang', 'data': data, 'fetched_at': DateTime.now().millisecondsSinceEpoch},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }
@@ -84,9 +85,10 @@ class MissalCache {
   // --- Propers (1962) ---
 
   /// Get proper data. Returns null only if no data exists at all.
-  static Future<List<Proper>?> getProper(String dateStr) async {
+  static Future<List<Proper>?> getProper(String dateStr, {String lang = 'en'}) async {
     final db = await database;
-    final rows = await db.query('propers', where: 'date = ?', whereArgs: [dateStr]);
+    final key = '$dateStr-$lang';
+    final rows = await db.query('propers', where: 'date = ?', whereArgs: [key]);
     if (rows.isEmpty) return null;
 
     final data = rows.first['data'] as String;
@@ -108,12 +110,12 @@ class MissalCache {
     return _isProperFresh(rows);
   }
 
-  static Future<void> saveProper(String dateStr, List<Proper> propers) async {
+  static Future<void> saveProper(String dateStr, List<Proper> propers, {String lang = 'en'}) async {
     final db = await database;
     final data = jsonEncode(propers.map((p) => p.toJson()).toList());
     await db.insert(
       'propers',
-      {'date': dateStr, 'data': data, 'fetched_at': DateTime.now().millisecondsSinceEpoch},
+      {'date': '$dateStr-$lang', 'data': data, 'fetched_at': DateTime.now().millisecondsSinceEpoch},
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
   }

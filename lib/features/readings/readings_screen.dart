@@ -70,7 +70,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     try {
       propers =
           await MissalService.getProper(_selectedDate, lang: AppStrings.locale);
-      await MissalCache.saveProper(dateStr, propers);
+      await MissalCache.saveProper(dateStr, propers, lang: AppStrings.locale);
     } catch (e) {
       final cached = await MissalCache.getProper(dateStr);
       if (cached != null) {
@@ -152,7 +152,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
           if (_missal == '1962')
             IconButton(
               icon: Icon(_showLatin ? Icons.translate : Icons.language),
-              tooltip: _showLatin ? 'Show English' : 'Show Latin',
+              tooltip: _showLatin ? AppStrings.t('show_english') : AppStrings.t('show_latin'),
               onPressed: () => setState(() => _showLatin = !_showLatin),
             ),
           // Date picker
@@ -237,7 +237,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             const SizedBox(height: 8),
             Center(
               child: FilterChip(
-                label: Text(_showLatin ? '🏛️ Latin' : '🇺🇸 English'),
+                label: Text(_showLatin ? '🏛️ Latín' : AppStrings.t('app_language')),
                 onSelected: (_) => setState(() => _showLatin = !_showLatin),
                 selected: true,
               ),
@@ -284,7 +284,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                MissalService.colorName(colorCode),
+                MissalService.colorName(colorCode, lang: AppStrings.locale),
                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
               ),
             ],
@@ -371,7 +371,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
                 const Spacer(),
                 if (section.hasLatin)
                   Text(
-                    _showLatin ? 'LA' : 'EN',
+                    _showLatin ? 'LA' : (AppStrings.locale.toUpperCase()),
                     style: theme.textTheme.labelSmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                     ),
@@ -453,7 +453,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                MissalService.colorName(colorCode),
+                MissalService.colorName(colorCode, lang: AppStrings.locale),
                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
               ),
             ],

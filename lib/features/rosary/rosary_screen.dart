@@ -424,7 +424,7 @@ class _TodayMysteryCard extends StatelessWidget {
       6: {AppConstants.langEnglish: 'Saturday', AppConstants.langLatin: 'Sabbato', AppConstants.langSpanish: 'Sábado'},
       7: {AppConstants.langEnglish: 'Sunday', AppConstants.langLatin: 'Dominica', AppConstants.langSpanish: 'Domingo'},
     };
-    return days[DateTime.now().weekday]?[language] ?? 'Today';
+    return days[DateTime.now().weekday]?[language] ?? (language == 'es' ? 'Hoy' : 'Today');
   }
 
   @override
@@ -450,7 +450,7 @@ class _TodayMysteryCard extends StatelessWidget {
           Icon(Icons.auto_awesome, size: 36, color: FidelisTheme.gold),
           const SizedBox(height: 12),
           Text(
-            'Today — $_dayName',
+            '${AppStrings.tFor('today_label', language)} — $_dayName',
             style: theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
           ),
           const SizedBox(height: 8),

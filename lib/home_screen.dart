@@ -48,9 +48,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Future<void> _loadTodayFeast() async {
     try {
       final now = DateTime.now();
-      final calendar = (await MissalCache.getCalendar(now.year)) ??
+      final calendar = (await MissalCache.getCalendar(now.year, lang: AppStrings.locale)) ??
           await MissalService.getCalendar(now.year, lang: AppStrings.locale);
-      await MissalCache.saveCalendar(now.year, calendar);
+      await MissalCache.saveCalendar(now.year, calendar, lang: AppStrings.locale);
       final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
       for (final day in calendar) {
         if (day.id == dateStr) {
@@ -332,7 +332,7 @@ class _DashboardPageState extends State<_DashboardPage> {
               ),
               const SizedBox(width: 8),
               Text(
-                'Today — ${MissalService.colorName(colorCode)}',
+                '${AppStrings.t('today_label')} — ${MissalService.colorName(colorCode, lang: AppStrings.locale)}',
                 style: theme.textTheme.bodySmall?.copyWith(color: Colors.white70),
               ),
             ],

@@ -300,6 +300,8 @@ class AppStrings {
     'opening_prayer': {'en': 'Opening Prayer', 'es': 'Oración Inicial'},
     'tears_honor': {'en': "In Honor of Mary's Tears", 'es': 'En honor de las lágrimas de María'},
     'name_unknown': {'en': 'Unknown', 'es': 'Desconocido'},
+    'show_english': {'en': 'Show English', 'es': 'Mostrar Ingl\u00e9s', 'la': 'Anglice ostende'},
+    'show_latin': {'en': 'Show Latin', 'es': 'Mostrar Lat\u00edn', 'la': 'Latine ostende'},
     'act_of_consec_title': {'en': 'Act of Consecration', 'es': 'Acto de Consagración'},
     'lbl_ejaculatory': {'en': 'Ejaculatory Prayer — Decade {{n}}', 'es': 'Oración Ejaculatoria — Decena {{n}}'},
     'lbl_come_holy_spirit': {'en': 'Come, Holy Spirit', 'es': 'Ven, Espíritu Santo'},

@@ -67,7 +67,15 @@ class MissalService {
   }
 
   /// Get the liturgical color name from code.
-  static String colorName(String code) {
+  static String colorName(String code, {String lang = 'en'}) {
+    if (lang == 'es') {
+      const es = {'w': 'Blanco', 'r': 'Rojo', 'g': 'Verde', 'v': 'Morado', 'p': 'Rosado', 'b': 'Negro'};
+      return es[code] ?? 'Blanco';
+    }
+    if (lang == 'la') {
+      const la = {'w': 'Albus', 'r': 'Ruber', 'g': 'Viridis', 'v': 'Purpura', 'p': 'Roseus', 'b': 'Niger'};
+      return la[code] ?? 'Albus';
+    }
     switch (code) {
       case 'w': return 'White';
       case 'r': return 'Red';
