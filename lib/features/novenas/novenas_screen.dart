@@ -71,9 +71,9 @@ class _NovenasScreenState extends State<NovenasScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(novena.title, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          Text(novena.titleFor(AppStrings.locale), style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 2),
-                          Text(novena.subtitle, style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
+                          Text(novena.subtitleFor(AppStrings.locale), style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor)),
                           if (completedDays > 0) ...[
                             const SizedBox(height: 6),
                             Row(

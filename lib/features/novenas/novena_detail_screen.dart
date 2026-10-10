@@ -159,7 +159,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
 
     await NotificationService.scheduleNovenaReminder(
       id: notifId,
-      novenaTitle: widget.novena.title,
+      novenaTitle: widget.novena.titleFor(AppStrings.locale),
       day: progress.currentDay,
       hour: progress.notificationHour,
       minute: progress.notificationMinute,
@@ -178,7 +178,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.novena.title),
+        title: Text(widget.novena.titleFor(AppStrings.locale)),
         actions: [
           if (_progress != null)
             IconButton(
@@ -211,7 +211,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                             child: Icon(widget.novena.icon, size: 32, color: widget.novena.color),
                           ),
                           const SizedBox(height: 12),
-                          Text(widget.novena.title,
+                          Text(widget.novena.titleFor(AppStrings.locale),
                             style: theme.textTheme.headlineSmall?.copyWith(
                               color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                               fontWeight: FontWeight.bold,
@@ -219,7 +219,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                             textAlign: TextAlign.center,
                           ),
                           const SizedBox(height: 4),
-                          Text(widget.novena.subtitle,
+                          Text(widget.novena.subtitleFor(AppStrings.locale),
                             style: theme.textTheme.bodyMedium?.copyWith(color: theme.hintColor),
                             textAlign: TextAlign.center,
                           ),
@@ -230,7 +230,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                               color: widget.novena.color.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: Text(widget.novena.startDateNote,
+                            child: Text(widget.novena.startDateNoteFor(AppStrings.locale),
                               style: theme.textTheme.bodySmall?.copyWith(
                                 color: widget.novena.color,
                                 fontWeight: FontWeight.w600,
@@ -437,7 +437,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
   }
 
   void _showDayPrayer(BuildContext context, int day) {
-    final prayer = widget.novena.dayPrayers[day - 1];
+    final prayer = widget.novena.dayPrayersFor(AppStrings.locale)[day - 1];
     final isCompleted = _progress?.completedDays.contains(day) ?? false;
     final isCurrent = _progress?.currentDay == day && !isCompleted;
     final canMark = _progress != null && (isCurrent || isCompleted);
@@ -468,7 +468,7 @@ class _NovenaDetailScreenState extends State<NovenaDetailScreen> {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
-                Text(widget.novena.title,
+                Text(widget.novena.titleFor(AppStrings.locale),
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     color: Theme.of(context).brightness == Brightness.dark ? FidelisTheme.gold : FidelisTheme.deepRed,
                     fontWeight: FontWeight.bold,
