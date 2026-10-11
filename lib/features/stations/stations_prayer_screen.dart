@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
 import 'stations_data.dart';
+import '../rosary/rosary_prayers.dart';
 
 class StationsPrayerScreen extends StatefulWidget {
   final int initialStation;
@@ -398,11 +399,11 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 12),
-        _prayerBlock(context, 'Our Father', ourFather, isDark),
+        _prayerBlock(context, AppStrings.t('lbl_our_father'), RosaryPrayers.get('our_father', AppStrings.locale), isDark),
         const SizedBox(height: 12),
-        _prayerBlock(context, 'Hail Mary', hailMary, isDark),
+        _prayerBlock(context, AppStrings.tFor('lbl_hail_mary', AppStrings.locale).replaceAll('{{n}}', '1').replaceAll('{{m}}', '1'), RosaryPrayers.get('hail_mary', AppStrings.locale), isDark),
         const SizedBox(height: 12),
-        _prayerBlock(context, 'Glory Be', gloryBe, isDark),
+        _prayerBlock(context, AppStrings.t('lbl_glory_be'), RosaryPrayers.get('glory_be', AppStrings.locale), isDark),
       ],
     );
   }
