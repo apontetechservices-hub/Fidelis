@@ -310,6 +310,21 @@ class TraditionalStation {
     required this.prayer,
     required this.stabatMaterVerse,
   });
+
+  String leaderFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_leader');
+    return leader;
+  }
+
+  String responseFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_response');
+    return response;
+  }
+
+  String prayerFor(String lang) {
+    if (lang == 'es') return AppStrings.t('trad_${stationNumber}_prayer');
+    return prayer;
+  }
 }
 
 const String traditionalIntro = '''

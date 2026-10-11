@@ -139,7 +139,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
 
                     // Station title + Latin
                     Text(
-                      _info.title,
+                      _info.titleFor(AppStrings.locale),
                       style: theme.textTheme.headlineMedium?.copyWith(
                         color: accentColor,
                       ),
@@ -302,7 +302,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
       children: [
         // Leader
         Text(
-          station.leader,
+          station.leaderFor(AppStrings.locale),
           style: theme.textTheme.bodyLarge?.copyWith(
             color: accentColor,
             fontWeight: FontWeight.w600,
@@ -312,7 +312,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
         const SizedBox(height: 6),
         // Response
         Text(
-          station.response,
+          station.responseFor(AppStrings.locale),
           style: theme.textTheme.bodyLarge?.copyWith(
             color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
           ),
@@ -334,7 +334,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
             ],
           ),
           child: SelectableText(
-            station.prayer,
+            station.prayerFor(AppStrings.locale),
             style: theme.textTheme.bodyLarge?.copyWith(
               height: 1.8,
             ),
@@ -442,7 +442,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
         title: Text(AppStrings.t('stations_complete')),
         content: SingleChildScrollView(
           child: Text(
-            widget.method == 'francis' ? AppStrings.t('stfr_closing_es') : AppStrings.t('traditional_closing_es'),
+            widget.method == 'francis' ? AppStrings.t('stfr_closing') : AppStrings.t('trad_closing'),
             style: const TextStyle(fontFamily: 'Lora', fontSize: 14, height: 1.7),
           ),
         ),
