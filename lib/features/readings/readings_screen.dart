@@ -69,19 +69,36 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
 
 
   /// Spanish propers bundled from the DivinumOfficium open project — offline, primary for Español.
+  /// Lookup: Sancti/<mm-dd> first, then Tempora/<computed-key> for Sundays & moveable season days.
   Future<List<Proper>?> _loadBundledSpanishPropers(String dateStr) async {
     try {
       final raw = await rootBundle.loadString('assets/propers_es.json');
       final data = jsonDecode(raw) as Map<String, dynamic>;
       final entries = (data['entries'] as Map<String, dynamic>? ?? {});
-      final mmdd = dateStr.length >= 10 ? dateStr.substring(5, 10) : '';
-      final entry = entries['Sancti/$mmdd'];
-      if (entry == null) return null;
+      if (dateStr.length < 10) return null;
+      final mmdd = dateStr.substring(5, 10);
+      final date = DateTime.parse(dateStr);
+
+      String? key = entries.containsKey('Sancti/$mmdd') ? 'Sancti/$mmdd' : null;
+
+      // Sundays (weekday 7) & the moveable seasons: compute Pentecost from Easter.
+      if (key == null && date.weekday == DateTime.sunday) {
+        final easter = _easter(date.year);
+        final pentecost = easter.add(const Duration(days: 49));
+        if (date.isAfter(pentecost.subtract(const Duration(days: 1)))) {
+          final weeks = ((date.difference(pentecost).inDays) / 7).floor() + 1;
+          final candidate = 'Tempora/Pent${weeks.toString().padLeft(2, '0')}-0';
+          if (entries.containsKey(candidate)) key = candidate;
+        }
+      }
+
+      if (key == null) return null;
+      final entry = entries[key];
       return [
         Proper.fromJson({
           'info': {
-            'id': 'Sancti/$mmdd',
-            'title': (entry['title'] ?? '') as String,
+            'id': key!,
+            'title': (entry!['title'] ?? '') as String,
             'colors': ['w'],
             'date': dateStr,
           },
@@ -91,6 +108,25 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     } catch (_) {
       return null;
     }
+  }
+
+  /// Meeus/Jones/Butcher Gregorian Easter + 49 days = Pentecost (Sunday).
+  static DateTime _easter(int year) {
+    final a = year % 19;
+    final b = year ~/ 100;
+    final c = year % 100;
+    final d = b ~/ 4;
+    final e = b % 4;
+    final f = (b + 8) ~/ 25;
+    final g = (b - f + 1) ~/ 3;
+    final h = (19 * a + b - d - g + 15) % 30;
+    final i = c ~/ 4;
+    final k = c % 4;
+    final l = (32 + 2 * e + 2 * i - h - k) % 7;
+    final m = (a + 11 * h + 22 * l) ~/ 451;
+    final month = (h + l - 7 * m + 114) ~/ 31;
+    final day = ((h + l - 7 * m + 114) % 31) + 1;
+    return DateTime(year, month, day);
   }
 
   Future<void> _loadTraditionalReadings(String dateStr) async {
