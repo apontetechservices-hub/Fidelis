@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
@@ -65,9 +67,45 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     }
   }
 
+
+  /// Spanish propers bundled from the DivinumOfficium open project — offline, primary for Español.
+  Future<List<Proper>?> _loadBundledSpanishPropers(String dateStr) async {
+    try {
+      final raw = await rootBundle.loadString('assets/propers_es.json');
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      final entries = (data['entries'] as Map<String, dynamic>? ?? {});
+      final mmdd = dateStr.length >= 10 ? dateStr.substring(5, 10) : '';
+      final entry = entries['Sancti/$mmdd'];
+      if (entry == null) return null;
+      return [
+        Proper.fromJson({
+          'info': {
+            'id': 'Sancti/$mmdd',
+            'title': (entry['title'] ?? '') as String,
+            'colors': ['w'],
+            'date': dateStr,
+          },
+          'sections': entry['sections'],
+        })
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _loadTraditionalReadings(String dateStr) async {
     List<Proper> propers;
     try {
+      if (AppStrings.isSpanish && _showLatin == false) {
+        final bundled = await _loadBundledSpanishPropers(dateStr);
+        if (bundled != null && bundled.isNotEmpty) {
+          setState(() {
+            _propers = bundled;
+            _usccbReadings = null;
+          });
+          return;
+        }
+      }
       propers =
           await MissalService.getProper(_selectedDate, lang: 'en');
       await MissalCache.saveProper(dateStr, propers, lang: 'en');
