@@ -1,4 +1,5 @@
 import 'mystery_data.dart';
+import '../../config/app_strings.dart';
 
 /// Defines the step-by-step structure of the Rosary
 /// Each step has a prayer key and bead type for the UI
@@ -102,7 +103,7 @@ class RosaryController {
         type: RosaryStepType.mysteryAnnouncement,
         prayerKey: 'mystery',
         mysteryIndex: d,
-        label: MysteryData.getMysteries(mysteryType)[d].titleEn, // Use formal title
+        label: MysteryData.getMysteries(mysteryType)[d].title(AppStrings.locale), // Use formal title by app language
       ));
 
       // Our Father

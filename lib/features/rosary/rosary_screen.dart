@@ -295,7 +295,7 @@ class _RosaryScreenState extends State<RosaryScreen> with WidgetsBindingObserver
           mysteryType: state['mysteryType'] as String,
           includeLuminous: state['includeLuminous'] as bool,
           isForDead: state['isForDead'] as bool,
-          language: state['language'] as String ?? 'en',
+          language: state['language'] as String ?? AppStrings.locale,
           deceasedName: state['deceasedName'] as String?,
           deceasedPronoun: state['deceasedPronoun'] as String? ?? 'them',
           startStep: state['currentStep'] as int? ?? 0,
