@@ -96,7 +96,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Station $_currentStation of 14',
+                    'AppStrings.tFor('station_x_of', AppStrings.locale).replaceAll('{{n}}', '$_currentStation').replaceAll('{{m}}', '14')',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
@@ -389,7 +389,7 @@ class _StationsPrayerScreenState extends State<StationsPrayerScreen> {
         Divider(color: accentColor.withValues(alpha: 0.2)),
         const SizedBox(height: 12),
         Text(
-          'Prayers after each Station',
+          'AppStrings.t('prayers_after_station')',
           style: TextStyle(
             fontFamily: 'Cinzel',
             fontSize: 12,

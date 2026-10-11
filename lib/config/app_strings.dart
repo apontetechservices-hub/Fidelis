@@ -354,6 +354,8 @@ class AppStrings {
     'traditional_method': {'en': 'Traditional Method', 'es': 'Método Tradicional'},
     'daily_reflection': {'en': 'Daily Reflection', 'es': 'Reflexión Diaria'},
     'read_full_reflection': {'en': 'Read full reflection online', 'es': 'Leer la reflexión completa en línea'},
+    'station_x_of': {'en': 'Station {{n}} of {{m}}', 'es': 'Estación {{n}} de {{m}}'},
+    'prayers_after_station': {'en': 'Prayers after each Station', 'es': 'Oraciones después de cada Estación'},
     'search_saints': {'en': 'Search saints and feasts...', 'es': 'Busca santos y fiestas...'},
     'today_label': {'en': 'Today', 'es': 'Hoy'},
     'rank_label': {'en': 'Rank', 'es': 'Rango'},
