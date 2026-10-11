@@ -353,6 +353,7 @@ class AppStrings {
     'method_st_francis': {'en': 'Method of St. Francis of Assisi', 'es': 'Método de San Francisco de Asís'},
     'traditional_method': {'en': 'Traditional Method', 'es': 'Método Tradicional'},
     'daily_reflection': {'en': 'Daily Reflection', 'es': 'Reflexión Diaria'},
+    'read_full_reflection': {'en': 'Read full reflection online', 'es': 'Leer la reflexión completa en línea'},
     'search_saints': {'en': 'Search saints and feasts...', 'es': 'Busca santos y fiestas...'},
     'today_label': {'en': 'Today', 'es': 'Hoy'},
     'rank_label': {'en': 'Rank', 'es': 'Rango'},

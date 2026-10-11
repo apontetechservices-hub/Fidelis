@@ -488,7 +488,7 @@ class _DashboardPageState extends State<_DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Daily Reflection', style: theme.textTheme.titleMedium),
+              Text(AppStrings.t('daily_reflection'), style: theme.textTheme.titleMedium),
               const SizedBox(height: 12),
               const Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ],

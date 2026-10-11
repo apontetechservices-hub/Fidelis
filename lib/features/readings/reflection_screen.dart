@@ -21,7 +21,7 @@ class ReflectionScreen extends StatelessWidget {
           if (reflection.link.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.open_in_browser),
-              tooltip: 'Read full reflection online',
+              tooltip: AppStrings.t('read_full_reflection'),
               onPressed: () => _launchUrl(reflection.link),
             ),
         ],
