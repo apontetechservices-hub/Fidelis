@@ -8,6 +8,7 @@
 // Station titles (shared by both methods)
 // ============================================================
 
+import '../../config/app_strings.dart';
 class StationInfo {
   final int number;
   final String title;
@@ -154,6 +155,26 @@ class StFrancisStation {
     required this.prayer,
     required this.closingPrayer,
   });
+
+  String leaderFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_leader');
+    return leader;
+  }
+
+  String responseFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_response');
+    return response;
+  }
+
+  String prayerFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_${stationNumber}_prayer');
+    return prayer;
+  }
+
+  String closingPrayerFor(String lang) {
+    if (lang == 'es') return AppStrings.t('stfr_closing');
+    return closingPrayer;
+  }
 }
 
 const String stFrancisIntro = '''
