@@ -367,14 +367,14 @@ class _DashboardPageState extends State<_DashboardPage> {
     final theme = Theme.of(context);
     final day = DateTime.now().weekday;
     final (mystery, emoji, mysteryType) = switch (day) {
-      1 => ('Joyful Mysteries', '🌹', AppConstants.joyfulMysteries),
-      2 => ('Sorrowful Mysteries', '✝️', AppConstants.sorrowfulMysteries),
-      3 => ('Glorious Mysteries', '👑', AppConstants.gloriousMysteries),
-      4 => ('Joyful Mysteries', '🌹', AppConstants.joyfulMysteries), // Traditional Thursday
-      5 => ('Sorrowful Mysteries', '✝️', AppConstants.sorrowfulMysteries),
-      6 => ('Joyful Mysteries', '🌹', AppConstants.joyfulMysteries),
-      7 => ('Glorious Mysteries', '👑', AppConstants.gloriousMysteries),
-      _ => ('Joyful Mysteries', '🌹', AppConstants.joyfulMysteries),
+      1 => (AppStrings.tFor('myst_name_joyful', AppStrings.locale), '🌹', AppConstants.joyfulMysteries),
+      2 => (AppStrings.tFor('myst_name_sorrowful', AppStrings.locale), '✝️', AppConstants.sorrowfulMysteries),
+      3 => (AppStrings.tFor('myst_name_glorious', AppStrings.locale), '👑', AppConstants.gloriousMysteries),
+      4 => (AppStrings.tFor('myst_name_joyful', AppStrings.locale), '🌹', AppConstants.joyfulMysteries), // Traditional Thursday
+      5 => (AppStrings.tFor('myst_name_sorrowful', AppStrings.locale), '✝️', AppConstants.sorrowfulMysteries),
+      6 => (AppStrings.tFor('myst_name_joyful', AppStrings.locale), '🌹', AppConstants.joyfulMysteries),
+      7 => (AppStrings.tFor('myst_name_glorious', AppStrings.locale), '👑', AppConstants.gloriousMysteries),
+      _ => (AppStrings.tFor('myst_name_joyful', AppStrings.locale), '🌹', AppConstants.joyfulMysteries),
     };
 
     return Card(
