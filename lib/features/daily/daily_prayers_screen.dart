@@ -236,8 +236,8 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
             onChanged: _setReminder,
             activeColor: FidelisTheme.gold,
           ),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Text(
               AppStrings.t('angelus_explanation'),
               style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
