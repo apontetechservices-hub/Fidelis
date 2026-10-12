@@ -154,6 +154,8 @@ class AppStrings {
       'es': 'Recordatorios del Ángelus',
     },
     'angelus_times': {'en': '6 AM · noon · 6 PM', 'es': '6 AM · mediodía · 6 PM'},
+'title_daily': {'en': 'Daily Prayers', 'es': 'Oraciones Diarias'},
+    'angelus_explanation': {'en': 'The Angelus commemorates the Incarnation - the Angel\\'s announcement to Mary - and is traditionally prayed at 6 AM, noon, and 6 PM. During the Easter Season the app shows the Regina Caeli in its place.', 'es': 'El Angelus conmemora la Encarnaci\u00f3n - el anuncio del \u00e1ngel a Mar\u00eda - y se reza tradicionalmente a las 6 AM, mediod\u00eda y 6 PM. Durante el tiempo pascual la app muestra la Regina Caeli en su lugar.'},
     'sub_morning': {
       'en': 'Begin the day — offer everything to God',
       'es': 'Empieza el día — ofrece todo a Dios',

@@ -239,9 +239,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 16),
             child: Text(
-              "The Angelus commemorates the Incarnation — the Angel's announcement to Mary — "
-              'and is traditionally prayed at 6 AM, noon, and 6 PM. '
-              'During the Easter Season the app shows the Regina Caeli in its place.',
+              AppStrings.t('angelus_explanation'),
               style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
             ),
           ),
