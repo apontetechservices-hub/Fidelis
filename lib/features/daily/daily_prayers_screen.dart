@@ -203,7 +203,7 @@ class _DailyPrayersScreenState extends State<DailyPrayersScreen> {
 
           // The day's prayers
           Text(
-            "AppStrings.t('the_days_prayers')",
+            AppStrings.t('daily_prayers'),
             style: theme.textTheme.titleLarge?.copyWith(color: FidelisTheme.gold),
           ),
           const SizedBox(height: 8),
