@@ -74,6 +74,7 @@ class AppStrings {
     'more_chaplets': {'en': 'More Chaplets', 'es': 'Más coronillas'},
     'about_rosary': {'en': 'About the Rosary', 'es': 'Sobre el Rosario'},
     'stations': {'en': 'Stations of the Cross', 'es': 'Vía Crucis'},
+    'doctrine_tile': {'en': 'Christian Doctrine', 'es': 'Doctrina Cristiana'},
     'pray_todays_rosary': {
       'en': "Pray Today's Rosary",
       'es': 'Reza el Rosario de hoy',

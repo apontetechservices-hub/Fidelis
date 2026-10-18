@@ -15,6 +15,7 @@ import 'features/settings/settings_screen.dart';
 import 'features/chaplet/chaplet_list_screen.dart';
 import 'features/stations/stations_screen.dart';
 import 'features/daily/daily_prayers_screen.dart';
+import 'features/doctrine/doctrine_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
 
@@ -263,6 +264,13 @@ class _DashboardPageState extends State<_DashboardPage> {
               label: AppStrings.t('stations'),
               color: FidelisTheme.deepPurple,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StationsScreen())),
+            ),
+            const SizedBox(height: 12),
+            _QuickActionWide(
+              icon: Icons.library_books,
+              label: AppStrings.t('doctrine_tile'),
+              color: FidelisTheme.deepPurple,
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DoctrineScreen())),
             ),
             const SizedBox(height: 24),
 

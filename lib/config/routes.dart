@@ -6,6 +6,7 @@ import '../features/saints/saints_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/stations/stations_screen.dart';
 import '../features/daily/daily_prayers_screen.dart';
+import '../features/doctrine/doctrine_screen.dart';
 import '../home_screen.dart';
 
 class AppRoutes {
@@ -17,6 +18,7 @@ class AppRoutes {
   static const String settings = '/settings';
   static const String stations = '/stations';
   static const String daily = '/daily';
+  static const String doctrine = '/doctrine';
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomeScreen(),
@@ -33,5 +35,6 @@ class AppRoutes {
     settings: (context) => const SettingsScreen(),
     stations: (context) => const StationsScreen(),
     daily: (context) => const DailyPrayersScreen(),
+    doctrine: (context) => const DoctrineScreen(),
   };
 }
