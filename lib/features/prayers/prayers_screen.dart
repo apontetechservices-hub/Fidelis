@@ -280,6 +280,38 @@ class _PrayerEntry {
 }
 
 final _prayerCategories = <_PrayerCategory>[
+  _PrayerCategory(name: 'Most Necessary Prayers', prayers: [
+    _PrayerEntry(
+      title: 'The Lord\'s Prayer',
+      icon: Icons.volunteer_activism,
+      text: 'Our Father, who art in heaven, hallowed be Thy name; Thy kingdom come; Thy will be done on earth as it is in heaven. Give us this day our daily bread; and forgive us our trespasses as we forgive those who trespass against us; and lead us not into temptation, but deliver us from evil. Amen.',
+    ),
+    _PrayerEntry(
+      title: 'Hail Mary',
+      icon: Icons.favorite,
+      text: 'Hail Mary, full of grace, the Lord is with Thee; blessed art Thou amongst women, and blessed is the fruit of Thy womb, Jesus. Holy Mary, Mother of God, pray for us sinners, now and at the hour of our death. Amen.',
+    ),
+    _PrayerEntry(
+      title: 'Act of Faith',
+      icon: Icons.lightbulb,
+      text: 'O my God, I firmly believe that Thou art one God in three divine Persons, Father, Son, and Holy Ghost; I believe that Thy divine Son became man, and died for our sins, and that He will come to judge the living and the dead. I believe these and all the truths which the Holy Catholic Church teaches, because Thou hast revealed them, who canst neither deceive nor be deceived.',
+    ),
+    _PrayerEntry(
+      title: 'Act of Hope',
+      icon: Icons.lightbulb,
+      text: 'O my God, relying on Thy almighty power and infinite goodness and promises, I hope to obtain pardon for my sins, the help of Thy grace, and life everlasting, through the merits of Jesus Christ, my Lord and Redeemer.',
+    ),
+    _PrayerEntry(
+      title: 'Act of Charity',
+      icon: Icons.lightbulb,
+      text: 'O my God, I love Thee above all things with my whole heart and soul, because Thou art all good and worthy of all love. I love my neighbor as myself for the love of Thee. I forgive all who have injured me, and ask pardon of all whom I have injured.',
+    ),
+    _PrayerEntry(
+      title: 'Act of Contrition',
+      icon: Icons.favorite,
+      text: 'O my God, I am heartily sorry for having offended Thee, and I detest all my sins because of Thy just punishments, but most of all because they offend Thee, my God, who art all good and deserving of all my love. I firmly resolve, with the help of Thy grace, to sin no more and to avoid the near occasions of sin. Amen.',
+    ),
+  ]),
   _PrayerCategory(name: 'Daily Prayers', prayers: [
     _PrayerEntry(
       title: 'Divine Mercy Chaplet',
@@ -301,11 +333,6 @@ final _prayerCategories = <_PrayerCategory>[
       title: 'Morning Offering',
       icon: Icons.wb_sunny,
       text: 'O Jesus, through the Immaculate Heart of Mary, I offer Thee my prayers, works, joys, and sufferings of this day for all the intentions of Thy Sacred Heart, in union with the Holy Sacrifice of the Mass throughout the world, for the salvation of souls, the reparation of sins, the reunion of Christians, and in particular for the intentions of the Holy Father this month. Amen.',
-    ),
-    _PrayerEntry(
-      title: 'Act of Contrition',
-      icon: Icons.favorite,
-      text: 'O my God, I am heartily sorry for having offended Thee, and I detest all my sins because of Thy just punishments, but most of all because they offend Thee, my God, who art all good and deserving of all my love. I firmly resolve, with the help of Thy grace, to sin no more and to avoid the near occasions of sin. Amen.',
     ),
     _PrayerEntry(
       title: 'Anima Christi',
@@ -468,21 +495,6 @@ final _prayerCategories = <_PrayerCategory>[
   ]),
 
   _PrayerCategory(name: 'Devotions', prayers: [
-    _PrayerEntry(
-      title: 'Act of Faith',
-      icon: Icons.lightbulb,
-      text: 'O my God, I firmly believe that Thou art one God in three divine Persons, Father, Son, and Holy Ghost; I believe that Thy divine Son became man, and died for our sins, and that He will come to judge the living and the dead. I believe these and all the truths which the Holy Catholic Church teaches, because Thou hast revealed them, who canst neither deceive nor be deceived.',
-    ),
-    _PrayerEntry(
-      title: 'Act of Hope',
-      icon: Icons.lightbulb,
-      text: 'O my God, relying on Thy almighty power and infinite goodness and promises, I hope to obtain pardon for my sins, the help of Thy grace, and life everlasting, through the merits of Jesus Christ, my Lord and Redeemer.',
-    ),
-    _PrayerEntry(
-      title: 'Act of Charity',
-      icon: Icons.lightbulb,
-      text: 'O my God, I love Thee above all things with my whole heart and soul, because Thou art all good and worthy of all love. I love my neighbor as myself for the love of Thee. I forgive all who have injured me, and ask pardon of all whom I have injured.',
-    ),
     _PrayerEntry(
       title: 'Prayer to St. Michael the Archangel',
       icon: Icons.shield,

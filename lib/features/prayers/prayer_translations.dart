@@ -4,6 +4,10 @@
 /// usage; Spanish follows the standard devotional forms.
 class PrayerTranslations {
   static const Map<String, String> latin = {
+    'The Lord\'s Prayer':
+        'Pater noster, qui es in cælis, sanctificetur nomen Tuum; adveniat regnum Tuum; fiat voluntas Tua, sicut in cælo et in terra. Panem nostrum quotidianum da nobis hodie; et dimitte nobis debita nostra, sicut et nos dimittimus debitoribus nostris; et ne nos inducas in tentationem; sed libera nos a malo. Amen.',
+    'Hail Mary':
+        'Ave Maria, gratia plena, Dominus tecum; benedicta Tu in mulieribus, et benedictus fructus ventris Tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostræ. Amen.',
     'The Angelus':
         'ANGELUS\n\nV. Angelus Domini nuntiavit Mariæ.\nR. Et concepit de Spiritu Sancto.\n\nAve Maria, gratia plena, Dominus tecum; benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostræ. Amen.\n\nV. Ecce ancilla Domini.\nR. Fiat mihi secundum verbum tuum.\n\nAve Maria, gratia plena, Dominus tecum; benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostræ. Amen.\n\nV. Et Verbum caro factum est.\nR. Et habitavit in nobis.\n\nAve Maria, gratia plena, Dominus tecum; benedicta tu in mulieribus, et benedictus fructus ventris tui, Iesus. Sancta Maria, Mater Dei, ora pro nobis peccatoribus, nunc et in hora mortis nostræ. Amen.\n\nV. Ora pro nobis, sancta Dei Genetrix.\nR. Ut digni efficiamur promissionibus Christi.\n\nOREMUS\nGratiam tuam, quæsumus, Domine, mentibus nostris infunde; ut qui, angelo nuntiante, Christi Filii tui incarnationem cognovimus, per passionem ejus et crucem ad resurrectionis gloriam perducamur. Per eundem Christum Dominum nostrum. Amen.',
     'Regina Caeli (Easter Angelus)':
@@ -75,6 +79,10 @@ class PrayerTranslations {
   };
 
   static const Map<String, String> spanish = {
+    'The Lord\'s Prayer':
+        'Padre nuestro, que estás en el cielo, santificado sea tu Nombre; venga a nosotros tu Reino; hágase tu voluntad, en la tierra como en el cielo. Danos hoy nuestro pan de cada día; perdona nuestras ofensas, como también nosotros perdonamos a los que nos ofenden; no nos dejes caer en la tentación y líbranos del mal. Amén.',
+    'Hail Mary':
+        'Dios te salve María, llena eres de gracia, el Señor es contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros los pecadores, ahora y en la hora de nuestra muerte. Amén.',
     'The Angelus':
         'ÁNGELUS\n\nV. El Ángel del Señor anunció a María.\nR. Y concibió por obra y gracia del Espíritu Santo.\n\nDios te salve María, llena eres de gracia; el Señor contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros, los pecadores, ahora y en la hora de nuestra muerte. Amén.\n\nV. He aquí la esclava del Señor.\nR. Hágase en mí según tu palabra.\n\nDios te salve María, llena eres de gracia; el Señor contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros, los pecadores, ahora y en la hora de nuestra muerte. Amén.\n\nV. Y el Verbo se hizo carne.\nR. Y habitó entre nosotros.\n\nDios te salve María, llena eres de gracia; el Señor contigo; bendita tú eres entre todas las mujeres, y bendito es el fruto de tu vientre, Jesús. Santa María, Madre de Dios, ruega por nosotros, los pecadores, ahora y en la hora de nuestra muerte. Amén.\n\nV. Ruega por nosotros, Santa Madre de Dios.\nR. Para que seamos dignos de alcanzar las promesas de Cristo.\n\nOREMOS\nInfunde, Señor, tu gracia en nuestras almas, para que, los que conocimos por el anuncio del Ángel la Encarnación de tu Hijo Jesucristo, lleguemos por su Pasión y su Cruz a la gloria de su Resurrección. Por Jesucristo nuestro Señor. Amén.',
     'Regina Caeli (Easter Angelus)':
@@ -601,6 +609,8 @@ Ver Salve Regina (Oraciones Marianas) o la antífona de cada estación:
 
   /// Display names in Spanish (lookup keys stay English).
   static const Map<String, String> titlesEs = const {
+    'The Lord\'s Prayer': 'Padre Nuestro',
+    'Hail Mary': 'Dios te salve María',
     'Divine Mercy Chaplet': 'Coronilla de la Divina Misericordia',
     'The Angelus': 'El Ángelus',
     'Regina Caeli (Easter Angelus)': 'Regina Caeli (Ángelus Pascual)',
