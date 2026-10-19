@@ -75,6 +75,8 @@ class AppStrings {
     'about_rosary': {'en': 'About the Rosary', 'es': 'Sobre el Rosario'},
     'stations': {'en': 'Stations of the Cross', 'es': 'Vía Crucis'},
     'doctrine_tile': {'en': 'Christian Doctrine', 'es': 'Doctrina Cristiana'},
+    'update_available': {'en': 'Update available', 'es': 'Actualización disponible'},
+    'update_now': {'en': 'Update', 'es': 'Actualizar'},
     'pray_todays_rosary': {
       'en': "Pray Today's Rosary",
       'es': 'Reza el Rosario de hoy',

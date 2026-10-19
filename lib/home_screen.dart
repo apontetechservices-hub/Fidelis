@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:in_app_update/in_app_update.dart';
 import 'package:flutter/services.dart';
 import 'config/theme.dart';
 import 'config/constants.dart';
@@ -151,11 +152,24 @@ class _DashboardPage extends StatefulWidget {
 class _DashboardPageState extends State<_DashboardPage> {
   DailyReflection? _reflection;
   bool _loadingReflection = true;
+  bool _updateAvailable = false;
 
   @override
   void initState() {
     super.initState();
     _loadReflection();
+    _checkForUpdate();
+  }
+
+  Future<void> _checkForUpdate() async {
+    try {
+      final info = await InAppUpdate.checkForUpdate();
+      if (mounted && info.updateAvailability == UpdateAvailability.updateAvailable) {
+        setState(() => _updateAvailable = true);
+      }
+    } catch (_) {
+      // Not store-installed or Play services unavailable — no banner.
+    }
   }
 
   Future<void> _loadReflection() async {
@@ -203,6 +217,35 @@ class _DashboardPageState extends State<_DashboardPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            if (_updateAvailable) ...[
+              Card(
+                color: FidelisTheme.deepPurple,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.system_update, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          AppStrings.t('update_available'),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => InAppUpdate.performImmediateUpdate(),
+                        child: Text(AppStrings.t('update_now')),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18, color: Colors.white),
+                        onPressed: () => setState(() => _updateAvailable = false),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             // Today's feast card
             _buildFeastCard(context, todayFeast, loadingFeast),
             const SizedBox(height: 20),
