@@ -699,7 +699,7 @@ List<ChapletPrayerStep> buildHolySpiritSteps({String language = 'en'}) {
   final es = language == 'es';
   String T(String key) => AppStrings.tFor(key, language);
   final esGifts = es
-      ? ['El Don de la Sabidur\u00eda', 'El Don del Entendimiento', 'El Don del Consejo', 'El Don de la Fortaleza', 'El Don de la Ciencia', 'El Don de la Piedad', 'El Don del Temor de Dios']
+      ? ['El Don de la Sabidur\u00eda', 'El Don del Entendimiento', 'El Don del Consejo', 'El Don de la Fortaleza', 'El Don del Conocimiento', 'El Don de la Piedad', 'El Don del Temor de Dios']
       : _holySpiritGifts;
   final esDescs = es
       ? ['Para estimar las cosas del cielo sobre las de la tierra.', 'Para entender los misterios de nuestra santa fe.', 'Para que el Esp\u00edritu Santo dirija todas nuestras acciones.', 'Para vencer todas las dificultades en el servicio de Dios.', 'Para conocer a Dios y a nosotros mismos, y crecer en santidad.', 'Para que el servicio de Dios nos resulte dulce y amable.', 'Para estar llenos del temor filial de ofender a Dios.']
@@ -781,7 +781,7 @@ List<ChapletPrayerStep> buildHolySpirit7BeadsSteps({String language = 'en'}) {
   final es = language == 'es';
   String T(String key) => AppStrings.tFor(key, language);
   final esGifts = es
-      ? ['El Don de la Sabidur\u00eda', 'El Don del Entendimiento', 'El Don del Consejo', 'El Don de la Fortaleza', 'El Don de la Ciencia', 'El Don de la Piedad', 'El Don del Temor de Dios']
+      ? ['El Don de la Sabidur\u00eda', 'El Don del Entendimiento', 'El Don del Consejo', 'El Don de la Fortaleza', 'El Don del Conocimiento', 'El Don de la Piedad', 'El Don del Temor de Dios']
       : _holySpiritGifts;
   final esDescs = es
       ? ['Para estimar las cosas del cielo sobre las de la tierra.', 'Para entender los misterios de nuestra santa fe.', 'Para que el Esp\u00edritu Santo dirija todas nuestras acciones.', 'Para vencer todas las dificultades en el servicio de Dios.', 'Para conocer a Dios y a nosotros mismos, y crecer en santidad.', 'Para que el servicio de Dios nos resulte dulce y amable.', 'Para estar llenos del temor filial de ofender a Dios.']
