@@ -123,7 +123,7 @@ const List<DoctrineTopic> doctrineTopics = [
       'Wisdom, Understanding, Counsel, Fortitude, Knowledge, Piety, and the Fear of the Lord.',
     ],
     itemsEs: [
-      'Sabiduría, Entendimiento, Consejo, Fortaleza, Ciencia, Piedad y Temor de Dios.',
+      'Sabiduría, Entendimiento, Consejo, Fortaleza, Conocimiento, Piedad y Temor de Dios.',
     ],
   ),
   DoctrineTopic(
