@@ -137,7 +137,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(widget.isForDead ? 'Rosary for the Dead' : 'Holy Rosary'),
+          title: Text(widget.isForDead ? AppStrings.t('rosary_for_the_dead') : AppStrings.t('title_holy_rosary')),
           leading: IconButton(
             icon: const Icon(Icons.close),
             onPressed: () => _confirmExit(context),
