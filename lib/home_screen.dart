@@ -20,6 +20,8 @@ import 'features/doctrine/doctrine_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
 import 'features/hours/lot_screen.dart';
+import 'features/premium/paywall_screen.dart';
+import 'services/billing_service.dart';
 
 
 
@@ -160,6 +162,7 @@ class _DashboardPageState extends State<_DashboardPage> {
     super.initState();
     _loadReflection();
     _checkForUpdate();
+    BillingService.init();
   }
 
   Future<void> _checkForUpdate() async {
@@ -276,7 +279,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     icon: Icons.local_florist,
                     label: AppStrings.t('novenas'),
                     color: const Color(0xFFEC407A),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NovenasScreen())),
+                    onTap: () => _openGated(context, const NovenasScreen()),
                   )),
                 ],
               ),
@@ -478,6 +481,14 @@ class _DashboardPageState extends State<_DashboardPage> {
     );
   }
 
+  void _openGated(BuildContext context, Widget screen) {
+    if (BillingService.premium.value) {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => screen));
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const PaywallScreen()));
+    }
+  }
+
   Widget _buildLiturgyOfTheHoursCard(BuildContext context) {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
@@ -485,12 +496,7 @@ class _DashboardPageState extends State<_DashboardPage> {
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const LotScreen()),
-          );
-        },
+        onTap: () => _openGated(context, const LotScreen()),
         child: Padding(
           padding: const EdgeInsets.all(20),
           child: Row(
