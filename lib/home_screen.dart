@@ -19,6 +19,7 @@ import 'features/daily/daily_prayers_screen.dart';
 import 'features/doctrine/doctrine_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
+import 'features/hours/lot_screen.dart';
 
 
 
@@ -485,11 +486,9 @@ class _DashboardPageState extends State<_DashboardPage> {
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
         onTap: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(AppStrings.t('liturgy_hours_coming')),
-              duration: Duration(seconds: 2),
-            ),
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const LotScreen()),
           );
         },
         child: Padding(
@@ -511,7 +510,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Coming Soon',
+                      AppStrings.t('lot_subtitle'),
                       style: theme.textTheme.bodyLarge?.copyWith(
                         color: FidelisTheme.gold.withValues(alpha: 0.6),
                         fontStyle: FontStyle.italic,
