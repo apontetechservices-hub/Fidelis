@@ -136,7 +136,7 @@ class ReflectionScreen extends StatelessWidget {
             // Reflection
             if (reflection.reflection.isNotEmpty) ...[
               Text(
-                'Reflection',
+                AppStrings.t('reflection_label'),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
@@ -168,7 +168,7 @@ class ReflectionScreen extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Prayer',
+                      AppStrings.t('prayer_label'),
                       style: theme.textTheme.labelMedium?.copyWith(
                         color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
                         fontWeight: FontWeight.bold,
@@ -191,7 +191,7 @@ class ReflectionScreen extends StatelessWidget {
             const SizedBox(height: 32),
             Center(
               child: Text(
-                'Source: mycatholic.life',
+                '${AppStrings.t('source_label')}: ${reflection.source}',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                 ),

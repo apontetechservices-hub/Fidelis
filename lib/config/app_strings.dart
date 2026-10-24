@@ -77,6 +77,9 @@ class AppStrings {
     'doctrine_tile': {'en': 'Christian Doctrine', 'es': 'Doctrina Cristiana'},
     'update_available': {'en': 'Update available', 'es': 'Actualización disponible'},
     'update_now': {'en': 'Update', 'es': 'Actualizar'},
+    'reflection_label': {'en': 'Reflection', 'es': 'Reflexión'},
+    'prayer_label': {'en': 'Prayer', 'es': 'Oración'},
+    'source_label': {'en': 'Source', 'es': 'Fuente'},
     'pray_todays_rosary': {
       'en': "Pray Today's Rosary",
       'es': 'Reza el Rosario de hoy',

@@ -16,6 +16,7 @@ class DailyReflection {
   final String prayer;
   final String link;
   final String audioUrl;
+  final String source;
 
   const DailyReflection({
     required this.title,
@@ -27,6 +28,7 @@ class DailyReflection {
     required this.prayer,
     required this.link,
     this.audioUrl = '',
+    this.source = 'mycatholic.life',
   });
 }
 
@@ -303,5 +305,93 @@ class ReflectionService {
         .trim();
     text = text.replaceAll(RegExp(r'\s+'), ' ');
     return text;
+  }
+
+  static const String _evangelizoBase = 'https://feed.evangelizo.org/v2/reader.php';
+
+  /// Daily Gospel reflection in Spanish from Evangelizo (evangelizo.org).
+  /// Their Reader API is explicitly intended for external use; attribution required.
+  static Future<DailyReflection?> getTodayReflectionEs() async {
+    final now = DateTime.now();
+    final dateKey = '${AppStrings.monthName(now.month)} ${now.day}, ${now.year}#es';
+
+    try {
+      final cached = await _getCached(dateKey);
+      if (cached != null) return cached;
+    } catch (_) {}
+
+    try {
+      final reflection = await _fetchFromEvangelizo(now);
+      if (reflection != null) {
+        try { await _saveToCache(reflection); } catch (_) {}
+        return reflection;
+      }
+    } catch (_) {
+      try {
+        final y = now.subtract(const Duration(days: 1));
+        return _getCached('${AppStrings.monthName(y.month)} ${y.day}, ${y.year}#es');
+      } catch (_) {}
+    }
+
+    return null;
+  }
+
+  static Future<String> _evangelizoFetch(String type, {String content = ''}) async {
+    final now = DateTime.now();
+    final date = '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    var url = '$_evangelizoBase?date=$date&type=$type&lang=SP';
+    if (content.isNotEmpty) url += '&content=$content';
+    final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15));
+    if (response.statusCode != 200) return '';
+    final body = response.body;
+    if (body.contains('Error :')) return '';
+    return _stripEvangelizoHtml(body);
+  }
+
+  static Future<DailyReflection?> _fetchFromEvangelizo(DateTime now) async {
+    final liturgicTitle = await _evangelizoFetch('liturgic_t');
+    final gospelTitle = await _evangelizoFetch('reading_lt', content: 'GSP');
+    final gospelText = await _evangelizoFetch('reading', content: 'GSP');
+    final commentTitle = await _evangelizoFetch('comment_t');
+    final commentText = await _evangelizoFetch('comment');
+    final commentAuthor = await _evangelizoFetch('comment_a');
+
+    if (commentText.isEmpty || gospelText.isEmpty) return null;
+
+    final dateEs = '${now.day} de ${AppStrings.monthName(now.month).toLowerCase()} de ${now.year}';
+    final reflectionBody = commentAuthor.isNotEmpty ? '$commentAuthor:\n\n$commentText' : commentText;
+
+    return DailyReflection(
+      title: commentTitle,
+      date: dateEs,
+      feastDay: liturgicTitle,
+      gospelVerse: gospelTitle,
+      gospelText: gospelText,
+      reflection: reflectionBody,
+      prayer: '',
+      link: 'https://evangeliodeldia.org/SP/gospel',
+      audioUrl: '',
+      source: 'evangelizo.org',
+    );
+  }
+
+  static String _stripEvangelizoHtml(String html) {
+    var text = html
+        .replaceAll(RegExp(r'<br\s*/?>\s*<br\s*/?>'), '\n\n')
+        .replaceAll(RegExp(r'<br\s*/?>'), '\n')
+        .replaceAll(RegExp(r'<[^>]*>'), '')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&nbsp;', ' ')
+        .replaceAll('&#8217;', "'")
+        .replaceAll('&#8211;', '\u2013')
+        .replaceAll('&#8212;', '\u2014')
+        .trim();
+    text = text.split('\n').map((l) => l.replaceAll(RegExp(r'[ \t]+'), ' ').trim()).join('\n');
+    text = text.replaceAll(RegExp(r'\n{3,}'), '\n\n');
+    return text.trim();
   }
 }

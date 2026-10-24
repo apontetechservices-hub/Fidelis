@@ -174,7 +174,7 @@ class _DashboardPageState extends State<_DashboardPage> {
 
   Future<void> _loadReflection() async {
     try {
-      final r = await ReflectionService.getTodayReflection();
+      final r = AppStrings.isSpanish ? await ReflectionService.getTodayReflectionEs() : await ReflectionService.getTodayReflection();
       if (mounted) setState(() { _reflection = r; _loadingReflection = false; });
     } catch (_) {
       if (mounted) setState(() { _loadingReflection = false; });
@@ -555,7 +555,7 @@ class _DashboardPageState extends State<_DashboardPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Daily Reflection', style: theme.textTheme.titleMedium),
+              Text(AppStrings.t('daily_reflection'), style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               Text(AppStrings.t('unable_today') + 's reflection. Check your connection and try again.',
                 style: theme.textTheme.bodySmall?.copyWith(
@@ -587,7 +587,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('Daily Reflection', style: theme.textTheme.titleMedium),
+                    child: Text(AppStrings.t('daily_reflection'), style: theme.textTheme.titleMedium),
                   ),
                   const Icon(Icons.chevron_right, size: 18, color: Colors.white54),
                 ],
