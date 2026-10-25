@@ -1,0 +1,515 @@
+{
+ "books": [
+  {
+   "key": "Genesis",
+   "name": "Genesis",
+   "testament": "OT",
+   "order": 1,
+   "chapters": 50
+  },
+  {
+   "key": "Exodus",
+   "name": "Exodus",
+   "testament": "OT",
+   "order": 2,
+   "chapters": 40
+  },
+  {
+   "key": "Leviticus",
+   "name": "Leviticus",
+   "testament": "OT",
+   "order": 3,
+   "chapters": 27
+  },
+  {
+   "key": "Numbers",
+   "name": "Numbers",
+   "testament": "OT",
+   "order": 4,
+   "chapters": 35
+  },
+  {
+   "key": "Deuteronomy",
+   "name": "Deuteronomy",
+   "testament": "OT",
+   "order": 5,
+   "chapters": 34
+  },
+  {
+   "key": "Josue",
+   "name": "Josue",
+   "testament": "OT",
+   "order": 6,
+   "chapters": 22
+  },
+  {
+   "key": "Judges",
+   "name": "Judges",
+   "testament": "OT",
+   "order": 7,
+   "chapters": 17
+  },
+  {
+   "key": "Ruth",
+   "name": "Ruth",
+   "testament": "OT",
+   "order": 8,
+   "chapters": 2
+  },
+  {
+   "key": "1 Kings",
+   "name": "1 Kings",
+   "testament": "OT",
+   "order": 9,
+   "chapters": 31
+  },
+  {
+   "key": "2 Kings",
+   "name": "2 Kings",
+   "testament": "OT",
+   "order": 10,
+   "chapters": 23
+  },
+  {
+   "key": "3 Kings",
+   "name": "3 Kings",
+   "testament": "OT",
+   "order": 11,
+   "chapters": 22
+  },
+  {
+   "key": "4 Kings",
+   "name": "4 Kings",
+   "testament": "OT",
+   "order": 12,
+   "chapters": 25
+  },
+  {
+   "key": "1 Paralipomenon",
+   "name": "1 Paralipomenon",
+   "testament": "OT",
+   "order": 13,
+   "chapters": 27
+  },
+  {
+   "key": "2 Paralipomenon",
+   "name": "2 Paralipomenon",
+   "testament": "OT",
+   "order": 14,
+   "chapters": 36
+  },
+  {
+   "key": "Esdras",
+   "name": "Esdras",
+   "testament": "OT",
+   "order": 15,
+   "chapters": 10
+  },
+  {
+   "key": "Nehemias",
+   "name": "Nehemias",
+   "testament": "OT",
+   "order": 16,
+   "chapters": 11
+  },
+  {
+   "key": "Tobias",
+   "name": "Tobias",
+   "testament": "OT",
+   "order": 17,
+   "chapters": 14
+  },
+  {
+   "key": "Judith",
+   "name": "Judith",
+   "testament": "OT",
+   "order": 18,
+   "chapters": 11
+  },
+  {
+   "key": "Esther",
+   "name": "Esther",
+   "testament": "OT",
+   "order": 19,
+   "chapters": 13
+  },
+  {
+   "key": "Job",
+   "name": "Job",
+   "testament": "OT",
+   "order": 20,
+   "chapters": 19
+  },
+  {
+   "key": "Psalms",
+   "name": "Psalms",
+   "testament": "OT",
+   "order": 21,
+   "chapters": 150
+  },
+  {
+   "key": "Proverbs",
+   "name": "Proverbs",
+   "testament": "OT",
+   "order": 22,
+   "chapters": 31
+  },
+  {
+   "key": "Ecclesiastes",
+   "name": "Ecclesiastes",
+   "testament": "OT",
+   "order": 23,
+   "chapters": 12
+  },
+  {
+   "key": "Canticle of Canticles",
+   "name": "Canticle of Canticles",
+   "testament": "OT",
+   "order": 24,
+   "chapters": 8
+  },
+  {
+   "key": "Wisdom",
+   "name": "Wisdom",
+   "testament": "OT",
+   "order": 25,
+   "chapters": 19
+  },
+  {
+   "key": "Ecclesiasticus",
+   "name": "Ecclesiasticus",
+   "testament": "OT",
+   "order": 26,
+   "chapters": 48
+  },
+  {
+   "key": "Isaias",
+   "name": "Isaias",
+   "testament": "OT",
+   "order": 27,
+   "chapters": 66
+  },
+  {
+   "key": "Jeremias",
+   "name": "Jeremias",
+   "testament": "OT",
+   "order": 28,
+   "chapters": 51
+  },
+  {
+   "key": "Lamentations",
+   "name": "Lamentations",
+   "testament": "OT",
+   "order": 29,
+   "chapters": 5
+  },
+  {
+   "key": "Baruch",
+   "name": "Baruch",
+   "testament": "OT",
+   "order": 30,
+   "chapters": 6
+  },
+  {
+   "key": "Ezechiel",
+   "name": "Ezechiel",
+   "testament": "OT",
+   "order": 31,
+   "chapters": 44
+  },
+  {
+   "key": "Daniel",
+   "name": "Daniel",
+   "testament": "OT",
+   "order": 32,
+   "chapters": 14
+  },
+  {
+   "key": "Osee",
+   "name": "Osee",
+   "testament": "OT",
+   "order": 33,
+   "chapters": 11
+  },
+  {
+   "key": "Joel",
+   "name": "Joel",
+   "testament": "OT",
+   "order": 34,
+   "chapters": 3
+  },
+  {
+   "key": "Amos",
+   "name": "Amos",
+   "testament": "OT",
+   "order": 35,
+   "chapters": 7
+  },
+  {
+   "key": "Abdias",
+   "name": "Abdias",
+   "testament": "OT",
+   "order": 36,
+   "chapters": 1
+  },
+  {
+   "key": "Jonas",
+   "name": "Jonas",
+   "testament": "OT",
+   "order": 37,
+   "chapters": 4
+  },
+  {
+   "key": "Micheas",
+   "name": "Micheas",
+   "testament": "OT",
+   "order": 38,
+   "chapters": 6
+  },
+  {
+   "key": "Nahum",
+   "name": "Nahum",
+   "testament": "OT",
+   "order": 39,
+   "chapters": 3
+  },
+  {
+   "key": "Habacuc",
+   "name": "Habacuc",
+   "testament": "OT",
+   "order": 40,
+   "chapters": 3
+  },
+  {
+   "key": "Sophonias",
+   "name": "Sophonias",
+   "testament": "OT",
+   "order": 41,
+   "chapters": 3
+  },
+  {
+   "key": "Aggeus",
+   "name": "Aggeus",
+   "testament": "OT",
+   "order": 42,
+   "chapters": 2
+  },
+  {
+   "key": "Zacharias",
+   "name": "Zacharias",
+   "testament": "OT",
+   "order": 43,
+   "chapters": 11
+  },
+  {
+   "key": "Malachias",
+   "name": "Malachias",
+   "testament": "OT",
+   "order": 44,
+   "chapters": 4
+  },
+  {
+   "key": "1 Machabees",
+   "name": "1 Machabees",
+   "testament": "OT",
+   "order": 45,
+   "chapters": 16
+  },
+  {
+   "key": "2 Machabees",
+   "name": "2 Machabees",
+   "testament": "OT",
+   "order": 46,
+   "chapters": 14
+  },
+  {
+   "key": "Matthew",
+   "name": "Matthew",
+   "testament": "NT",
+   "order": 1,
+   "chapters": 28
+  },
+  {
+   "key": "Mark",
+   "name": "Mark",
+   "testament": "NT",
+   "order": 2,
+   "chapters": 16
+  },
+  {
+   "key": "Luke",
+   "name": "Luke",
+   "testament": "NT",
+   "order": 3,
+   "chapters": 24
+  },
+  {
+   "key": "John",
+   "name": "John",
+   "testament": "NT",
+   "order": 4,
+   "chapters": 21
+  },
+  {
+   "key": "Acts",
+   "name": "Acts",
+   "testament": "NT",
+   "order": 5,
+   "chapters": 28
+  },
+  {
+   "key": "Romans",
+   "name": "Romans",
+   "testament": "NT",
+   "order": 6,
+   "chapters": 16
+  },
+  {
+   "key": "1 Corinthians",
+   "name": "1 Corinthians",
+   "testament": "NT",
+   "order": 7,
+   "chapters": 15
+  },
+  {
+   "key": "2 Corinthians",
+   "name": "2 Corinthians",
+   "testament": "NT",
+   "order": 8,
+   "chapters": 13
+  },
+  {
+   "key": "Galatians",
+   "name": "Galatians",
+   "testament": "NT",
+   "order": 9,
+   "chapters": 6
+  },
+  {
+   "key": "Ephesians",
+   "name": "Ephesians",
+   "testament": "NT",
+   "order": 10,
+   "chapters": 6
+  },
+  {
+   "key": "Philippians",
+   "name": "Philippians",
+   "testament": "NT",
+   "order": 11,
+   "chapters": 4
+  },
+  {
+   "key": "Colossians",
+   "name": "Colossians",
+   "testament": "NT",
+   "order": 12,
+   "chapters": 4
+  },
+  {
+   "key": "1 Thessalonians",
+   "name": "1 Thessalonians",
+   "testament": "NT",
+   "order": 13,
+   "chapters": 5
+  },
+  {
+   "key": "2 Thessalonians",
+   "name": "2 Thessalonians",
+   "testament": "NT",
+   "order": 14,
+   "chapters": 3
+  },
+  {
+   "key": "1 Timothy",
+   "name": "1 Timothy",
+   "testament": "NT",
+   "order": 15,
+   "chapters": 6
+  },
+  {
+   "key": "2 Timothy",
+   "name": "2 Timothy",
+   "testament": "NT",
+   "order": 16,
+   "chapters": 4
+  },
+  {
+   "key": "Titus",
+   "name": "Titus",
+   "testament": "NT",
+   "order": 17,
+   "chapters": 3
+  },
+  {
+   "key": "Philemon",
+   "name": "Philemon",
+   "testament": "NT",
+   "order": 18,
+   "chapters": 1
+  },
+  {
+   "key": "Hebrews",
+   "name": "Hebrews",
+   "testament": "NT",
+   "order": 19,
+   "chapters": 13
+  },
+  {
+   "key": "James",
+   "name": "James",
+   "testament": "NT",
+   "order": 20,
+   "chapters": 5
+  },
+  {
+   "key": "1 Peter",
+   "name": "1 Peter",
+   "testament": "NT",
+   "order": 21,
+   "chapters": 5
+  },
+  {
+   "key": "2 Peter",
+   "name": "2 Peter",
+   "testament": "NT",
+   "order": 22,
+   "chapters": 3
+  },
+  {
+   "key": "1 John",
+   "name": "1 John",
+   "testament": "NT",
+   "order": 23,
+   "chapters": 5
+  },
+  {
+   "key": "2 John",
+   "name": "2 John",
+   "testament": "NT",
+   "order": 24,
+   "chapters": 1
+  },
+  {
+   "key": "3 John",
+   "name": "3 John",
+   "testament": "NT",
+   "order": 25,
+   "chapters": 1
+  },
+  {
+   "key": "Jude",
+   "name": "Jude",
+   "testament": "NT",
+   "order": 26,
+   "chapters": 1
+  },
+  {
+   "key": "Apocalypse",
+   "name": "Apocalypse",
+   "testament": "NT",
+   "order": 27,
+   "chapters": 22
+  }
+ ]
+}
