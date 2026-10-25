@@ -50,8 +50,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
             _featureRow(context, theme, Icons.school, AppStrings.t('premium_feat_catechism')),
             _featureRow(context, theme, Icons.history_edu, AppStrings.t('premium_feat_fathers')),
             _featureRow(context, theme, Icons.local_fire_department, AppStrings.t('premium_feat_streaks')),
-            _featureRow(context, theme, Icons.healing, AppStrings.t('premium_feat_confession')),
-            _featureRow(context, theme, Icons.directions_walk, AppStrings.t('premium_feat_stations')),
+            _featureRow(context, theme, Icons.volume_up, AppStrings.t('premium_feat_audio')),
+            _featureRow(context, theme, Icons.people, AppStrings.t('premium_feat_saints')),
             _featureRow(context, theme, Icons.all_inclusive, AppStrings.t('premium_feat_future')),
             const SizedBox(height: 24),
             Center(
