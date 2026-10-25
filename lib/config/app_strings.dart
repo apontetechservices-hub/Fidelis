@@ -88,7 +88,7 @@ class AppStrings {
     'premium_restore': {'en': 'Restore purchase', 'es': 'Restaurar compra'},
     'premium_onetime_note': {'en': 'One-time payment. Yours forever. No ads, ever.', 'es': 'Pago único. Tuyo para siempre. Sin anuncios, nunca.'},
     'premium_feat_loth': {'en': 'Liturgy of the Hours — traditional 1962 office', 'es': 'Liturgia de las Horas — oficio tradicional de 1962'},
-    'premium_feat_novenas': {'en': 'Full novenas library', 'es': 'Biblioteca completa de novenas'},
+    'premium_feat_bible': {'en': 'Full Catholic Bible with audio (coming soon)', 'es': 'Biblia Católica completa con audio (próximamente)'},
     'premium_feat_future': {'en': 'All future premium content included', 'es': 'Todo el contenido premium futuro incluido'},
     'lot_lauds': {'en': 'Morning Prayer (Lauds)', 'es': 'Laudes (Oración de la mañana)'},
     'lot_vespers': {'en': 'Evening Prayer (Vespers)', 'es': 'Vísperas (Oración de la tarde)'},

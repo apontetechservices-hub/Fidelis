@@ -279,7 +279,7 @@ class _DashboardPageState extends State<_DashboardPage> {
                     icon: Icons.local_florist,
                     label: AppStrings.t('novenas'),
                     color: const Color(0xFFEC407A),
-                    onTap: () => _openGated(context, const NovenasScreen()),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NovenasScreen())),
                   )),
                 ],
               ),
