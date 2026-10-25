@@ -92,7 +92,7 @@ class AppStrings {
     'premium_feat_catechism': {'en': 'Baltimore Catechism lessons by grade (coming soon)', 'es': 'Lecciones del Catecismo de Baltimore por grado (próximamente)'},
     'premium_feat_fathers': {'en': 'Church Fathers library (coming soon)', 'es': 'Biblioteca de los Padres de la Iglesia (próximamente)'},
     'premium_feat_streaks': {'en': 'Prayer streaks & habit tracking (coming soon)', 'es': 'Rachas de oración y seguimiento de hábitos (próximamente)'},
-    'premium_feat_audio': {'en': 'Audio Bible & daily readings (coming soon)', 'es': 'Biblia en audio y lecturas diarias (próximamente)'},
+    'premium_feat_audio': {'en': 'Audio Bible & daily readings', 'es': 'Biblia en audio y lecturas diarias'},
     'premium_feat_saints': {'en': 'Lives of the Saints library (coming soon)', 'es': 'Biblioteca de Vidas de los Santos (próximamente)'},
     'premium_feat_future': {'en': 'All future premium content included', 'es': 'Todo el contenido premium futuro incluido'},
     'lot_lauds': {'en': 'Morning Prayer (Lauds)', 'es': 'Laudes (Oración de la mañana)'},
@@ -440,6 +440,8 @@ class AppStrings {
     'day_of_nine': {'en': 'Day {{n}} of 9', 'es': 'Día {{n}} de 9'},
     'mark_day_complete': {'en': 'Mark Day {{n}} Complete', 'es': 'Marcar el Día {{n}} Completo'},
     'undo_day': {'en': 'Undo Day {{n}}', 'es': 'Deshacer el Día {{n}}'},
+    'listen': {'en': 'Listen', 'es': 'Escuchar'},
+    'stop_audio': {'en': 'Stop audio', 'es': 'Detener audio'},
 
   };
 }

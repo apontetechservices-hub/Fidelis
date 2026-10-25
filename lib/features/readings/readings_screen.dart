@@ -4,6 +4,9 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
+import '../../services/billing_service.dart';
+import '../../services/tts_service.dart';
+import '../premium/paywall_screen.dart';
 import 'missal_service.dart';
 import 'missal_cache.dart';
 import 'usccb_service.dart';
@@ -25,12 +28,20 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
   bool _showLatin = false;
   late DateTime _selectedDate;
   String _missal = '1962'; // '1962' or 'novus_ordo'
+  bool _speaking = false;
+  String _propersLang = 'en'; // language of the loaded traditional propers
 
   @override
   void initState() {
     _selectedDate = widget.initialDate ?? DateTime.now();
     super.initState();
     _loadSettings();
+  }
+
+  @override
+  void dispose() {
+    if (_speaking) TtsService.stop();
+    super.dispose();
   }
 
   Future<void> _loadSettings() async {
@@ -138,6 +149,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
           setState(() {
             _propers = bundled;
             _usccbReadings = null;
+            _propersLang = 'es';
           });
           return;
         }
@@ -156,6 +168,7 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     setState(() {
       _propers = propers;
       _usccbReadings = null;
+      _propersLang = 'en';
     });
   }
 
@@ -234,6 +247,12 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
             icon: const Icon(Icons.calendar_today),
             tooltip: 'Select date',
             onPressed: _pickDate,
+          ),
+          // Audio playback (premium feature)
+          IconButton(
+            icon: Icon(_speaking ? Icons.volume_off : Icons.volume_up),
+            tooltip: _speaking ? AppStrings.t('stop_audio') : AppStrings.t('listen'),
+            onPressed: _speaking ? _stopAudio : _openGatedAudio,
           ),
         ],
       ),
@@ -663,6 +682,70 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
     return '${AppStrings.monthName(date.month)} ${date.day}, ${date.year}';
+  }
+
+  // ─── Audio playback (premium) ────────────────────────────────
+
+  /// Premium gate: free users get the paywall, premium users get audio.
+  void _openGatedAudio() {
+    if (BillingService.premium.value) {
+      _playAudio();
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (context) => const PaywallScreen()));
+    }
+  }
+
+  /// The currently displayed readings, one entry per section, for TTS.
+  List<String> _readingsSections() {
+    final texts = <String>[];
+    if (_missal == '1962') {
+      final propers = _propers;
+      if (propers == null || propers.isEmpty) return texts;
+      for (final section in propers.first.sections) {
+        final text = _sectionText(section);
+        if (text.isNotEmpty) texts.add(text);
+      }
+      return texts;
+    }
+    final readings = _usccbReadings;
+    if (readings == null) return texts;
+    for (final section in readings.sections) {
+      final text = section.text.trim();
+      if (text.isNotEmpty) texts.add(text);
+    }
+    return texts;
+  }
+
+  /// Text as displayed: Latin when toggled on, otherwise the vernacular.
+  String _sectionText(ProperSection section) =>
+      (_showLatin && section.hasLatin ? section.latin : section.english).trim();
+
+  /// TTS language of the displayed readings: the Latin view uses the
+  /// Italian voice (ecclesiastical pronunciation); the traditional propers
+  /// follow their loaded language; Novus Ordo USCCB text is English-only.
+  String _audioLang() {
+    if (_missal == '1962') {
+      return _showLatin ? 'la' : _propersLang;
+    }
+    return 'en';
+  }
+
+  /// Speaks the day's readings section by section (per-section calls keep
+  /// each TTS request small); [_speaking] drives the stop button.
+  Future<void> _playAudio() async {
+    final sections = _readingsSections();
+    if (sections.isEmpty || _speaking) return;
+    setState(() => _speaking = true);
+    for (final text in sections) {
+      if (!_speaking) break;
+      await TtsService.speakPrayer(text, lang: _audioLang());
+    }
+    if (mounted) setState(() => _speaking = false);
+  }
+
+  Future<void> _stopAudio() async {
+    setState(() => _speaking = false);
+    await TtsService.stop();
   }
 
   Future<void> _pickDate() async {
