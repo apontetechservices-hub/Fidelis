@@ -7,6 +7,8 @@ import '../features/settings/settings_screen.dart';
 import '../features/stations/stations_screen.dart';
 import '../features/daily/daily_prayers_screen.dart';
 import '../features/doctrine/doctrine_screen.dart';
+import '../features/bible/bible_home_screen.dart';
+import '../features/bible/bible_chapter_screen.dart';
 import '../home_screen.dart';
 
 class AppRoutes {
@@ -19,6 +21,8 @@ class AppRoutes {
   static const String stations = '/stations';
   static const String daily = '/daily';
   static const String doctrine = '/doctrine';
+  static const String bible = '/bible';
+  static const String bibleChapter = '/bible/chapter';
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomeScreen(),
@@ -36,5 +40,13 @@ class AppRoutes {
     stations: (context) => const StationsScreen(),
     daily: (context) => const DailyPrayersScreen(),
     doctrine: (context) => const DoctrineScreen(),
+    bible: (context) => const BibleHomeScreen(),
+    bibleChapter: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is BibleChapterArgs) {
+        return BibleChapterScreen(book: args.book, chapter: args.chapter);
+      }
+      return const BibleHomeScreen();
+    },
   };
 }

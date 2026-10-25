@@ -17,6 +17,7 @@ import 'features/chaplet/chaplet_list_screen.dart';
 import 'features/stations/stations_screen.dart';
 import 'features/daily/daily_prayers_screen.dart';
 import 'features/doctrine/doctrine_screen.dart';
+import 'features/bible/bible_home_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
 import 'features/hours/lot_screen.dart';
@@ -318,6 +319,13 @@ class _DashboardPageState extends State<_DashboardPage> {
               label: AppStrings.t('doctrine_tile'),
               color: FidelisTheme.deepPurple,
               onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const DoctrineScreen())),
+            ),
+            const SizedBox(height: 12),
+            _QuickActionWide(
+              icon: Icons.menu_book,
+              label: AppStrings.t('bible'),
+              color: FidelisTheme.forestGreen,
+              onTap: () => _openGated(context, const BibleHomeScreen()),
             ),
             const SizedBox(height: 24),
 
