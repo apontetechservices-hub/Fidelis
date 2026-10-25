@@ -6,6 +6,7 @@ import '../../config/constants.dart';
 import 'rosary_controller.dart';
 import 'rosary_prayers.dart';
 import 'mystery_data.dart';
+import '../../services/tts_service.dart';
 import 'litany_of_loreto.dart';
 import 'rosary_state.dart';
 
@@ -37,6 +38,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   late List<RosaryStep> _steps;
   int _currentStep = 0;
   bool _showLitany = false;
+  bool _speaking = false;
   int _litanyIndex = 0;
   late String _language;
 
@@ -143,6 +145,22 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             onPressed: () => _confirmExit(context),
           ),
           // Language set on Rosary selection screen, persisted in SharedPreferences
+          actions: [
+            IconButton(
+              icon: Icon(_speaking ? Icons.volume_off : Icons.volume_up),
+              tooltip: _speaking ? 'Stop audio' : 'Listen',
+              onPressed: () async {
+                if (_speaking) {
+                  await TtsService.stop();
+                  if (mounted) setState(() => _speaking = false);
+                } else {
+                  setState(() => _speaking = true);
+                  await TtsService.speakPrayer(_currentPrayerText(), lang: _language);
+                  if (mounted) setState(() => _speaking = false);
+                }
+              },
+            ),
+          ],
         ),
       body: Column(
         children: [
@@ -294,8 +312,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     );
   }
 
-  Widget _buildPrayerText(BuildContext context) {
-    final theme = Theme.of(context);
+  String _currentPrayerText() {
     String prayerText = '';
 
     switch (_step.type) {
@@ -391,13 +408,18 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         }
         break;
       case RosaryStepType.litany:
-        return const SizedBox.shrink();
+        return '';
       case RosaryStepType.mysteryAnnouncement:
-        return const SizedBox.shrink(); // Mystery content shown separately
+        return ''; // Mystery content shown separately
       default:
         break;
     }
+    return prayerText;
+  }
 
+  Widget _buildPrayerText(BuildContext context) {
+    final theme = Theme.of(context);
+    final prayerText = _currentPrayerText();
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 80),
       decoration: BoxDecoration(
