@@ -18,6 +18,7 @@ import 'features/stations/stations_screen.dart';
 import 'features/daily/daily_prayers_screen.dart';
 import 'features/doctrine/doctrine_screen.dart';
 import 'features/bible/bible_home_screen.dart';
+import 'features/saints_library/saints_library_home_screen.dart';
 import 'features/readings/reflection_service.dart';
 import 'features/readings/reflection_screen.dart';
 import 'features/hours/lot_screen.dart';
@@ -326,6 +327,13 @@ class _DashboardPageState extends State<_DashboardPage> {
               label: AppStrings.t('bible'),
               color: FidelisTheme.forestGreen,
               onTap: () => _openGated(context, const BibleHomeScreen()),
+            ),
+            const SizedBox(height: 12),
+            _QuickActionWide(
+              icon: Icons.people,
+              label: AppStrings.t('saints_library'),
+              color: FidelisTheme.gold,
+              onTap: () => _openGated(context, const SaintsLibraryHomeScreen()),
             ),
             const SizedBox(height: 24),
 

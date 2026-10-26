@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
 import '../readings/missal_service.dart';
+import '../premium/paywall_screen.dart';
+import '../saints_library/saints_library_home_screen.dart';
+import '../../services/billing_service.dart';
 
 class SaintsScreen extends StatefulWidget {
   const SaintsScreen({super.key});
@@ -34,6 +37,22 @@ class _SaintsScreenState extends State<SaintsScreen> {
     }
   }
 
+  /// Browse all saints: the premium Lives of the Saints library,
+  /// or the paywall for free users.
+  void _openLibrary() {
+    if (BillingService.premium.value) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const SaintsLibraryHomeScreen()),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PaywallScreen()),
+      );
+    }
+  }
+
   /// Get CalendarDay for a specific date
   CalendarDay? _getDay(DateTime date) {
     final id = '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
@@ -53,6 +72,11 @@ class _SaintsScreenState extends State<SaintsScreen> {
       appBar: AppBar(
         title: Text(AppStrings.t('title_saints')),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.library_books),
+            tooltip: AppStrings.t('browse_all_saints'),
+            onPressed: _openLibrary,
+          ),
           IconButton(
             icon: const Icon(Icons.calendar_month),
             tooltip: AppStrings.t('go_to_today'),

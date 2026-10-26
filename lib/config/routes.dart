@@ -9,6 +9,8 @@ import '../features/daily/daily_prayers_screen.dart';
 import '../features/doctrine/doctrine_screen.dart';
 import '../features/bible/bible_home_screen.dart';
 import '../features/bible/bible_chapter_screen.dart';
+import '../features/saints_library/saint_detail_screen.dart';
+import '../features/saints_library/saints_library_home_screen.dart';
 import '../home_screen.dart';
 
 class AppRoutes {
@@ -23,6 +25,8 @@ class AppRoutes {
   static const String doctrine = '/doctrine';
   static const String bible = '/bible';
   static const String bibleChapter = '/bible/chapter';
+  static const String saintsLibrary = '/saints/library';
+  static const String saintsLibraryDetail = '/saints/library/detail';
 
   static Map<String, WidgetBuilder> get routes => {
     home: (context) => const HomeScreen(),
@@ -47,6 +51,14 @@ class AppRoutes {
         return BibleChapterScreen(book: args.book, chapter: args.chapter);
       }
       return const BibleHomeScreen();
+    },
+    saintsLibrary: (context) => const SaintsLibraryHomeScreen(),
+    saintsLibraryDetail: (context) {
+      final args = ModalRoute.of(context)?.settings.arguments;
+      if (args is SaintDetailArgs) {
+        return SaintDetailScreen(entry: args.entry);
+      }
+      return const SaintsLibraryHomeScreen();
     },
   };
 }
