@@ -57,6 +57,7 @@ class LotService {
   static bool _dbReady = false;
   static Map<String, dynamic>? _psalter;
   static Map<String, dynamic>? _compline;
+  static Map<String, dynamic>? _feastOverrides;
 
   static Future<Database> get database async {
     if (_db != null && _dbReady) return _db!;
@@ -80,6 +81,23 @@ class LotService {
     final raw = await rootBundle.loadString('assets/breviary/compline.json');
     _compline = json.decode(raw) as Map<String, dynamic>;
     return _compline!;
+  }
+
+  /// Feast-day psalmody overrides (Divinum Officium, Rubrics 1960), generated
+  /// by the fidelis-pipeline tooling. Keyed 'YYYY-MM-DD' -> {'lauds': [...],
+  /// 'vespers': [...]}; present only for dates whose psalmody differs from the
+  /// weekday psalter. Empty map when the asset is unavailable.
+  static Future<Map<String, dynamic>> _loadFeastOverrides() async {
+    final cached = _feastOverrides;
+    if (cached != null) return cached;
+    var loaded = <String, dynamic>{};
+    try {
+      final raw = await rootBundle.loadString('assets/breviary/feast_overrides.json');
+      final decoded = json.decode(raw);
+      if (decoded is Map<String, dynamic>) loaded = decoded;
+    } catch (_) {}
+    _feastOverrides = loaded;
+    return loaded;
   }
 
   static String _dateKey(DateTime dt) =>
@@ -120,12 +138,37 @@ class LotService {
   static Future<LotHour?> _assemble(String hourKey, DateTime now, String lang) async {
     if (hourKey == 'compline') return _assembleCompline(now, lang);
     final psalter = await _loadPsalter();
-    final dayKey = 'Day${now.weekday % 7}'; // Sunday=Day0
-    final sectionName = hourKey == 'lauds' ? '$dayKey Laudes1' : '$dayKey Vespera';
     final assignmentsMap = (psalter['assignments'] as Map<String, dynamic>?) ?? {};
-    final assignments = assignmentsMap[sectionName] as Map<String, dynamic>?;
-    if (assignments == null) return null;
-    final psalmList = ((assignments[lang] ?? assignments['la']) as List<dynamic>?) ?? [];
+
+    // Feast-day override first (Divinum Officium, Rubrics 1960): on dates whose
+    // psalmody differs from the weekday psalter, use the feast's proper
+    // psalms/antiphons. Antiphon falls back to Latin per part.
+    List<dynamic>? psalmList;
+    final dayOverride = (await _loadFeastOverrides())[_dateKey(now)] as Map<String, dynamic>?;
+    final hourOverride = dayOverride?[hourKey] as List<dynamic>?;
+    if (hourOverride != null && hourOverride.isNotEmpty) {
+      psalmList = hourOverride.map((e) {
+        final m = e as Map<String, dynamic>;
+        var antiphon = (m['antiphon_$lang'] as String? ?? '').trim();
+        if (antiphon.isEmpty) antiphon = (m['antiphon_la'] as String? ?? '').trim();
+        // Canticle slots carry their Latin name as the full section label;
+        // split-psalm slots carry the '138 (1-13)'-style number label.
+        final rawLabel = m['label'] as String?;
+        final label = rawLabel == null
+            ? null
+            : (rawLabel.startsWith('Canticum')
+                ? rawLabel
+                : '${AppStrings.t('lot_psalm')} $rawLabel');
+        return <String, dynamic>{'psalm': m['psalm'], 'antiphon': antiphon, 'label': label};
+      }).toList();
+    }
+    if (psalmList == null) {
+      final dayKey = 'Day${now.weekday % 7}'; // Sunday=Day0
+      final sectionName = hourKey == 'lauds' ? '$dayKey Laudes1' : '$dayKey Vespera';
+      final assignments = assignmentsMap[sectionName] as Map<String, dynamic>?;
+      if (assignments == null) return null;
+      psalmList = ((assignments[lang] ?? assignments['la']) as List<dynamic>?) ?? [];
+    }
     if (psalmList.isEmpty) return null;
 
     final feast = await _fetchCategpt(now);
@@ -154,7 +197,7 @@ class LotService {
       final labelOverride = item['label'] as String?;
       sections.add(LotSection(
         type: 'antiphon_psalm',
-        label: '${AppStrings.t('lot_psalm')} ${labelOverride ?? n}',
+        label: labelOverride ?? '${AppStrings.t('lot_psalm')} $n',
         la: laText,
         vernacular: vernText as String,
       ));
