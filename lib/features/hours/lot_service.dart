@@ -47,13 +47,16 @@ class LotHour {
       );
 }
 
-/// Assembles traditional (1962) Liturgy of the Hours hours from the bundled
-/// psalter plus the CatéGPT free API (Divinum Officium texts, attribution required).
+/// Assembles traditional (1962) Liturgy of the Hours hours. Lauds and Vespers
+/// come from the bundled psalter plus the CatéGPT free API (Divinum Officium
+/// texts, attribution required); Compline is assembled entirely from the
+/// bundled compline.json (Divinum Officium, Rubrics 1960) and works offline.
 class LotService {
   static const String _apiBase = 'https://categpt.chat/api/v1/feast';
   static Database? _db;
   static bool _dbReady = false;
   static Map<String, dynamic>? _psalter;
+  static Map<String, dynamic>? _compline;
 
   static Future<Database> get database async {
     if (_db != null && _dbReady) return _db!;
@@ -72,10 +75,17 @@ class LotService {
     return _psalter!;
   }
 
+  static Future<Map<String, dynamic>> _loadCompline() async {
+    if (_compline != null) return _compline!;
+    final raw = await rootBundle.loadString('assets/breviary/compline.json');
+    _compline = json.decode(raw) as Map<String, dynamic>;
+    return _compline!;
+  }
+
   static String _dateKey(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
-  /// Public entry: assemble today's Lauds or Vespers.
+  /// Public entry: assemble today's Lauds, Vespers or Compline.
   static Future<LotHour?> getHour(String hourKey, {DateTime? date}) async {
     final now = date ?? DateTime.now();
     final lang = AppStrings.isSpanish ? 'es' : 'en';
@@ -108,6 +118,7 @@ class LotService {
   }
 
   static Future<LotHour?> _assemble(String hourKey, DateTime now, String lang) async {
+    if (hourKey == 'compline') return _assembleCompline(now, lang);
     final psalter = await _loadPsalter();
     final dayKey = 'Day${now.weekday % 7}'; // Sunday=Day0
     final sectionName = hourKey == 'lauds' ? '$dayKey Laudes1' : '$dayKey Vespera';
@@ -140,9 +151,10 @@ class LotService {
       final vernText = antiphon.isEmpty
           ? (psalmTexts[lang] ?? psalmTexts['la'] ?? '')
           : '$antiphon\n${psalmTexts[lang] ?? psalmTexts['la'] ?? ''}';
+      final labelOverride = item['label'] as String?;
       sections.add(LotSection(
         type: 'antiphon_psalm',
-        label: '${AppStrings.t('lot_psalm')} $n',
+        label: '${AppStrings.t('lot_psalm')} ${labelOverride ?? n}',
         la: laText,
         vernacular: vernText as String,
       ));
@@ -169,6 +181,63 @@ class LotService {
     final title = hourKey == 'lauds' ? AppStrings.t('lot_lauds') : AppStrings.t('lot_vespers');
     return LotHour(hourKey: hourKey, title: title, sections: sections);
   }
+
+  /// Compline (1962 rubrics): fully offline, assembled from compline.json.
+  /// The psalmody follows the weekday psalter (Sunday = Ps 4, 90, 133); the
+  /// group antiphon opens the first psalm and closes the last one.
+  static Future<LotHour?> _assembleCompline(DateTime now, String lang) async {
+    final data = await _loadCompline();
+    final dayKey = 'Day${now.weekday % 7}'; // Sunday=Day0
+    final day = ((data['assignments'] as Map<String, dynamic>?) ?? {})[dayKey] as Map<String, dynamic>?;
+    if (day == null) return null;
+    final antiphons = (day['antiphon'] as Map<String, dynamic>?) ?? {};
+    final ant = ((antiphons[lang] ?? antiphons['la']) as String? ?? '').trim();
+    final specs = ((day['psalms'] as List<dynamic>?) ?? []).cast<String>();
+    if (specs.isEmpty) return null;
+    final psalms = (data['psalms'] as Map<String, dynamic>?) ?? {};
+    final office = ((data['office'] as List<dynamic>?) ?? []);
+
+    final sections = <LotSection>[];
+    for (final entry in office) {
+      final map = entry as Map<String, dynamic>;
+      final key = map['key'] as String? ?? '';
+      if (key == 'psalms') {
+        for (var i = 0; i < specs.length; i++) {
+          final spec = specs[i];
+          final texts = psalms[spec] as Map<String, dynamic>?;
+          if (texts == null) continue;
+          var laText = texts['la'] as String? ?? '';
+          var vernText = ((texts[lang] ?? texts['la']) as String? ?? '');
+          if (ant.isNotEmpty && i == 0) {
+            laText = '$ant\n$laText';
+            vernText = '$ant\n$vernText';
+          }
+          if (ant.isNotEmpty && i == specs.length - 1 && i != 0) {
+            laText = '$laText\n$ant';
+            vernText = '$vernText\n$ant';
+          }
+          sections.add(LotSection(
+            type: 'antiphon_psalm',
+            label: '${AppStrings.t('lot_psalm')} ${_psalmLabel(spec)}',
+            la: laText,
+            vernacular: vernText,
+          ));
+        }
+      } else {
+        final labelKey = map['labelKey'] as String? ?? '';
+        sections.add(LotSection(
+          type: 'fixed',
+          label: labelKey.isNotEmpty ? AppStrings.t(labelKey) : '',
+          la: map['la'] as String? ?? '',
+          vernacular: ((map[lang] ?? map['la']) as String? ?? ''),
+        ));
+      }
+    }
+    return LotHour(hourKey: 'compline', title: AppStrings.t('lot_compline'), sections: sections);
+  }
+
+  /// '7(2-10)' renders as '7 (2-10)'; plain numbers pass through.
+  static String _psalmLabel(String spec) => spec.contains('(') ? spec.replaceFirst('(', ' (') : spec;
 
   static Future<Map<String, dynamic>?> _fetchCategpt(DateTime date) async {
     final locale = AppStrings.isSpanish ? 'es' : 'en';

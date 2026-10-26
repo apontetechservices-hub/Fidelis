@@ -14,6 +14,7 @@ class _LotScreenState extends State<LotScreen> {
   bool _loading = true;
   LotHour? _lauds;
   LotHour? _vespers;
+  LotHour? _compline;
 
   @override
   void initState() {
@@ -25,10 +26,12 @@ class _LotScreenState extends State<LotScreen> {
     setState(() => _loading = true);
     final lauds = await LotService.getHour('lauds');
     final vespers = await LotService.getHour('vespers');
+    final compline = await LotService.getHour('compline');
     if (mounted) {
       setState(() {
         _lauds = lauds;
         _vespers = vespers;
+        _compline = compline;
         _loading = false;
       });
     }
@@ -50,10 +53,12 @@ class _LotScreenState extends State<LotScreen> {
                   _hourCard(context, theme, isDark, 'lauds', _lauds),
                   const SizedBox(height: 16),
                   _hourCard(context, theme, isDark, 'vespers', _vespers),
+                  const SizedBox(height: 16),
+                  _hourCard(context, theme, isDark, 'compline', _compline),
                   const SizedBox(height: 24),
                   Center(
                     child: Text(
-                      'Texts: Divinum Officium via categpt.chat',
+                      AppStrings.t('lot_attribution'),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurface.withValues(alpha: 0.4),
                       ),
@@ -80,14 +85,23 @@ class _LotScreenState extends State<LotScreen> {
           child: Row(
             children: [
               Icon(
-                key == 'lauds' ? Icons.wb_sunny : Icons.nightlight,
+                key == 'lauds'
+                    ? Icons.wb_sunny
+                    : key == 'vespers'
+                        ? Icons.nightlight
+                        : Icons.bedtime,
                 size: 24,
                 color: isDark ? FidelisTheme.gold : FidelisTheme.deepRed,
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  hour?.title ?? (key == 'lauds' ? AppStrings.t('lot_lauds') : AppStrings.t('lot_vespers')),
+                  hour?.title ??
+                      (key == 'lauds'
+                          ? AppStrings.t('lot_lauds')
+                          : key == 'vespers'
+                              ? AppStrings.t('lot_vespers')
+                              : AppStrings.t('lot_compline')),
                   style: theme.textTheme.titleMedium,
                 ),
               ),
