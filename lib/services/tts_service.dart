@@ -61,6 +61,22 @@ class TtsService {
 
   static bool get isPaused => _paused;
 
+  /// Sink for the active flutter_tts speak's word-boundary events; installed
+  /// once in [init] and routed per speak. Null when nobody is listening.
+  static void Function(int charStart, int charEnd)? _wordRangeSink;
+
+  /// Live position within the active just_audio source and its total
+  /// duration, when one is loaded. Null on the flutter_tts path (the plugin
+  /// exposes no timing) — its word events carry the highlight instead.
+  static (Duration, Duration?)? get playerProgress {
+    if (_lastViaFlutterTts) return null;
+    try {
+      return (_player.position, _player.duration);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Pauses the active engine. The just_audio player pauses in place (the
   /// pending chunk await stays open); flutter_tts pauses via the plugin,
   /// which completes the pending speak — the AudioController's job loop
@@ -149,6 +165,12 @@ class TtsService {
       try {
         await _tts.setPitch(0.85);
       } catch (_) {}
+      // Word-boundary events (Android UtteranceProgressListener.onRangeStart,
+      // iOS willSpeakRangeOfCharacterRange) forwarded to the active speak's
+      // sink — the flutter_tts path's engine-timed highlight source.
+      _tts.setProgressHandler((text, start, end, word) {
+        _wordRangeSink?.call(start, end);
+      });
       _ready = true;
     } catch (_) {}
   }
@@ -192,10 +214,22 @@ class TtsService {
   /// [onSentenceStart] fires when each sentence starts PLAYING (Kokoro
   /// sentence-by-sentence pipeline; once with 0 on the flutter_tts path) so
   /// callers can sync highlights to the recited words.
+  ///
+  /// [onSentenceTiming] fires with each sentence's character range in [text]
+  /// and its audio duration when the engine knows it (Kokoro WAV length;
+  /// null on the flutter_tts path) — enables word-level proportional
+  /// estimates.
+  ///
+  /// [onWordRange] fires with engine-reported recited character ranges
+  /// (flutter_tts word-boundary events; not fired by Kokoro, which exposes
+  /// no token timestamps in sherpa_onnx 1.13.8).
   static Future<void> speakPrayer(
     String text, {
     String? lang,
     void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
   }) async {
     if (!_ready) await init();
     if (text.isEmpty) return;
@@ -203,12 +237,23 @@ class TtsService {
     _finishPlayDone();
     final kokoroLang = (lang == 'en' || lang == 'es') ? lang : null;
     if (kokoroLang != null) {
-      if (await _speakWithKokoro(text, kokoroLang, myEpoch, onSentenceStart)) {
+      if (await _speakWithKokoro(
+        text,
+        kokoroLang,
+        myEpoch,
+        onSentenceStart,
+        onSentenceTiming,
+      )) {
         return;
       }
     }
     onSentenceStart?.call(0);
-    await _speakWithFlutterTts(text, _localeFor(lang));
+    await _speakWithFlutterTts(
+      text,
+      _localeFor(lang),
+      onSentenceTiming: onSentenceTiming,
+      onWordRange: onWordRange,
+    );
   }
 
   /// Plays a bundled audio file (rosary pre-rendered OGG). Completes when
@@ -228,6 +273,7 @@ class TtsService {
     _paused = false;
     _lastSpokenText = null;
     _resumeInFlight = null;
+    _wordRangeSink = null;
     _completePauseGate();
     try {
       await _player.stop();
@@ -254,12 +300,15 @@ class TtsService {
     String lang,
     int myEpoch,
     void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
   ) async {
     try {
       if (!await KokoroEngine.ensureReady(lang)) return false;
       if (myEpoch != _epoch) return true; // stopped while the engine warmed up
       final sentences = splitSentences(text);
       if (sentences.isEmpty) return false;
+      final ranges = sentenceRanges(text);
 
       // Synthesize sentence 1 first so playback starts fast; later sentences
       // are generated while the current one plays.
@@ -286,6 +335,18 @@ class TtsService {
         if (gate != null) await gate.future;
         if (myEpoch != _epoch) return true; // stopped while paused
         onSentenceStart?.call(i);
+        // Engine-timed sentence boundary + duration (from the WAV length):
+        // the word position within the sentence is then estimated
+        // proportionally by the AudioController (sherpa_onnx 1.13.8 exposes
+        // no token timestamps).
+        final range = ranges[i];
+        onSentenceTiming?.call(
+          range.$1,
+          range.$2,
+          Duration(
+              milliseconds:
+                  (audio.samples.length * 1000 / audio.sampleRate).round()),
+        );
         await _playPcm(audio, myEpoch);
       }
       return true;
@@ -400,10 +461,20 @@ class TtsService {
 
   // ---- flutter_tts path (Latin + fallback) — kept intact ----
 
-  static Future<void> _speakWithFlutterTts(String text, String language) async {
+  static Future<void> _speakWithFlutterTts(
+    String text,
+    String language, {
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
+  }) async {
     try {
       _lastViaFlutterTts = true;
       _lastSpokenText = text;
+      // The whole text is one utterance with no known duration; its
+      // word-boundary events (installed in init()) carry the highlight.
+      _wordRangeSink = onWordRange;
+      onSentenceTiming?.call(0, text.length, null);
       await _tts.stop();
       await _tts.setLanguage(language);
       await _tts.setSpeechRate(0.42);
@@ -417,5 +488,21 @@ class TtsService {
       }
       await _tts.speak(text);
     } catch (_) {}
+  }
+
+  /// Character range of each speakable sentence within [text], in the same
+  /// order as [splitSentences]. Public so screens can map engine-reported
+  /// ranges back to their displayed units with the exact same split the
+  /// engine speaks.
+  static List<(int, int)> sentenceRanges(String text) {
+    final ranges = <(int, int)>[];
+    var cursor = 0;
+    for (final sentence in splitSentences(text)) {
+      var at = text.indexOf(sentence, cursor);
+      if (at < 0) at = cursor;
+      ranges.add((at, at + sentence.length));
+      cursor = at + sentence.length;
+    }
+    return ranges;
   }
 }

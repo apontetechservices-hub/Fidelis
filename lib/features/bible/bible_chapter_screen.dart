@@ -52,18 +52,32 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
 
   List<BibleVerse>? _verses;
   int? _speakingVerse;
+
+  /// Character range of the word being recited within [_speakingVerse]'s
+  /// text (word-level highlight; null when no word estimate is available).
+  (int, int)? _speakingWord;
+
+  /// Per chunk: verse start offsets within the chunk's joined text, and the
+  /// chunk's absolute first verse index — used to map the controller's
+  /// chunk-text word range back to a verse + range within it.
+  final Map<int, List<int>> _chunkVerseStarts = {};
+  final Map<int, int> _chunkFirstVerse = {};
+
   final Map<int, GlobalKey> _verseKeys = {};
 
   @override
   void initState() {
     super.initState();
     AudioController.instance.listenable.addListener(_onAudioChanged);
+    AudioController.instance.wordRangeListenable.addListener(_onWordRangeChanged);
     _load();
   }
 
   @override
   void dispose() {
     AudioController.instance.listenable.removeListener(_onAudioChanged);
+    AudioController.instance.wordRangeListenable
+        .removeListener(_onWordRangeChanged);
     // Audio is tied to this screen — never keep playing after exit. Owner-
     // scoped so a replacement chapter screen that already auto-continued is
     // not cut off.
@@ -76,8 +90,45 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   void _onAudioChanged() {
     final info = AudioController.instance.listenable.value;
     final gone = info.state == AudioState.stopped || info.jobId != _jobId;
-    if (gone && _speakingVerse != null && mounted) {
-      setState(() => _speakingVerse = null);
+    if (gone && (_speakingVerse != null || _speakingWord != null) && mounted) {
+      setState(() {
+        _speakingVerse = null;
+        _speakingWord = null;
+      });
+    }
+  }
+
+  /// Maps the controller's word-level range (character offsets within the
+  /// active chunk's text) to the recited verse + range within it, so the
+  /// spoken word highlights in sync with the voice.
+  void _onWordRangeChanged() {
+    if (!mounted) return;
+    final info = AudioController.instance.listenable.value;
+    final range = AudioController.instance.wordRangeListenable.value;
+    (int, int)? word;
+    if (range != null &&
+        info.jobId == _jobId &&
+        info.state != AudioState.stopped &&
+        _speakingVerse != null &&
+        _verses != null) {
+      final starts = _chunkVerseStarts[info.chunkIndex];
+      final first = _chunkFirstVerse[info.chunkIndex];
+      if (starts != null && first != null) {
+        var relative = 0;
+        for (var k = 0; k < starts.length; k++) {
+          if (starts[k] <= range.charStart) relative = k;
+        }
+        if (first + relative == _speakingVerse) {
+          final verseStart = starts[relative];
+          final verseLength = _verses![first + relative].text.length;
+          final s = (range.charStart - verseStart).clamp(0, verseLength);
+          final e = (range.charEnd - verseStart).clamp(0, verseLength);
+          if (e > s) word = (s, e);
+        }
+      }
+    }
+    if (word != _speakingWord) {
+      setState(() => _speakingWord = word);
     }
   }
 
@@ -154,9 +205,12 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
 
   /// Plays the whole chapter as ~10-verse chunks. Each chunk reports its
   /// sentences as they start being recited; sentences are mapped back to
-  /// verse indices so the spoken verse highlights in sync (the Kokoro
-  /// engine exposes no word timestamps, so verse level is the finest sync
-  /// available). The Douay-Rheims text is English, so lang is 'en'.
+  /// verse indices so the spoken verse highlights in sync. Word-level
+  /// advancement within the verse comes from the controller's word-range
+  /// stream: engine-timed sentence boundaries (Kokoro) or word events
+  /// (flutter_tts), with the position inside the sentence estimated
+  /// character-proportionally (sherpa_onnx 1.13.8 exposes no token
+  /// timestamps). The Douay-Rheims text is English, so lang is 'en'.
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
@@ -168,6 +222,9 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       final group = verses.sublist(start, end);
       final text = group.map((v) => v.text).join(' ');
       final verseForSentence = _sentenceVerseIndices(group, start, text);
+      final chunkIndex = chunks.length;
+      _chunkVerseStarts[chunkIndex] = _verseOffsets(group);
+      _chunkFirstVerse[chunkIndex] = start;
       chunks.add(AudioChunk(
         text: text,
         lang: 'en',
@@ -189,6 +246,18 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     );
   }
 
+  /// Verse start offsets within a chunk's joined text (verses joined by a
+  /// single space), used to map chunk-text character ranges to verses.
+  List<int> _verseOffsets(List<BibleVerse> group) {
+    final starts = <int>[];
+    var offset = 0;
+    for (final v in group) {
+      starts.add(offset);
+      offset += v.text.length + 1; // +1 for the joining space
+    }
+    return starts;
+  }
+
   /// Maps each speakable sentence of [text] (same split the TTS engine
   /// uses) to the index of the verse it starts in. Sentences are substrings
   /// of the joined chunk text, so offsets align with verse boundaries.
@@ -197,12 +266,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     int firstVerse,
     String text,
   ) {
-    final verseStarts = <int>[];
-    var offset = 0;
-    for (final v in group) {
-      verseStarts.add(offset);
-      offset += v.text.length + 1; // +1 for the joining space
-    }
+    final verseStarts = _verseOffsets(group);
     final indices = <int>[];
     var cursor = 0;
     for (final sentence in TtsService.splitSentences(text)) {
@@ -275,6 +339,21 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     final verse = _verses![index];
     final theme = Theme.of(context);
     final speaking = index == _speakingVerse;
+    final word = speaking ? _speakingWord : null;
+    final hasWord = word != null &&
+        word.$2 > word.$1 &&
+        word.$2 <= verse.text.length &&
+        word.$1 >= 0;
+
+    // Recited verse: accent text on a faint accent wash; the word currently
+    // being recited gets a stronger wash so advancement is unmistakable.
+    final baseStyle = theme.textTheme.bodyLarge?.copyWith(
+      height: 1.5,
+      color: speaking ? accent : null,
+      fontWeight: speaking ? FontWeight.w600 : null,
+      background: speaking ? (Paint()..color = accent.withValues(alpha: 0.10)) : null,
+    );
+
     return Padding(
       key: _verseKeys.putIfAbsent(index, GlobalKey.new),
       padding: const EdgeInsets.only(bottom: 10),
@@ -289,14 +368,25 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
                 fontSize: 12,
               ),
             ),
-            TextSpan(
-              text: verse.text,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                height: 1.5,
-                color: speaking ? accent : null,
-                fontWeight: speaking ? FontWeight.w600 : null,
+            if (hasWord) ...[
+              TextSpan(
+                text: verse.text.substring(0, word.$1),
+                style: baseStyle,
               ),
-            ),
+              TextSpan(
+                text: verse.text.substring(word.$1, word.$2),
+                style: baseStyle?.copyWith(
+                  background: Paint()
+                    ..color = accent.withValues(alpha: 0.35),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              TextSpan(
+                text: verse.text.substring(word.$2),
+                style: baseStyle,
+              ),
+            ] else
+              TextSpan(text: verse.text, style: baseStyle),
           ],
         ),
       ),

@@ -21,12 +21,18 @@ class FakeAudioEngine implements AudioEngine {
     String text, {
     String? lang,
     void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
   }) async {
     log.add('speak:$text');
     onSentenceStart?.call(0);
     _gate = Completer<void>();
     await _gate!.future;
   }
+
+  @override
+  (Duration, Duration?)? get progress => null;
 
   @override
   Future<void> playAsset(String asset) async {
@@ -275,4 +281,280 @@ void main() {
     expect(completed, 1);
     await job;
   });
+
+  testWidgets('Kokoro sentence timing + live position drive the word range '
+      '(proportional estimate)', (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [(0, 12, const Duration(seconds: 10))],
+      position: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10),
+    );
+    final controller = AudioController(engine: engine);
+
+    final job = controller.start(const AudioJob(id: 'bible', chunks: [
+      AudioChunk(text: 'Hello world.'),
+    ]));
+    await tester.pump();
+    // The word timer ticks at 200ms — advance fake time past one tick.
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final range = controller.wordRangeListenable.value;
+    expect(range, isNotNull, reason: 'word-level highlight state must reach '
+        'the UI stream while the voice advances');
+    expect(range!.estimated, isTrue);
+    // 5s of a 10s sentence → the middle of 'Hello world.' → the word
+    // containing offset 6 is 'world' → [6, 11).
+    expect(range.charStart, 6);
+    expect(range.charEnd, 11);
+
+    // Advancing the position advances the word range.
+    engine.position = const Duration(seconds: 9);
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(controller.wordRangeListenable.value!.charStart, 6);
+
+    await controller.stop();
+    await job;
+  });
+
+  testWidgets('flutter_tts word events drive the word range (engine-timed)',
+      (tester) async {
+    final engine = WordEventFakeEngine(events: [(0, 5), (6, 11)]);
+    final controller = AudioController(engine: engine);
+
+    final job = controller.start(const AudioJob(id: 'bible', chunks: [
+      AudioChunk(text: 'Hello world.'),
+    ]));
+    await tester.pump();
+    await tester.pump();
+
+    final range = controller.wordRangeListenable.value;
+    expect(range, isNotNull,
+        reason: 'engine word events must reach the UI stream');
+    expect(range!.estimated, isFalse);
+    expect(range.charStart, 6);
+    expect(range.charEnd, 11);
+
+    await controller.stop();
+    await job;
+  });
+
+  testWidgets('word range and progress clear when audio stops',
+      (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [(0, 12, const Duration(seconds: 10))],
+      position: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10),
+    );
+    final controller = AudioController(engine: engine);
+
+    final job = controller.start(const AudioJob(id: 'bible', chunks: [
+      AudioChunk(text: 'Hello world.'),
+    ]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    expect(controller.wordRangeListenable.value, isNotNull);
+    expect(controller.progressListenable.value, isNotNull);
+
+    await controller.stop();
+    await tester.pump();
+    expect(controller.wordRangeListenable.value, isNull);
+    expect(controller.progressListenable.value, isNull);
+    await job;
+  });
+
+  testWidgets('asset playback exposes live position and duration',
+      (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [],
+      position: const Duration(seconds: 3),
+      duration: const Duration(seconds: 12),
+    );
+    final controller = AudioController(engine: engine);
+
+    final job = controller.start(const AudioJob(id: 'rosary', chunks: [
+      AudioChunk(asset: 'assets/rosary_audio/en/our_father.ogg'),
+    ]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final progress = controller.progressListenable.value;
+    expect(progress, isNotNull,
+        reason: 'pre-rendered playback must expose position/duration so '
+            'screens can sync line highlights');
+    expect(progress!.position, const Duration(seconds: 3));
+    expect(progress.duration, const Duration(seconds: 12));
+    // Asset chunks carry no text: no word range of their own.
+    expect(controller.wordRangeListenable.value, isNull);
+
+    await controller.stop();
+    await job;
+  });
+
+  testWidgets('pause freezes the word range; stop clears it', (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [(0, 12, const Duration(seconds: 10))],
+      position: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10),
+    );
+    final controller = AudioController(engine: engine);
+
+    final job = controller.start(const AudioJob(id: 'bible', chunks: [
+      AudioChunk(text: 'Hello world.'),
+    ]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+    final frozen = controller.wordRangeListenable.value;
+    expect(frozen, isNotNull);
+
+    await controller.pause();
+    await tester.pump(const Duration(milliseconds: 250));
+    // Paused: the highlight stays where the user paused (frozen), it does
+    // not keep advancing.
+    expect(controller.wordRangeListenable.value, frozen);
+
+    await controller.stop();
+    await tester.pump();
+    expect(controller.wordRangeListenable.value, isNull);
+    await job;
+  });
+}
+
+/// Kokoro-like engine: reports per-sentence timing (character range in the
+/// chunk text + the sentence's audio duration) and exposes a scriptable
+/// live position/duration, as the real player path does.
+class TimingFakeEngine implements AudioEngine {
+  final List<String> log = [];
+
+  /// (charStart, charEnd, duration) reported per speakText call.
+  final List<(int, int, Duration?)> sentenceTimings;
+
+  /// Scriptable live position/duration, as just_audio exposes.
+  Duration position;
+  Duration? duration;
+
+  Completer<void>? _gate;
+  bool _paused = false;
+  TimingFakeEngine({required this.sentenceTimings, this.position = Duration.zero, this.duration});
+
+  @override
+  Future<void> speakText(
+    String text, {
+    String? lang,
+    void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
+  }) async {
+    log.add('speak:$text');
+    for (final timing in sentenceTimings) {
+      onSentenceStart?.call(0);
+      onSentenceTiming?.call(timing.$1, timing.$2, timing.$3);
+    }
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  @override
+  Future<void> playAsset(String asset) async {
+    log.add('asset:$asset');
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  @override
+  (Duration, Duration?)? get progress => (position, duration);
+
+  @override
+  Future<void> pause() async {
+    log.add('pause');
+    _paused = true;
+  }
+
+  @override
+  Future<void> resume() async {
+    log.add('resume');
+    _paused = false;
+  }
+
+  @override
+  Future<void> stop() async {
+    log.add('stop');
+    _paused = false;
+    finishChunk();
+  }
+
+  @override
+  bool get isPaused => _paused;
+
+  void finishChunk() {
+    final gate = _gate;
+    _gate = null;
+    if (gate != null && !gate.isCompleted) gate.complete();
+  }
+}
+
+/// flutter_tts-like engine: fires real word-boundary events (onRangeStart)
+/// with character ranges into the spoken text.
+class WordEventFakeEngine implements AudioEngine {
+  final List<String> log = [];
+  final List<(int, int)> events;
+  Completer<void>? _gate;
+  bool _paused = false;
+  WordEventFakeEngine({required this.events});
+
+  @override
+  Future<void> speakText(
+    String text, {
+    String? lang,
+    void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
+  }) async {
+    log.add('speak:$text');
+    onSentenceStart?.call(0);
+    for (final event in events) {
+      onWordRange?.call(event.$1, event.$2);
+    }
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  @override
+  (Duration, Duration?)? get progress => null;
+
+  @override
+  Future<void> playAsset(String asset) async {
+    log.add('asset:$asset');
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  @override
+  Future<void> pause() async {
+    log.add('pause');
+    _paused = true;
+  }
+
+  @override
+  Future<void> resume() async {
+    log.add('resume');
+    _paused = false;
+  }
+
+  @override
+  Future<void> stop() async {
+    log.add('stop');
+    _paused = false;
+    finishChunk();
+  }
+
+  @override
+  bool get isPaused => _paused;
+
+  void finishChunk() {
+    final gate = _gate;
+    _gate = null;
+    if (gate != null && !gate.isCompleted) gate.complete();
+  }
 }

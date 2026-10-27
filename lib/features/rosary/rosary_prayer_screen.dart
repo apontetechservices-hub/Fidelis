@@ -9,6 +9,7 @@ import 'rosary_controller.dart';
 import 'rosary_prayers.dart';
 import 'mystery_data.dart';
 import '../../services/audio_controller.dart';
+import '../../services/tts_service.dart';
 import 'litany_of_loreto.dart';
 import 'rosary_audio_files.dart';
 import 'rosary_state.dart';
@@ -49,6 +50,19 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   /// True while this screen's step audio is loaded in the central
   /// controller (playing or paused) — drives the recited-text highlight.
   bool _audioLoadedForMe = false;
+
+  /// Line-level + word-level highlight of the recited prayer text: the line
+  /// index within the displayed text and the word's absolute character
+  /// range. Null when nothing is recited or the step's content is not a
+  /// single recited text (litany keeps its manual advance; mystery
+  /// announcements keep the step-level border).
+  int? _speakingLine;
+  (int, int)? _speakingWord;
+
+  /// True when the current step's audio is a pre-rendered asset — its live
+  /// position/duration drive the highlight; runtime TTS chunks drive it via
+  /// the controller's word range instead.
+  bool _stepAudioIsAsset = false;
 
   static const List<String> _laOrdinals = ['Primum', 'Secundum', 'Tertium', 'Quartum', 'Quintum'];
 
@@ -109,6 +123,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   void initState() {
     super.initState();
     AudioController.instance.listenable.addListener(_onAudioChanged);
+    AudioController.instance.wordRangeListenable.addListener(_onHighlightChanged);
+    AudioController.instance.progressListenable.addListener(_onHighlightChanged);
     _language = widget.language;
     final mysteryTypes = List.filled(5, widget.mysteryType);
     _steps = RosaryController.buildRosarySteps(
@@ -128,6 +144,10 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   @override
   void dispose() {
     AudioController.instance.listenable.removeListener(_onAudioChanged);
+    AudioController.instance.wordRangeListenable
+        .removeListener(_onHighlightChanged);
+    AudioController.instance.progressListenable
+        .removeListener(_onHighlightChanged);
     // Step audio is tied to this screen — never keep playing after exit.
     AudioController.instance.stopIfOwner(this);
     _scrollController.dispose();
@@ -143,7 +163,90 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     if (loaded != _audioLoadedForMe && mounted) {
       setState(() => _audioLoadedForMe = loaded);
     }
+    // Stopped (or replaced by another screen's stream): clear the recited
+    // line/word. Paused keeps them frozen so the user sees where they are.
+    if (!loaded && (_speakingLine != null || _speakingWord != null) && mounted) {
+      setState(() {
+        _speakingLine = null;
+        _speakingWord = null;
+      });
+    }
   }
+
+  /// Recomputes the recited line + word from whichever timing source the
+  /// active chunk provides: the controller's word range (runtime TTS) or
+  /// the live position/duration (pre-rendered files, whose duration is
+  /// known and whose text lives only in the screen).
+  void _onHighlightChanged() {
+    if (!mounted) return;
+    final info = AudioController.instance.listenable.value;
+    if (info.jobId != _jobId || info.state != AudioState.playing) return;
+    final text = _currentPrayerText();
+    if (text.isEmpty) return; // litany/announcement: their own highlight UX
+    final ranges = TtsService.sentenceRanges(text);
+
+    int? line;
+    (int, int)? word;
+    if (_stepAudioIsAsset) {
+      final progress = AudioController.instance.progressListenable.value;
+      final duration = progress?.duration;
+      if (progress != null && duration != null && duration.inMilliseconds > 0) {
+        // Character-proportional estimate from the file's known duration.
+        final fraction =
+            (progress.position.inMilliseconds / duration.inMilliseconds)
+                .clamp(0.0, 1.0);
+        final offset = (fraction * text.length).round().clamp(0, text.length);
+        line = _lineContaining(ranges, offset);
+        word = _wordAround(text, ranges, line, offset);
+      }
+    } else {
+      final range = AudioController.instance.wordRangeListenable.value;
+      if (range != null) {
+        line = _lineContaining(ranges, range.charStart);
+        if (line != null) {
+          final (start, end) = ranges[line];
+          final s = range.charStart.clamp(start, end);
+          final e = range.charEnd.clamp(start, end);
+          if (e > s) word = (s, e);
+        }
+      }
+    }
+    if (line != _speakingLine || word != _speakingWord) {
+      setState(() {
+        _speakingLine = line;
+        _speakingWord = word;
+      });
+    }
+  }
+
+  /// Index of the line (speakable sentence) containing [offset], clamped to
+  /// the last line for offsets in trailing whitespace.
+  int? _lineContaining(List<(int, int)> ranges, int offset) {
+    for (var i = 0; i < ranges.length; i++) {
+      if (offset >= ranges[i].$1 && offset < ranges[i].$2) return i;
+    }
+    return ranges.isEmpty ? null : ranges.length - 1;
+  }
+
+  /// Word boundaries around [offset] within line [line], or null.
+  (int, int)? _wordAround(String text, List<(int, int)> ranges, int? line, int offset) {
+    if (line == null || line >= ranges.length) return null;
+    final (start, end) = ranges[line];
+    if (offset < start || offset > end) return null;
+    var s = offset.clamp(start, end);
+    var e = s;
+    while (s > start && _isWordChar(text[s - 1])) {
+      s--;
+    }
+    while (e < end && _isWordChar(text[e])) {
+      e++;
+    }
+    return e > s ? (s, e) : null;
+  }
+
+  static final RegExp _wordChar = RegExp(r'[0-9A-Za-z\u00C0-\u024F]');
+
+  static bool _isWordChar(String char) => _wordChar.hasMatch(char);
 
   double get _progress => (_currentStep + 1) / _steps.length;
 
@@ -343,6 +446,9 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     final chunk = asset != null
         ? AudioChunk(asset: asset)
         : AudioChunk(text: _fallbackSpeechText(step), lang: _language);
+    _stepAudioIsAsset = asset != null;
+    _speakingLine = null;
+    _speakingWord = null;
     await AudioController.instance.start(
       AudioJob(id: _jobId, chunks: [chunk]),
       owner: this,
@@ -544,16 +650,82 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
           ),
         ],
       ),
-      child: SelectableText(
-        prayerText,
-        style: theme.textTheme.bodyLarge?.copyWith(
-          height: 1.8,
-          fontSize: 18,
-        ),
+      child: SelectableText.rich(
+        _prayerSpans(theme, prayerText),
         textAlign: TextAlign.center,
       ),
     );
   }
+
+  /// Prayer text with the recited line highlighted (gold) and the word
+  /// currently being recited washed with a stronger gold tint. Line/word
+  /// positions come from the controller's timing streams; without an active
+  /// highlight the text renders plain.
+  TextSpan _prayerSpans(ThemeData theme, String text) {
+    final base = theme.textTheme.bodyLarge?.copyWith(
+      height: 1.8,
+      fontSize: 18,
+    );
+    final line = _speakingLine;
+    final word = _speakingWord;
+    if (line == null || line >= _lineRanges(text).length) {
+      return TextSpan(text: text, style: base);
+    }
+    final ranges = _lineRanges(text);
+    final spans = <TextSpan>[];
+    var cursor = 0;
+    for (var i = 0; i < ranges.length; i++) {
+      final (start, end) = ranges[i];
+      if (start > cursor) {
+        spans.add(TextSpan(text: text.substring(cursor, start)));
+      }
+      if (i == line) {
+        final lineStyle = base?.copyWith(
+          color: FidelisTheme.gold,
+          fontWeight: FontWeight.w600,
+        );
+        if (word != null && word.$2 > word.$1) {
+          final ws = word.$1.clamp(start, end);
+          final we = word.$2.clamp(start, end);
+          if (we > ws) {
+            spans.add(TextSpan(text: text.substring(start, ws), style: lineStyle));
+            spans.add(TextSpan(
+              text: text.substring(ws, we),
+              style: lineStyle?.copyWith(
+                background: Paint()
+                  ..color = FidelisTheme.gold.withValues(alpha: 0.35),
+              ),
+            ));
+            spans.add(TextSpan(text: text.substring(we, end), style: lineStyle));
+          } else {
+            spans.add(TextSpan(text: text.substring(start, end), style: lineStyle));
+          }
+        } else {
+          spans.add(TextSpan(text: text.substring(start, end), style: lineStyle));
+        }
+      } else {
+        spans.add(TextSpan(text: text.substring(start, end)));
+      }
+      cursor = end;
+    }
+    if (cursor < text.length) {
+      spans.add(TextSpan(text: text.substring(cursor)));
+    }
+    return TextSpan(children: spans, style: base);
+  }
+
+  /// Line (speakable-sentence) ranges of [text], cached per text identity —
+  /// recomputed only when the step's text changes.
+  List<(int, int)> _lineRanges(String text) {
+    if (_cachedLineText != text) {
+      _cachedLineText = text;
+      _cachedLineRanges = TtsService.sentenceRanges(text);
+    }
+    return _cachedLineRanges!;
+  }
+
+  String? _cachedLineText;
+  List<(int, int)>? _cachedLineRanges;
 
   String get deceasedNameRef => widget.deceasedName ?? 'the faithful departed';
 
@@ -803,6 +975,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         _currentStep++;
         _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
         _litanyIndex = 0;
+        _speakingLine = null;
+        _speakingWord = null;
       });
       _scrollToTop();
       _saveState();
@@ -817,6 +991,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         _currentStep--;
         _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
         _litanyIndex = 0;
+        _speakingLine = null;
+        _speakingWord = null;
       });
       _scrollToTop();
       _saveState();

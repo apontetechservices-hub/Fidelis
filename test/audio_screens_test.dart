@@ -8,6 +8,7 @@ import 'package:fidelis/features/rosary/rosary_audio_files.dart';
 import 'package:fidelis/services/audio_controller.dart';
 import 'package:fidelis/services/billing_service.dart';
 import 'package:fidelis/services/bible_service.dart';
+import 'package:fidelis/config/theme.dart';
 
 import 'audio_controller_test.dart';
 
@@ -29,6 +30,23 @@ void main() {
     await tester.runAsync(() => RosaryAudioFiles.ensureLoaded());
   }
 
+  /// Loads the Bible assets through real async (outside the test's
+  /// FakeAsync zone) so the screen's initState load finds warm caches —
+  /// the multi-MB chapter asset never completes inside pump-driven frames.
+  Future<void> warmBibleCache(WidgetTester tester) async {
+    await tester.runAsync(() async {
+      await BibleService.books();
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await BibleService.chapter(book, 1);
+    });
+  }
+
   tearDown(() async {
     await AudioController.instance.stop();
     AudioController.instance.engineForTest = const TtsAudioEngine();
@@ -36,23 +54,6 @@ void main() {
   });
 
   group('BibleChapterScreen audio controls', () {
-    /// Loads the Bible assets through real async (outside the test's
-    /// FakeAsync zone) so the screen's initState load finds warm caches —
-    /// the multi-MB chapter asset never completes inside pump-driven frames.
-    Future<void> warmBibleCache(WidgetTester tester) async {
-      await tester.runAsync(() async {
-        await BibleService.books();
-        const book = BibleBook(
-          key: 'Genesis',
-          name: 'Genesis',
-          testament: 'OT',
-          order: 1,
-          chapters: 50,
-        );
-        await BibleService.chapter(book, 1);
-      });
-    }
-
     testWidgets('has a centered play/pause toggle and no speaker button',
         (tester) async {
       BillingService.premium.value = true;
@@ -206,6 +207,140 @@ void main() {
       expect(engine.log, isEmpty);
       expect(AudioController.instance.state, AudioState.stopped);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    });
+  });
+
+  /// Counts TextSpan descendants whose background paint matches the
+  /// recited-word tint (accent at 0.35 alpha) — the word-level highlight.
+  /// Accepts either accent (the Bible follows the theme brightness; the
+  /// rosary always uses gold). Components compare with a tolerance: Paint
+  /// round-trips colors through float32 storage, so exact Color equality
+  /// fails (alpha 0.35 comes back as 0.3500000238418579).
+  int countWordTintSpans(WidgetTester tester) {
+    final accents = [
+      FidelisTheme.gold,
+      FidelisTheme.deepRed,
+    ];
+    bool isTint(Color? bg) =>
+        bg != null &&
+        (bg.a - 0.35).abs() < 0.01 &&
+        accents.any((accent) =>
+            (bg.r - accent.r).abs() < 0.01 &&
+            (bg.g - accent.g).abs() < 0.01 &&
+            (bg.b - accent.b).abs() < 0.01);
+    var count = 0;
+    void walkRoot(TextSpan root) {
+      void walk(TextSpan s) {
+        if (isTint(s.style?.background?.color)) count++;
+        for (final c in s.children ?? const <InlineSpan>[]) {
+          if (c is TextSpan) walk(c);
+        }
+      }
+
+      walk(root);
+    }
+
+    final richTexts = tester.widgetList<Widget>(find.byType(RichText));
+    for (final w in richTexts) {
+      final root = (w as RichText).text;
+      if (root is TextSpan) walkRoot(root);
+    }
+    // SelectableText.rich renders via EditableText (no RichText widget in
+    // the tree) — inspect its stored span directly.
+    final selectableTexts = tester.widgetList<Widget>(find.byType(SelectableText));
+    for (final w in selectableTexts) {
+      final span = (w as SelectableText).textSpan;
+      if (span != null) walkRoot(span);
+    }
+    return count;
+  }
+
+  group('Bible highlight sync (defect: highlight never reached the UI)', () {
+    testWidgets('the recited verse highlights and the word advances within '
+        'it while the voice plays', (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester);
+      // Kokoro-like engine: one sentence (chars 0..12 of the chunk text)
+      // with a 10s duration; the live position sits mid-sentence.
+      final engine = TimingFakeEngine(
+        sentenceTimings: [(0, 12, const Duration(seconds: 10))],
+        position: const Duration(seconds: 5),
+        duration: const Duration(seconds: 10),
+      );
+      AudioController.instance.engineForTest = engine;
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(countWordTintSpans(tester), 0,
+          reason: 'no highlight before playback');
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      // One word-tick (200ms) after the sentence timing arrived.
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+
+      // The verse-level highlight reached the UI: the first verse's text is
+      // styled with the accent color.
+      expect(AudioController.instance.listenable.value.sentenceIndex, 0);
+      // The word-level highlight reached the UI: a recited-word tint span
+      // exists inside the verse text.
+      expect(countWordTintSpans(tester), greaterThan(0),
+          reason: 'word-level highlight must be visible while the voice '
+              'advances through the verse');
+
+      await AudioController.instance.stop();
+      await tester.pump();
+      // Cleared when audio stops.
+      expect(countWordTintSpans(tester), 0);
+    });
+  });
+
+  group('Rosary highlight sync (defect: line highlight never reached the '
+      'UI)', () {
+    testWidgets('the recited line highlights and the word advances within '
+        'it while the step audio plays', (tester) async {
+      await warmRosaryManifest(tester);
+      // Pre-rendered-file-like engine: a 12s asset with a live position.
+      final engine = TimingFakeEngine(
+        sentenceTimings: [],
+        position: const Duration(seconds: 6),
+        duration: const Duration(seconds: 12),
+      );
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(countWordTintSpans(tester), 0,
+          reason: 'no highlight before playback');
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+
+      // The line-level highlight reached the UI: the prayer text is now
+      // rendered with a recited-word tint span (the word being recited).
+      expect(countWordTintSpans(tester), greaterThan(0),
+          reason: 'line/word-level highlight must be visible while the '
+              'voice advances through the prayer');
+
+      await AudioController.instance.stop();
+      await tester.pump();
+      expect(countWordTintSpans(tester), 0);
     });
   });
 }
