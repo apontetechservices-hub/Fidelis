@@ -1,0 +1,254 @@
+{
+  "en": {
+    "sign_of_the_cross": {
+      "file": "en/sign_of_the_cross.ogg",
+      "duration_s": 4.85
+    },
+    "apostles_creed": {
+      "file": "en/apostles_creed.ogg",
+      "duration_s": 37.64
+    },
+    "our_father": {
+      "file": "en/our_father.ogg",
+      "duration_s": 18.33
+    },
+    "hail_mary": {
+      "file": "en/hail_mary.ogg",
+      "duration_s": 13.6
+    },
+    "glory_be": {
+      "file": "en/glory_be.ogg",
+      "duration_s": 9.9
+    },
+    "fatima_prayer": {
+      "file": "en/fatima_prayer.ogg",
+      "duration_s": 8.71
+    },
+    "hail_holy_queen": {
+      "file": "en/hail_holy_queen.ogg",
+      "duration_s": 30.94
+    },
+    "de_profundis": {
+      "file": "en/de_profundis.ogg",
+      "duration_s": 43.89
+    },
+    "eternal_rest": {
+      "file": "en/eternal_rest.ogg",
+      "duration_s": 7.56
+    },
+    "dead_rosary_closing": {
+      "file": "en/dead_rosary_closing.ogg",
+      "duration_s": 6.53
+    },
+    "litany": {
+      "file": "en/litany.ogg",
+      "duration_s": 183.82
+    },
+    "joyful_1": {
+      "file": "en/joyful_1.ogg",
+      "duration_s": 103.24
+    },
+    "joyful_2": {
+      "file": "en/joyful_2.ogg",
+      "duration_s": 62.05
+    },
+    "joyful_3": {
+      "file": "en/joyful_3.ogg",
+      "duration_s": 62.57
+    },
+    "joyful_4": {
+      "file": "en/joyful_4.ogg",
+      "duration_s": 78.69
+    },
+    "joyful_5": {
+      "file": "en/joyful_5.ogg",
+      "duration_s": 76.73
+    },
+    "sorrowful_1": {
+      "file": "en/sorrowful_1.ogg",
+      "duration_s": 74.09
+    },
+    "sorrowful_2": {
+      "file": "en/sorrowful_2.ogg",
+      "duration_s": 21.89
+    },
+    "sorrowful_3": {
+      "file": "en/sorrowful_3.ogg",
+      "duration_s": 52.73
+    },
+    "sorrowful_4": {
+      "file": "en/sorrowful_4.ogg",
+      "duration_s": 30.56
+    },
+    "sorrowful_5": {
+      "file": "en/sorrowful_5.ogg",
+      "duration_s": 54.78
+    },
+    "glorious_1": {
+      "file": "en/glorious_1.ogg",
+      "duration_s": 59.7
+    },
+    "glorious_2": {
+      "file": "en/glorious_2.ogg",
+      "duration_s": 63.93
+    },
+    "glorious_3": {
+      "file": "en/glorious_3.ogg",
+      "duration_s": 47.0
+    },
+    "glorious_4": {
+      "file": "en/glorious_4.ogg",
+      "duration_s": 29.57
+    },
+    "glorious_5": {
+      "file": "en/glorious_5.ogg",
+      "duration_s": 31.39
+    },
+    "luminous_1": {
+      "file": "en/luminous_1.ogg",
+      "duration_s": 58.37
+    },
+    "luminous_2": {
+      "file": "en/luminous_2.ogg",
+      "duration_s": 54.05
+    },
+    "luminous_3": {
+      "file": "en/luminous_3.ogg",
+      "duration_s": 33.66
+    },
+    "luminous_4": {
+      "file": "en/luminous_4.ogg",
+      "duration_s": 52.02
+    },
+    "luminous_5": {
+      "file": "en/luminous_5.ogg",
+      "duration_s": 55.06
+    }
+  },
+  "es": {
+    "sign_of_the_cross": {
+      "file": "es/sign_of_the_cross.ogg",
+      "duration_s": 4.32
+    },
+    "apostles_creed": {
+      "file": "es/apostles_creed.ogg",
+      "duration_s": 36.36
+    },
+    "our_father": {
+      "file": "es/our_father.ogg",
+      "duration_s": 18.01
+    },
+    "hail_mary": {
+      "file": "es/hail_mary.ogg",
+      "duration_s": 15.13
+    },
+    "glory_be": {
+      "file": "es/glory_be.ogg",
+      "duration_s": 7.87
+    },
+    "fatima_prayer": {
+      "file": "es/fatima_prayer.ogg",
+      "duration_s": 9.4
+    },
+    "hail_holy_queen": {
+      "file": "es/hail_holy_queen.ogg",
+      "duration_s": 31.88
+    },
+    "de_profundis": {
+      "file": "es/de_profundis.ogg",
+      "duration_s": 34.2
+    },
+    "eternal_rest": {
+      "file": "es/eternal_rest.ogg",
+      "duration_s": 6.25
+    },
+    "dead_rosary_closing": {
+      "file": "es/dead_rosary_closing.ogg",
+      "duration_s": 5.71
+    },
+    "litany": {
+      "file": "es/litany.ogg",
+      "duration_s": 199.42
+    },
+    "joyful_1": {
+      "file": "es/joyful_1.ogg",
+      "duration_s": 79.11
+    },
+    "joyful_2": {
+      "file": "es/joyful_2.ogg",
+      "duration_s": 54.66
+    },
+    "joyful_3": {
+      "file": "es/joyful_3.ogg",
+      "duration_s": 55.8
+    },
+    "joyful_4": {
+      "file": "es/joyful_4.ogg",
+      "duration_s": 63.08
+    },
+    "joyful_5": {
+      "file": "es/joyful_5.ogg",
+      "duration_s": 64.69
+    },
+    "sorrowful_1": {
+      "file": "es/sorrowful_1.ogg",
+      "duration_s": 64.25
+    },
+    "sorrowful_2": {
+      "file": "es/sorrowful_2.ogg",
+      "duration_s": 22.04
+    },
+    "sorrowful_3": {
+      "file": "es/sorrowful_3.ogg",
+      "duration_s": 49.12
+    },
+    "sorrowful_4": {
+      "file": "es/sorrowful_4.ogg",
+      "duration_s": 26.98
+    },
+    "sorrowful_5": {
+      "file": "es/sorrowful_5.ogg",
+      "duration_s": 48.01
+    },
+    "glorious_1": {
+      "file": "es/glorious_1.ogg",
+      "duration_s": 52.19
+    },
+    "glorious_2": {
+      "file": "es/glorious_2.ogg",
+      "duration_s": 54.58
+    },
+    "glorious_3": {
+      "file": "es/glorious_3.ogg",
+      "duration_s": 40.82
+    },
+    "glorious_4": {
+      "file": "es/glorious_4.ogg",
+      "duration_s": 27.6
+    },
+    "glorious_5": {
+      "file": "es/glorious_5.ogg",
+      "duration_s": 29.98
+    },
+    "luminous_1": {
+      "file": "es/luminous_1.ogg",
+      "duration_s": 48.87
+    },
+    "luminous_2": {
+      "file": "es/luminous_2.ogg",
+      "duration_s": 46.01
+    },
+    "luminous_3": {
+      "file": "es/luminous_3.ogg",
+      "duration_s": 33.06
+    },
+    "luminous_4": {
+      "file": "es/luminous_4.ogg",
+      "duration_s": 45.63
+    },
+    "luminous_5": {
+      "file": "es/luminous_5.ogg",
+      "duration_s": 47.57
+    }
+  }
+}

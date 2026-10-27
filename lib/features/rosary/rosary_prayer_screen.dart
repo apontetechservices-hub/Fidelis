@@ -8,6 +8,7 @@ import 'rosary_prayers.dart';
 import 'mystery_data.dart';
 import '../../services/tts_service.dart';
 import 'litany_of_loreto.dart';
+import 'rosary_audio_files.dart';
 import 'rosary_state.dart';
 
 class RosaryPrayerScreen extends StatefulWidget {
@@ -118,6 +119,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
 
   @override
   void dispose() {
+    // Step audio is tied to this screen — never keep playing after exit.
+    TtsService.stop();
     _scrollController.dispose();
     _saveState();
     super.dispose();
@@ -155,7 +158,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
                   if (mounted) setState(() => _speaking = false);
                 } else {
                   setState(() => _speaking = true);
-                  await TtsService.speakPrayer(_currentPrayerText(), lang: _language);
+                  await _speakCurrentStep();
                   if (mounted) setState(() => _speaking = false);
                 }
               },
@@ -310,6 +313,82 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         ],
       ),
     );
+  }
+
+  /// Plays the current step: the pre-rendered file for (step, language) when
+  /// one exists, otherwise runtime TTS with the step's text — never silence.
+  ///
+  /// Dead-variant steps personalized with the deceased's name fall back to
+  /// runtime TTS: the generic pre-rendered files use plural wording ("grant
+  /// unto them"), so the name substitution only exists in the runtime text.
+  Future<void> _speakCurrentStep() async {
+    final step = _step;
+    final personalized = (widget.deceasedName?.isNotEmpty ?? false) &&
+        (step.type == RosaryStepType.deProfundis ||
+            step.type == RosaryStepType.eternalRest ||
+            step.type == RosaryStepType.deadRosaryClosing);
+    final key = personalized
+        ? null
+        : RosaryAudioFiles.keyForStep(step, mysteryType: widget.mysteryType);
+    final asset =
+        key == null ? null : await RosaryAudioFiles.assetFor(key, _language);
+    if (asset != null) {
+      await TtsService.playAssetFile(asset);
+      return;
+    }
+    await TtsService.speakPrayer(_fallbackSpeechText(step), lang: _language);
+  }
+
+  /// Spoken text for steps without a pre-rendered file. The litany and
+  /// mystery announcements return '' from _currentPrayerText() (their content
+  /// is displayed separately), so their speech text is composed here.
+  String _fallbackSpeechText(RosaryStep step) {
+    switch (step.type) {
+      case RosaryStepType.litany:
+        // Same composition as the pre-rendered litany file: invocations plus
+        // the closing prayer with displayed V./R. markers stripped.
+        final closing = LitanyOfLoreto.getClosingPrayer(_language)
+            .replaceAll(RegExp(r'^V\.\s*|^R\.\s*', multiLine: true), '');
+        return '${LitanyOfLoreto.getInvocations(_language).join('\n')}\n\n$closing';
+      case RosaryStepType.mysteryAnnouncement:
+        return _mysteryAnnouncementText();
+      default:
+        return _currentPrayerText();
+    }
+  }
+
+  /// Announcement text matching the pre-rendered mystery files: announcement
+  /// line, verse, meditation, spiritual fruit.
+  String _mysteryAnnouncementText() {
+    final mysteries = MysteryData.getMysteries(widget.mysteryType);
+    if (_step.mysteryIndex == null || _step.mysteryIndex! >= mysteries.length) {
+      return '';
+    }
+    final m = mysteries[_step.mysteryIndex!];
+    final n = m.number.clamp(1, 5);
+    if (_language == 'es') {
+      const ord = ['Primer', 'Segundo', 'Tercer', 'Cuarto', 'Quinto'];
+      const set = {
+        'joyful': 'Gozoso',
+        'sorrowful': 'Doloroso',
+        'glorious': 'Glorioso',
+        'luminous': 'Luminoso',
+      };
+      final v = mysteryVersesEs[m.id] ?? [m.verseRef, m.verseText];
+      return '${ord[n - 1]} Misterio ${set[m.type] ?? m.type}: ${m.titleEs}.\n\n'
+          '${v[0]}.\n\n${v[1]}\n\n${m.meditationEs}\n\n'
+          'Fruto Espiritual: ${m.fruitEs}.';
+    }
+    const ord = ['First', 'Second', 'Third', 'Fourth', 'Fifth'];
+    const set = {
+      'joyful': 'Joyful',
+      'sorrowful': 'Sorrowful',
+      'glorious': 'Glorious',
+      'luminous': 'Luminous',
+    };
+    return 'The ${ord[n - 1]} ${set[m.type] ?? m.type} Mystery: ${m.titleEn}.\n\n'
+        '${m.verseRef}.\n\n${m.verseText}\n\n${m.meditationEn}\n\n'
+        'Spiritual Fruit: ${m.fruitEn}.';
   }
 
   String _currentPrayerText() {
