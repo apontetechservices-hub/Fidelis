@@ -8,6 +8,7 @@ import 'package:fidelis/features/rosary/rosary_audio_files.dart';
 import 'package:fidelis/services/audio_controller.dart';
 import 'package:fidelis/services/billing_service.dart';
 import 'package:fidelis/services/bible_service.dart';
+import 'package:fidelis/config/app_strings.dart';
 import 'package:fidelis/config/theme.dart';
 
 import 'audio_controller_test.dart';
@@ -15,11 +16,13 @@ import 'audio_controller_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() {
+  setUp(() async {
     SharedPreferences.setMockInitialValues({});
     // Each test must load the manifest in its own FakeAsync zone: futures
     // completed in a previous test's zone never resume when awaited here.
     RosaryAudioFiles.resetForTest();
+    // AppStrings._locale is global static state — reset per test.
+    await AppStrings.setLanguage('en');
   });
 
   /// Loads the rosary manifest through real async (outside the test's
@@ -33,8 +36,10 @@ void main() {
   /// Loads the Bible assets through real async (outside the test's
   /// FakeAsync zone) so the screen's initState load finds warm caches —
   /// the multi-MB chapter asset never completes inside pump-driven frames.
-  Future<void> warmBibleCache(WidgetTester tester) async {
+  /// [lang] also sets the app language, warming that language's text cache.
+  Future<void> warmBibleCache(WidgetTester tester, [String lang = 'en']) async {
     await tester.runAsync(() async {
+      await AppStrings.setLanguage(lang);
       await BibleService.books();
       const book = BibleBook(
         key: 'Genesis',
@@ -51,6 +56,7 @@ void main() {
     await AudioController.instance.stop();
     AudioController.instance.engineForTest = const TtsAudioEngine();
     BillingService.premium.value = false;
+    await AppStrings.setLanguage('en');
   });
 
   group('BibleChapterScreen audio controls', () {
@@ -117,6 +123,7 @@ void main() {
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     });
   });
+
 
   group('RosaryPrayerScreen audio controls', () {
     testWidgets('has a centered play/pause toggle and no speaker button',
@@ -341,6 +348,118 @@ void main() {
       await AudioController.instance.stop();
       await tester.pump();
       expect(countWordTintSpans(tester), 0);
+    });
+  });
+
+  group('Bible language (defect: Spanish mode showed English verse text)', () {
+    const book = BibleBook(
+      key: 'Genesis',
+      name: 'Genesis',
+      testament: 'OT',
+      order: 1,
+      chapters: 50,
+    );
+
+    Future<void> pumpChapter(WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('Spanish mode displays the Spanish (Torres Amat) text',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester, 'es');
+      await pumpChapter(tester);
+
+      // Genesis 1:1 in the Torres Amat translation.
+      expect(
+        find.textContaining('En el principio creó Dios el cielo y la tierra.'),
+        findsOneWidget,
+      );
+      // The English Douay-Rheims text is gone.
+      expect(
+        find.textContaining('In the beginning God created heaven'),
+        findsNothing,
+      );
+    });
+
+    testWidgets('Spanish mode recites the displayed text with lang es',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester, 'es');
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await pumpChapter(tester);
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(engine.langs, isNotEmpty);
+      expect(engine.langs.every((l) => l == 'es'), isTrue,
+          reason: 'the Spanish text must be recited through the existing '
+              'Spanish voice path (lang es)');
+      expect(
+        engine.log.any((e) => e.startsWith(
+            'speak:En el principio creó Dios el cielo y la tierra.')),
+        isTrue,
+        reason: 'the recited text must be the displayed Spanish text',
+      );
+    });
+
+    testWidgets('Spanish mode highlights the recited verse in sync',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester, 'es');
+      // Kokoro-like engine: one sentence (chars 0..12 of the chunk text)
+      // with a 10s duration; the live position sits mid-sentence.
+      final engine = TimingFakeEngine(
+        sentenceTimings: [(0, 12, const Duration(seconds: 10))],
+        position: const Duration(seconds: 5),
+        duration: const Duration(seconds: 10),
+      );
+      AudioController.instance.engineForTest = engine;
+      await pumpChapter(tester);
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+
+      expect(countWordTintSpans(tester), greaterThan(0),
+          reason: 'the sentence→verse mapping must run on the Spanish text');
+    });
+
+    testWidgets('English mode is unchanged: Douay-Rheims text, lang en',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester, 'en');
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await pumpChapter(tester);
+
+      expect(
+        find.textContaining('In the beginning God created heaven and earth.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('En el principio'), findsNothing);
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(engine.langs, isNotEmpty);
+      expect(engine.langs.every((l) => l == 'en'), isTrue);
+      expect(
+        engine.log.any((e) =>
+            e.startsWith('speak:In the beginning God created heaven and earth.')),
+        isTrue,
+      );
     });
   });
 }

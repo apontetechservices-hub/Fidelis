@@ -29,22 +29,32 @@ class BibleVerse {
   const BibleVerse(this.number, this.text);
 }
 
-/// Loads and caches the Douay-Rheims Bible from assets.
-/// Both JSON files are parsed once per app run; screens read from memory.
+/// Loads and caches the Bible verse text per app language from assets:
+/// 'en' → Douay-Rheims (dr_bible.json), 'es' → Torres Amat (sp_bible.json).
+/// Each language's ~5 MB JSON is parsed lazily on first use — never both
+/// eagerly — and kept in memory; screens read from memory.
 class BibleService {
   BibleService._();
 
-  static Map<String, dynamic>? _bible;
+  static final Map<String, Map<String, dynamic>> _bibles = {};
   static List<BibleBook>? _books;
 
-  static Future<Map<String, dynamic>> _loadBible() async {
-    final cached = _bible;
+  /// Asset file holding the verse text for [lang] ('en' | 'es').
+  static String _bibleAsset(String lang) =>
+      lang == 'es' ? 'assets/bible/sp_bible.json' : 'assets/bible/dr_bible.json';
+
+  static Future<Map<String, dynamic>> _loadBible(String lang) async {
+    final cached = _bibles[lang];
     if (cached != null) return cached;
-    final raw = await rootBundle.loadString('assets/bible/dr_bible.json');
+    final raw = await rootBundle.loadString(_bibleAsset(lang));
     final parsed = jsonDecode(raw) as Map<String, dynamic>;
-    _bible = parsed;
+    _bibles[lang] = parsed;
     return parsed;
   }
+
+  /// Language of the verse text the app currently displays: Spanish reads
+  /// the Torres Amat text, English the Douay-Rheims.
+  static String get textLang => AppStrings.isSpanish ? 'es' : 'en';
 
   /// All 73 books in canonical order.
   static Future<List<BibleBook>> books() async {
@@ -68,15 +78,16 @@ class BibleService {
   }
 
   /// Display name of a book in the active app language.
-  /// Verse text stays English (Douay-Rheims) in both languages.
   static String bookName(BibleBook book) {
     if (!AppStrings.isSpanish) return book.name;
     return _spanishNames[book.key] ?? book.name;
   }
 
-  /// Verses of one chapter, in verse order. Asterisk markup stripped.
+  /// Verses of one chapter, in verse order, in the app's current language
+  /// (Douay-Rheims for English, Torres Amat for Spanish). Asterisk markup
+  /// stripped.
   static Future<List<BibleVerse>> chapter(BibleBook book, int chapter) async {
-    final bible = await _loadBible();
+    final bible = await _loadBible(textLang);
     final bookData = bible[book.key] as Map<String, dynamic>?;
     if (bookData == null) return [];
     final ch = bookData['$chapter'] as Map<String, dynamic>?;

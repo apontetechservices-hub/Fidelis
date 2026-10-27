@@ -51,6 +51,10 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   static const _versesPerChunk = 10;
 
   List<BibleVerse>? _verses;
+
+  /// Language of the loaded [_verses] ('en' | 'es') — lets a language
+  /// switch while the chapter is open trigger a reload.
+  String? _loadedLang;
   int? _speakingVerse;
 
   /// Character range of the word being recited within [_speakingVerse]'s
@@ -70,6 +74,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     super.initState();
     AudioController.instance.listenable.addListener(_onAudioChanged);
     AudioController.instance.wordRangeListenable.addListener(_onWordRangeChanged);
+    AppStrings.localeNotifier.addListener(_onLocaleChanged);
     _load();
   }
 
@@ -78,6 +83,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     AudioController.instance.listenable.removeListener(_onAudioChanged);
     AudioController.instance.wordRangeListenable
         .removeListener(_onWordRangeChanged);
+    AppStrings.localeNotifier.removeListener(_onLocaleChanged);
     // Audio is tied to this screen — never keep playing after exit. Owner-
     // scoped so a replacement chapter screen that already auto-continued is
     // not cut off.
@@ -133,12 +139,36 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   }
 
   Future<void> _load() async {
+    final lang = BibleService.textLang;
     final verses = await BibleService.chapter(widget.book, widget.chapter);
     await BibleService.savePosition(widget.book, widget.chapter);
     if (mounted) {
-      setState(() => _verses = verses);
+      setState(() {
+        _verses = verses;
+        _loadedLang = lang;
+      });
       if (widget.autoPlay) unawaited(_startAudio());
     }
+  }
+
+  /// Language switch while this chapter is open (the toggle lives in
+  /// settings, above this screen in the nav stack): stop this screen's
+  /// audio — it recited the other language's text — and reload the verses
+  /// in the new language. Positions are book/chapter, so the reading spot
+  /// carries over untouched.
+  void _onLocaleChanged() {
+    if (!mounted ||
+        _loadedLang == null ||
+        _loadedLang == BibleService.textLang) {
+      return;
+    }
+    AudioController.instance.stopIfOwner(this);
+    setState(() {
+      _speakingVerse = null;
+      _speakingWord = null;
+      _verses = null;
+    });
+    _load();
   }
 
   /// Neighbouring chapter, walking across book boundaries in canon order.
@@ -210,10 +240,13 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// stream: engine-timed sentence boundaries (Kokoro) or word events
   /// (flutter_tts), with the position inside the sentence estimated
   /// character-proportionally (sherpa_onnx 1.13.8 exposes no token
-  /// timestamps). The Douay-Rheims text is English, so lang is 'en'.
+  /// timestamps). Lang follows the displayed text: 'es' recites the
+  /// Spanish (Torres Amat) text through the existing Spanish voice path,
+  /// 'en' the Douay-Rheims as before.
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
+    final lang = AppStrings.isSpanish ? 'es' : 'en';
     final chunks = <AudioChunk>[];
     for (var start = 0; start < verses.length; start += _versesPerChunk) {
       final end = (start + _versesPerChunk < verses.length)
@@ -227,7 +260,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       _chunkFirstVerse[chunkIndex] = start;
       chunks.add(AudioChunk(
         text: text,
-        lang: 'en',
+        lang: lang,
         onSentenceStart: (sentence) {
           if (!mounted) return;
           final verse = sentence < verseForSentence.length

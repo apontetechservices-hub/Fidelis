@@ -8,6 +8,10 @@ import 'package:fidelis/services/audio_controller.dart';
 class FakeAudioEngine implements AudioEngine {
   final List<String> log = [];
 
+  /// Language passed to each speakText call, in order — lets tests verify
+  /// the audio language routing without touching the text log format.
+  final List<String?> langs = [];
+
   /// Gate of the chunk currently "playing"; completes when it finishes.
   Completer<void>? _gate;
 
@@ -26,6 +30,7 @@ class FakeAudioEngine implements AudioEngine {
     void Function(int charStart, int charEnd)? onWordRange,
   }) async {
     log.add('speak:$text');
+    langs.add(lang);
     onSentenceStart?.call(0);
     _gate = Completer<void>();
     await _gate!.future;
