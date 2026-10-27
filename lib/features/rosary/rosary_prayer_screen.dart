@@ -450,9 +450,33 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     _speakingLine = null;
     _speakingWord = null;
     await AudioController.instance.start(
-      AudioJob(id: _jobId, chunks: [chunk]),
+      AudioJob(
+        id: _jobId,
+        chunks: [chunk],
+        onCompleted: () => _onStepAudioCompleted(stepIndex),
+      ),
       owner: this,
     );
+  }
+
+  /// A step's audio finished on its own (not stopped/replaced): keep the
+  /// rosary flowing — advance to the next step and continue playing, so the
+  /// audio stops only on pause or exiting the screen. Guarded to the step
+  /// whose audio finished, so a manual Next/Previous that already moved on
+  /// (or a replacement stream) cannot double-advance.
+  void _onStepAudioCompleted(int stepIndex) {
+    if (!mounted || _currentStep != stepIndex) return;
+    if (_currentStep >= _steps.length - 1) return;
+    setState(() {
+      _currentStep++;
+      _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
+      _litanyIndex = 0;
+      _speakingLine = null;
+      _speakingWord = null;
+    });
+    _scrollToTop();
+    _saveState();
+    unawaited(_startCurrentStepAudio());
   }
 
   /// Centered play/pause toggle: pauses/resumes this screen's stream, or

@@ -106,7 +106,12 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
 
   /// Maps the controller's word-level range (character offsets within the
   /// active chunk's text) to the recited verse + range within it, so the
-  /// spoken word highlights in sync with the voice.
+  /// spoken word highlights in sync with the voice. The verse itself is
+  /// derived from the word range — the Rosary's mechanic: when the recited
+  /// range crosses into another verse, the verse highlight advances with it.
+  /// (onSentenceStart alone cannot drive this on the flutter_tts path, which
+  /// fires it only once per chunk, so the verse would freeze at the first
+  /// verse for the whole passage.)
   void _onWordRangeChanged() {
     if (!mounted) return;
     final info = AudioController.instance.listenable.value;
@@ -115,7 +120,6 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     if (range != null &&
         info.jobId == _jobId &&
         info.state != AudioState.stopped &&
-        _speakingVerse != null &&
         _verses != null) {
       final starts = _chunkVerseStarts[info.chunkIndex];
       final first = _chunkFirstVerse[info.chunkIndex];
@@ -124,13 +128,16 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         for (var k = 0; k < starts.length; k++) {
           if (starts[k] <= range.charStart) relative = k;
         }
-        if (first + relative == _speakingVerse) {
-          final verseStart = starts[relative];
-          final verseLength = _verses![first + relative].text.length;
-          final s = (range.charStart - verseStart).clamp(0, verseLength);
-          final e = (range.charEnd - verseStart).clamp(0, verseLength);
-          if (e > s) word = (s, e);
+        final verse = first + relative;
+        if (verse != _speakingVerse) {
+          setState(() => _speakingVerse = verse);
+          _scrollToVerse(verse);
         }
+        final verseStart = starts[relative];
+        final verseLength = _verses![verse].text.length;
+        final s = (range.charStart - verseStart).clamp(0, verseLength);
+        final e = (range.charEnd - verseStart).clamp(0, verseLength);
+        if (e > s) word = (s, e);
       }
     }
     if (word != _speakingWord) {

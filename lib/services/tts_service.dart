@@ -435,6 +435,18 @@ class TtsService {
     _lastViaFlutterTts = false;
     final done = Completer<void>();
     _playDone = done;
+    // just_audio 0.10.6 quirk (verified in the installed source and a
+    // scripted-platform probe): after a natural completion the Dart-side
+    // `playing` stays true (nothing ever clears playWhenReady), so a later
+    // play() early-returns at `if (playing) return;` and — on Android — the
+    // player sits in STATE_ENDED, where ExoPlayer will not restart without
+    // a seek. Clear the stale playing state before loading so the play()
+    // below always reaches the platform.
+    if (_player.playing) {
+      try {
+        await _player.pause();
+      } catch (_) {}
+    }
     await _player.setAudioSource(source);
     if (myEpoch != _epoch) {
       _finishPlayDone();

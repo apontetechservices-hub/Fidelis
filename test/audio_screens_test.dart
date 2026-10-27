@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -12,6 +14,95 @@ import 'package:fidelis/config/app_strings.dart';
 import 'package:fidelis/config/theme.dart';
 
 import 'audio_controller_test.dart';
+
+/// flutter_tts-fallback-like engine with a deterministic, test-driven word
+/// sweep: fires onSentenceStart once per chunk (the fallback path's
+/// signature — the trigger of the frozen-verse Bible defect), then emits
+/// word-boundary events ONE PER [tick] call as the test advances them. When
+/// the chunk's words are exhausted the chunk completes (the audio ran out)
+/// and the controller advances to the next chunk. No timers: the test
+/// controls every step, so assertions are exact.
+class SweepEngine implements AudioEngine {
+  final List<String> log = [];
+  bool _paused = false;
+
+  void Function(int, int)? _sink;
+  final List<(int, int)> _pending = [];
+  Completer<void>? _gate;
+
+  @override
+  Future<void> speakText(
+    String text, {
+    String? lang,
+    void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
+  }) async {
+    log.add('speak:$text');
+    onSentenceStart?.call(0);
+    _sink = onWordRange;
+    _pending.clear();
+    final wordPattern = RegExp(r'[0-9A-Za-z\u00C0-\u024F]+');
+    for (final m in wordPattern.allMatches(text)) {
+      _pending.add((m.start, m.end));
+    }
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  /// Emits the next pending word event; when the chunk's words are
+  /// exhausted, ends the chunk's playback so the next chunk starts.
+  void tick() {
+    final sink = _sink;
+    if (sink == null) return;
+    if (_pending.isEmpty) {
+      finishChunk();
+      return;
+    }
+    final (s, e) = _pending.removeAt(0);
+    sink(s, e);
+  }
+
+  /// Ends the current chunk's playback (natural completion).
+  void finishChunk() {
+    final gate = _gate;
+    _gate = null;
+    if (gate != null && !gate.isCompleted) gate.complete();
+  }
+
+  @override
+  Future<void> playAsset(String asset) async {
+    log.add('asset:$asset');
+    _gate = Completer<void>();
+    await _gate!.future;
+  }
+
+  @override
+  (Duration, Duration?)? get progress => null;
+
+  @override
+  Future<void> pause() async {
+    log.add('pause');
+    _paused = true;
+  }
+
+  @override
+  Future<void> resume() async {
+    log.add('resume');
+    _paused = false;
+  }
+
+  @override
+  Future<void> stop() async {
+    log.add('stop');
+    finishChunk();
+    _paused = false;
+  }
+
+  @override
+  bool get isPaused => _paused;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -122,6 +213,48 @@ void main() {
       // Paused shows the play icon again.
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     });
+
+    testWidgets('Next while playing continues into the next chapter '
+        '(regression: Bible Next auto-continue)', (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester);
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      // The next chapter's text must be warm too: the pushed screen loads
+      // it inside pump-driven frames, which never complete otherwise.
+      await tester.runAsync(() => BibleService.chapter(book, 2));
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('bible'), isTrue);
+
+      await tester.tap(find.text('Next'));
+      // Let the route transition finish and the old screen dispose (both
+      // screens coexist mid-transition, each with its own toggle).
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      await tester.pump();
+
+      // The pushed chapter screen auto-continued the audio.
+      expect(AudioController.instance.isPlayingFor('bible'), isTrue,
+          reason: 'Next while playing must carry the audio into the next '
+              'chapter');
+      expect(find.byIcon(Icons.pause), findsOneWidget);
+    });
   });
 
 
@@ -195,6 +328,14 @@ void main() {
       // Audio carried over without pressing play again.
       expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
       expect(engine.log.length, greaterThan(playsBefore));
+      // The next step's audio actually started (not just a state flip).
+      expect(
+        engine.log
+            .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
+            .length,
+        greaterThanOrEqualTo(2),
+        reason: "the next step's audio must start, not just the state flip",
+      );
       expect(find.byIcon(Icons.pause), findsOneWidget);
     });
 
@@ -214,6 +355,41 @@ void main() {
       expect(engine.log, isEmpty);
       expect(AudioController.instance.state, AudioState.stopped);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+    });
+
+    testWidgets("a step's audio completing naturally continues into the next "
+        'step (audio stops only on pause or exit)', (tester) async {
+      await warmRosaryManifest(tester);
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
+
+      // The step's audio runs out on its own (natural completion).
+      engine.finishChunk();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      // The rosary flowed on: the next step's audio auto-played.
+      expect(
+        engine.log
+            .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
+            .length,
+        greaterThanOrEqualTo(2),
+        reason: "the next step's audio must start automatically after the "
+            "previous step's audio completed",
+      );
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
+      expect(find.byIcon(Icons.pause), findsOneWidget);
     });
   });
 
@@ -260,6 +436,38 @@ void main() {
       if (span != null) walkRoot(span);
     }
     return count;
+  }
+
+  /// True when the verse numbered [number] currently carries the
+  /// recited-verse style (an accent-colored w600 span inside its RichText).
+  /// The verse number span is excluded (bold w700, fontSize 12), as is the
+  /// recited-word span (w700 + tint).
+  bool verseIsSpeaking(WidgetTester tester, int number) {
+    final accents = [FidelisTheme.gold, FidelisTheme.deepRed];
+    bool isAccent(Color? c) =>
+        c != null &&
+        accents.any((a) =>
+            (c.r - a.r).abs() < 0.01 &&
+            (c.g - a.g).abs() < 0.01 &&
+            (c.b - a.b).abs() < 0.01);
+    final richTexts = tester.widgetList<Widget>(find.byType(RichText));
+    for (final w in richTexts) {
+      final root = (w as RichText).text;
+      if (root is TextSpan && root.toPlainText().startsWith('$number ')) {
+        var speaking = false;
+        root.visitChildren((span) {
+          if (span is TextSpan &&
+              span.text != null &&
+              isAccent(span.style?.color) &&
+              span.style?.fontWeight == FontWeight.w600) {
+            speaking = true;
+          }
+          return true;
+        });
+        if (speaking) return true;
+      }
+    }
+    return false;
   }
 
   group('Bible highlight sync (defect: highlight never reached the UI)', () {
@@ -309,6 +517,78 @@ void main() {
       await AudioController.instance.stop();
       await tester.pump();
       // Cleared when audio stops.
+      expect(countWordTintSpans(tester), 0);
+    });
+
+    testWidgets('highlight advances past verse 1 across a long multi-chunk '
+        'passage (defect: only the first verse ever highlighted)',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester);
+      // The flutter_tts-fallback signature: onSentenceStart fires once per
+      // chunk, then word events sweep the whole chunk text. The verse
+      // highlight must track the recited range across verse boundaries.
+      final engine = SweepEngine();
+      AudioController.instance.engineForTest = engine;
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+
+      // Verse 1 starts highlighted (the chunk's first sentence).
+      expect(verseIsSpeaking(tester, 1), isTrue);
+
+      // Advance the recited word event-by-event until the highlight leaves
+      // verse 1 (the defect's core assertion) — bounded so a regression
+      // fails fast instead of hanging.
+      var leftVerse1 = false;
+      for (var i = 0; i < 400 && !leftVerse1; i++) {
+        engine.tick();
+        await tester.pump(const Duration(milliseconds: 50));
+        leftVerse1 = !verseIsSpeaking(tester, 1);
+      }
+      expect(leftVerse1, isTrue,
+          reason: 'the verse highlight must advance past verse 1 as the '
+              'recited range crosses verse boundaries');
+      expect(countWordTintSpans(tester), greaterThan(0),
+          reason: 'the word-level highlight must be visible in the recited '
+              'verse');
+
+      // Keep advancing until the highlight reaches chunk 1 (verses 11-20):
+      // it must cross the chunk boundary of the multi-chunk passage.
+      var reachedChunk1 = false;
+      for (var i = 0; i < 600 && !reachedChunk1; i++) {
+        engine.tick();
+        await tester.pump(const Duration(milliseconds: 50));
+        for (var n = 11; n <= 20 && !reachedChunk1; n++) {
+          reachedChunk1 = verseIsSpeaking(tester, n);
+        }
+      }
+      expect(reachedChunk1, isTrue,
+          reason: 'the verse highlight must keep advancing into the second '
+              'chunk of the passage');
+      // A few more words so the recited range is inside the verse and the
+      // word-level tint is visible (the chunk's onSentenceStart fires
+      // before its first word event).
+      for (var i = 0; i < 3; i++) {
+        engine.tick();
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(countWordTintSpans(tester), greaterThan(0));
+
+      await AudioController.instance.stop();
+      await tester.pump();
       expect(countWordTintSpans(tester), 0);
     });
   });
