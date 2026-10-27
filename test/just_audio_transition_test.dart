@@ -1,13 +1,19 @@
 // Regression for the real just_audio 0.10.6 transition quirks behind the
 // Rosary Next auto-continue defect, driven through the app's real
-// [TtsService.playAssetFile] over a scripted platform:
+// [TtsService.playAssetFile] over a scripted platform whose play() result
+// stays PENDING until end/pause/supersede — the real Java playResult
+// semantics (the Dart play() is in flight for the whole playback):
 //
 //  - after a natural completion the Dart-side `playing` stays true (nothing
-//    ever clears playWhenReady) and a bare play() early-returns without
-//    sending a play request — on Android the player sits in STATE_ENDED,
-//    where ExoPlayer will not restart without a seek;
+//    ever clears playWhenReady; ExoPlayerImpl.stopInternal does not touch
+//    playWhenReady either) and a bare play() early-returns without sending
+//    a play request — on Android the player sits in STATE_ENDED, where
+//    ExoPlayer will not restart without a seek;
 //  - TtsService._playSource clears that stale playing state before loading
-//    the next source, so its play() always reaches the platform.
+//    the next source, so its play() always reaches the platform;
+//  - a stop() while a play() is in flight unwinds cleanly: the Java
+//    dispose() completes the pending play result, so the next source's
+//    play request still reaches the platform (the Rosary Next flow).
 import 'dart:async';
 import 'dart:io';
 
@@ -31,11 +37,13 @@ class ScriptedPlatform extends JustAudioPlatform
     return p;
   }
 
+  /// Mirrors the Java AudioPlayer.dispose(): completes any pending play
+  /// result before tearing the player down.
   @override
   Future<DisposePlayerResponse> disposePlayer(
       DisposePlayerRequest request) async {
     log.add('disposePlayer');
-    players.remove(request.id);
+    players.remove(request.id)?.dispose(DisposeRequest());
     return DisposePlayerResponse();
   }
 
@@ -43,19 +51,24 @@ class ScriptedPlatform extends JustAudioPlatform
   Future<DisposeAllPlayersResponse> disposeAllPlayers(
       DisposeAllPlayersRequest request) async {
     log.add('disposeAllPlayers');
+    for (final p in players.values) {
+      p.dispose(DisposeRequest());
+    }
     players.clear();
     return DisposeAllPlayersResponse();
   }
 }
 
-/// Scripted single-source player: load -> ready (30s), play -> playing,
-/// completeNaturally() -> the completed event (ExoPlayer STATE_ENDED:
-/// playWhenReady stays true). Records every request.
+/// Scripted single-source player: load -> ready (30s), play -> playing with
+/// the play result pending until end/pause/supersede (real Java semantics),
+/// completeNaturally() -> the completed event (STATE_ENDED, playWhenReady
+/// stays true). Records every request.
 class ScriptedPlayer extends AudioPlayerPlatform {
   final List<String> log;
   final eventController = StreamController<PlaybackEventMessage>.broadcast();
   ProcessingStateMessage _state = ProcessingStateMessage.idle;
   Duration _pos = Duration.zero;
+  Completer<void>? _pendingPlayResult;
   final Duration duration = const Duration(seconds: 30);
 
   ScriptedPlayer(InitRequest request, this.log) : super(request.id);
@@ -79,6 +92,12 @@ class ScriptedPlayer extends AudioPlayerPlatform {
     ));
   }
 
+  void _completePlayResult() {
+    final c = _pendingPlayResult;
+    _pendingPlayResult = null;
+    if (c != null && !c.isCompleted) c.complete();
+  }
+
   @override
   Future<LoadResponse> load(LoadRequest request) async {
     log.add('load');
@@ -92,13 +111,16 @@ class ScriptedPlayer extends AudioPlayerPlatform {
   Future<PlayResponse> play(PlayRequest request) async {
     log.add('play');
     _broadcast();
-    return PlayResponse();
+    _completePlayResult(); // supersede: the previous pending result completes
+    _pendingPlayResult = Completer<void>();
+    return _pendingPlayResult!.future.then((_) => PlayResponse());
   }
 
   @override
   Future<PauseResponse> pause(PauseRequest request) async {
     log.add('pause');
     _broadcast();
+    _completePlayResult();
     return PauseResponse();
   }
 
@@ -137,16 +159,19 @@ class ScriptedPlayer extends AudioPlayerPlatform {
   @override
   Future<DisposeResponse> dispose(DisposeRequest request) async {
     log.add('dispose');
+    _completePlayResult();
     return DisposeResponse();
   }
 
   /// Simulates playback running to the end (ExoPlayer STATE_ENDED:
-  /// processingState=completed, playWhenReady stays true).
+  /// processingState=completed, playWhenReady stays true, the pending play
+  /// result completes).
   void completeNaturally() {
     log.add('<<completed>>');
     _state = ProcessingStateMessage.completed;
     _pos = duration;
     _broadcast();
+    _completePlayResult();
   }
 }
 
@@ -192,11 +217,13 @@ void main() {
     final player = AudioPlayer();
     await player.setAudioSource(
         AudioSource.uri(Uri.parse('https://example.org/a.ogg')));
-    await player.play();
-    expect(platform.log.any((e) => e.startsWith('play')), isTrue);
+    // The play() stays in flight until the playback ends (real semantics).
+    final playing = player.play();
+    expect(await waitFor(() => platform.log.any((e) => e == 'play')), isTrue);
 
     // The source finishes naturally: STATE_ENDED, playWhenReady stays true.
     platform.players.values.first.completeNaturally();
+    await playing.timeout(const Duration(seconds: 5));
     await _settle();
     expect(player.processingState, ProcessingState.completed);
     expect(player.playing, isTrue,
@@ -208,9 +235,9 @@ void main() {
         AudioSource.uri(Uri.parse('https://example.org/b.ogg')));
     await _settle();
     platform.log.clear();
-    await player.play();
+    await player.play(); // early-returns on the stale playing state
     await _settle();
-    expect(platform.log.any((e) => e.startsWith('play')), isFalse,
+    expect(platform.log.any((e) => e == 'play'), isFalse,
         reason: 'the bare play() early-returns on the stale playing state — '
             'the device-level break the app must work around');
     await player.dispose();
@@ -225,8 +252,7 @@ void main() {
     // First source: start, then let it finish naturally. The asset copy +
     // platform init/load run on real async — poll for the play request.
     final first = TtsService.playAssetFile('assets/app_icon.png');
-    expect(await waitFor(() => platform.log.any((e) => e.startsWith('play'))),
-        isTrue);
+    expect(await waitFor(() => platform.log.any((e) => e == 'play')), isTrue);
     platform.players.values.first.completeNaturally();
     await first.timeout(const Duration(seconds: 5));
     expect(platform.log.any((e) => e == '<<completed>>'), isTrue);
@@ -236,10 +262,34 @@ void main() {
     // cleared so the play request reaches the platform.
     platform.log.clear();
     final second = TtsService.playAssetFile('assets/app_icon.png');
-    expect(await waitFor(() => platform.log.any((e) => e.startsWith('play'))),
-        isTrue,
+    expect(await waitFor(() => platform.log.any((e) => e == 'play')), isTrue,
         reason: 'the second source must receive a play request despite the '
             'stale playing state left by the natural completion');
+    await TtsService.stop();
+    await second.timeout(const Duration(seconds: 5));
+  });
+
+  test('Rosary Next mid-playback: stop() while the play() is in flight, '
+      'then the next source — its play request reaches the platform',
+      () async {
+    final platform = ScriptedPlatform();
+    JustAudioPlatform.instance = platform;
+
+    // Step N's audio playing; its play() is in flight (pending result).
+    final first = TtsService.playAssetFile('assets/app_icon.png');
+    expect(await waitFor(() => platform.log.any((e) => e == 'play')), isTrue);
+
+    // The controller's stop (the Next flow's first step). The Java dispose
+    // completes the pending play result, so the in-flight play() unwinds.
+    await TtsService.stop();
+    await first.timeout(const Duration(seconds: 5));
+
+    // The next step's audio must start on its own.
+    platform.log.clear();
+    final second = TtsService.playAssetFile('assets/app_icon.png');
+    expect(await waitFor(() => platform.log.any((e) => e == 'play')), isTrue,
+        reason: "the next step's play request must reach the platform after "
+            'a stop that interrupted an in-flight play()');
     await TtsService.stop();
     await second.timeout(const Duration(seconds: 5));
   });
