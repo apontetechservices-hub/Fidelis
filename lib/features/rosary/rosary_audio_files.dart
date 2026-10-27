@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart' show rootBundle;
 
 import 'mystery_data.dart';
@@ -21,6 +22,10 @@ class RosaryAudioFiles {
   static Future<void>? _loading;
 
   static Future<void> ensureLoaded() {
+    // Warm manifest: no await-worthy work — returning an already-complete
+    // same-zone future keeps callers off foreign-zone futures (whose
+    // completions never resume inside a pump-driven widget test).
+    if (_manifest != null) return Future.value();
     return _loading ??= _load();
   }
 
@@ -33,6 +38,15 @@ class RosaryAudioFiles {
       // Missing/corrupt manifest: every step falls back to runtime TTS.
       _manifest = const {};
     }
+  }
+
+  /// Test-only: drops the cached manifest so each widget test starts a fresh
+  /// load in its own FakeAsync zone — futures completed in a previous test's
+  /// zone never resume when awaited in a new one.
+  @visibleForTesting
+  static void resetForTest() {
+    _loading = null;
+    _manifest = null;
   }
 
   /// Bundled asset path for (stepKey, lang), or null when no pre-rendered

@@ -464,6 +464,8 @@ class AppStrings {
     'undo_day': {'en': 'Undo Day {{n}}', 'es': 'Deshacer el Día {{n}}'},
     'listen': {'en': 'Listen', 'es': 'Escuchar'},
     'stop_audio': {'en': 'Stop audio', 'es': 'Detener audio'},
+    'play_audio': {'en': 'Play', 'es': 'Reproducir'},
+    'pause_audio': {'en': 'Pause', 'es': 'Pausar'},
 
   };
 }

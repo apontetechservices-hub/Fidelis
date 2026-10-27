@@ -4,8 +4,8 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
+import '../../services/audio_controller.dart';
 import '../../services/billing_service.dart';
-import '../../services/tts_service.dart';
 import '../premium/paywall_screen.dart';
 import 'missal_service.dart';
 import 'missal_cache.dart';
@@ -21,6 +21,8 @@ class ReadingsScreen extends StatefulWidget {
 }
 
 class _ReadingsScreenState extends State<ReadingsScreen> {
+  static const _jobId = 'readings';
+
   List<Proper>? _propers;
   UsccbReadings? _usccbReadings;
   bool _loading = true;
@@ -35,13 +37,27 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
   void initState() {
     _selectedDate = widget.initialDate ?? DateTime.now();
     super.initState();
+    AudioController.instance.listenable.addListener(_onAudioChanged);
     _loadSettings();
   }
 
   @override
   void dispose() {
-    if (_speaking) TtsService.stop();
+    AudioController.instance.listenable.removeListener(_onAudioChanged);
+    // Read-aloud audio is tied to this screen — never keep playing after
+    // exit. Owner-scoped so another screen's stream is never cut off.
+    AudioController.instance.stopIfOwner(this);
     super.dispose();
+  }
+
+  /// Keeps the stop button honest when this screen's stream is replaced or
+  /// stopped from elsewhere (single-stream controller).
+  void _onAudioChanged() {
+    final info = AudioController.instance.listenable.value;
+    final mine = info.jobId == _jobId && info.state != AudioState.stopped;
+    if (!mine && _speaking && mounted) {
+      setState(() => _speaking = false);
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -730,22 +746,26 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
     return 'en';
   }
 
-  /// Speaks the day's readings section by section (per-section calls keep
-  /// each TTS request small); [_speaking] drives the stop button.
+  /// Speaks the day's readings section by section through the central
+  /// controller (per-section chunks keep each TTS request small);
+  /// [_speaking] drives the stop button.
   Future<void> _playAudio() async {
     final sections = _readingsSections();
     if (sections.isEmpty || _speaking) return;
     setState(() => _speaking = true);
-    for (final text in sections) {
-      if (!_speaking) break;
-      await TtsService.speakPrayer(text, lang: _audioLang());
-    }
+    final job = AudioJob(
+      id: _jobId,
+      chunks: [
+        for (final text in sections) AudioChunk(text: text, lang: _audioLang()),
+      ],
+    );
+    await AudioController.instance.start(job, owner: this);
     if (mounted) setState(() => _speaking = false);
   }
 
   Future<void> _stopAudio() async {
     setState(() => _speaking = false);
-    await TtsService.stop();
+    await AudioController.instance.stopIfOwner(this);
   }
 
   Future<void> _pickDate() async {

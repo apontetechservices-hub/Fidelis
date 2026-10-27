@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../config/theme.dart';
@@ -6,7 +8,7 @@ import '../../config/constants.dart';
 import 'rosary_controller.dart';
 import 'rosary_prayers.dart';
 import 'mystery_data.dart';
-import '../../services/tts_service.dart';
+import '../../services/audio_controller.dart';
 import 'litany_of_loreto.dart';
 import 'rosary_audio_files.dart';
 import 'rosary_state.dart';
@@ -36,12 +38,17 @@ class RosaryPrayerScreen extends StatefulWidget {
 }
 
 class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
+  static const _jobId = 'rosary';
+
   late List<RosaryStep> _steps;
   int _currentStep = 0;
   bool _showLitany = false;
-  bool _speaking = false;
   int _litanyIndex = 0;
   late String _language;
+
+  /// True while this screen's step audio is loaded in the central
+  /// controller (playing or paused) — drives the recited-text highlight.
+  bool _audioLoadedForMe = false;
 
   static const List<String> _laOrdinals = ['Primum', 'Secundum', 'Tertium', 'Quartum', 'Quintum'];
 
@@ -101,6 +108,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   @override
   void initState() {
     super.initState();
+    AudioController.instance.listenable.addListener(_onAudioChanged);
     _language = widget.language;
     final mysteryTypes = List.filled(5, widget.mysteryType);
     _steps = RosaryController.buildRosarySteps(
@@ -119,11 +127,22 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
 
   @override
   void dispose() {
+    AudioController.instance.listenable.removeListener(_onAudioChanged);
     // Step audio is tied to this screen — never keep playing after exit.
-    TtsService.stop();
+    AudioController.instance.stopIfOwner(this);
     _scrollController.dispose();
     _saveState();
     super.dispose();
+  }
+
+  /// Tracks whether the currently loaded audio stream belongs to this
+  /// screen, so the recited text can be highlighted while it plays.
+  void _onAudioChanged() {
+    final info = AudioController.instance.listenable.value;
+    final loaded = info.jobId == _jobId && info.state != AudioState.stopped;
+    if (loaded != _audioLoadedForMe && mounted) {
+      setState(() => _audioLoadedForMe = loaded);
+    }
   }
 
   double get _progress => (_currentStep + 1) / _steps.length;
@@ -148,22 +167,6 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             onPressed: () => _confirmExit(context),
           ),
           // Language set on Rosary selection screen, persisted in SharedPreferences
-          actions: [
-            IconButton(
-              icon: Icon(_speaking ? Icons.volume_off : Icons.volume_up),
-              tooltip: _speaking ? 'Stop audio' : 'Listen',
-              onPressed: () async {
-                if (_speaking) {
-                  await TtsService.stop();
-                  if (mounted) setState(() => _speaking = false);
-                } else {
-                  setState(() => _speaking = true);
-                  await _speakCurrentStep();
-                  if (mounted) setState(() => _speaking = false);
-                }
-              },
-            ),
-          ],
         ),
       body: Column(
         children: [
@@ -237,7 +240,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       decoration: BoxDecoration(
         color: FidelisTheme.deepRed.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: FidelisTheme.gold.withValues(alpha: 0.3)),
+        border: _recitedBorder() ??
+            Border.all(color: FidelisTheme.gold.withValues(alpha: 0.3)),
       ),
       child: Column(
         children: [
@@ -315,14 +319,16 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     );
   }
 
-  /// Plays the current step: the pre-rendered file for (step, language) when
-  /// one exists, otherwise runtime TTS with the step's text — never silence.
+  /// Plays the current step through the central controller: the pre-rendered
+  /// file for (step, language) when one exists, otherwise runtime TTS with
+  /// the step's text — never silence.
   ///
   /// Dead-variant steps personalized with the deceased's name fall back to
   /// runtime TTS: the generic pre-rendered files use plural wording ("grant
   /// unto them"), so the name substitution only exists in the runtime text.
-  Future<void> _speakCurrentStep() async {
-    final step = _step;
+  Future<void> _startCurrentStepAudio() async {
+    final stepIndex = _currentStep;
+    final step = _steps[stepIndex];
     final personalized = (widget.deceasedName?.isNotEmpty ?? false) &&
         (step.type == RosaryStepType.deProfundis ||
             step.type == RosaryStepType.eternalRest ||
@@ -332,11 +338,29 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         : RosaryAudioFiles.keyForStep(step, mysteryType: widget.mysteryType);
     final asset =
         key == null ? null : await RosaryAudioFiles.assetFor(key, _language);
-    if (asset != null) {
-      await TtsService.playAssetFile(asset);
-      return;
+    // The user may have moved to another step while the asset resolved.
+    if (!mounted || _currentStep != stepIndex) return;
+    final chunk = asset != null
+        ? AudioChunk(asset: asset)
+        : AudioChunk(text: _fallbackSpeechText(step), lang: _language);
+    await AudioController.instance.start(
+      AudioJob(id: _jobId, chunks: [chunk]),
+      owner: this,
+    );
+  }
+
+  /// Centered play/pause toggle: pauses/resumes this screen's stream, or
+  /// starts it for the current step.
+  Future<void> _toggleAudio() async {
+    final controller = AudioController.instance;
+    if (controller.isPlayingFor(_jobId)) {
+      await controller.pause();
+    } else if (controller.state == AudioState.paused &&
+        controller.currentJobId == _jobId) {
+      await controller.resume();
+    } else {
+      await _startCurrentStepAudio();
     }
-    await TtsService.speakPrayer(_fallbackSpeechText(step), lang: _language);
   }
 
   /// Spoken text for steps without a pre-rendered file. The litany and
@@ -496,6 +520,13 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     return prayerText;
   }
 
+  /// Gold border marking the text currently being recited. Step-level by
+  /// design: the pre-rendered audio carries no timing data, so line-level
+  /// sync is not possible (the litany keeps its manual line advance).
+  Border? _recitedBorder() => _audioLoadedForMe
+      ? Border.all(color: FidelisTheme.gold.withValues(alpha: 0.55), width: 1.5)
+      : null;
+
   Widget _buildPrayerText(BuildContext context) {
     final theme = Theme.of(context);
     final prayerText = _currentPrayerText();
@@ -504,6 +535,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       decoration: BoxDecoration(
         color: isDarkMode(context) ? const Color(0xFF1E2D3D) : Colors.white,
         borderRadius: BorderRadius.circular(12),
+        border: _recitedBorder(),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
@@ -555,6 +587,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
           decoration: BoxDecoration(
             color: isDarkMode(context) ? const Color(0xFF1E2D3D) : Colors.white,
             borderRadius: BorderRadius.circular(12),
+            border: _recitedBorder(),
           ),
           child: Column(
             children: [
@@ -659,24 +692,51 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         ],
       ),
       child: SafeArea(
-        child: Row(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: isFirstStep ? null : _previousStep,
-                child: Text(AppStrings.t('previous')),
-              ),
+            // Centered play/pause toggle for the current step's audio.
+            ValueListenableBuilder<AudioPlaybackInfo>(
+              valueListenable: AudioController.instance.listenable,
+              builder: (context, info, _) {
+                final mine = info.jobId == _jobId;
+                final playing = mine && info.state == AudioState.playing;
+                return IconButton.filled(
+                  tooltip: playing
+                      ? AppStrings.t('pause_audio')
+                      : AppStrings.t('play_audio'),
+                  onPressed: _toggleAudio,
+                  icon: Icon(playing ? Icons.pause : Icons.play_arrow),
+                  style: IconButton.styleFrom(
+                    backgroundColor: isDarkMode(context)
+                        ? FidelisTheme.gold
+                        : FidelisTheme.deepRed,
+                    foregroundColor: Colors.white,
+                  ),
+                );
+              },
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                onPressed: isLastStep ? () => _finishRosary(context) : _nextStep,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isDarkMode(context) ? FidelisTheme.gold : FidelisTheme.deepRed,
-                  foregroundColor: Colors.white,
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: isFirstStep ? null : _previousStep,
+                    child: Text(AppStrings.t('previous')),
+                  ),
                 ),
-                child: Text(isLastStep ? 'Finish' : 'Next'),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: isLastStep ? () => _finishRosary(context) : _nextStep,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDarkMode(context) ? FidelisTheme.gold : FidelisTheme.deepRed,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: Text(isLastStep ? 'Finish' : 'Next'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -731,11 +791,14 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       if (_litanyIndex < invocations.length) {
         setState(() => _litanyIndex++);
         _scrollToLitanyItem();
-        return;
+        return; // same step — its audio keeps playing
       }
     }
 
     if (_currentStep < _steps.length - 1) {
+      // Auto-continue: audio that is PLAYING carries over to the new step
+      // without pressing play again. Paused or never started: silent.
+      final wasPlaying = AudioController.instance.isPlayingFor(_jobId);
       setState(() {
         _currentStep++;
         _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
@@ -743,11 +806,13 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       });
       _scrollToTop();
       _saveState();
+      if (wasPlaying) unawaited(_startCurrentStepAudio());
     }
   }
 
   void _previousStep() {
     if (_currentStep > 0) {
+      final wasPlaying = AudioController.instance.isPlayingFor(_jobId);
       setState(() {
         _currentStep--;
         _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
@@ -755,6 +820,7 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       });
       _scrollToTop();
       _saveState();
+      if (wasPlaying) unawaited(_startCurrentStepAudio());
     }
   }
 

@@ -35,6 +35,90 @@ class TtsService {
   static Completer<void>? _playDone;
   static Directory? _sentenceDir;
 
+  // ---- pause/resume plumbing (driven by AudioController) ----
+
+  static bool _paused = false;
+
+  /// Gates the Kokoro sentence loop between sentences while paused, so a
+  /// pause landing in the synthesis gap does not let the next sentence start.
+  static Completer<void>? _pauseGate;
+
+  /// Which engine produced the current/last playback: true = flutter_tts
+  /// (pausable via the plugin's pause + resume-from-pauseText),
+  /// false = just_audio player (pause/play).
+  static bool _lastViaFlutterTts = false;
+
+  /// Text handed to flutter_tts last, so resume() can re-speak it — the
+  /// plugin continues from its internal pause position (pauseText).
+  static String? _lastSpokenText;
+
+  /// In-flight flutter_tts resume, shared by concurrent resume() callers.
+  static Completer<void>? _resumeInFlight;
+
+  /// Set when pause() lands while a resume is playing out; the resume
+  /// continuation then keeps the paused state instead of clearing it.
+  static bool _pausedDuringResume = false;
+
+  static bool get isPaused => _paused;
+
+  /// Pauses the active engine. The just_audio player pauses in place (the
+  /// pending chunk await stays open); flutter_tts pauses via the plugin,
+  /// which completes the pending speak — the AudioController's job loop
+  /// holds until resume() plays the remainder out. A pause landing while a
+  /// resume is playing out pauses the remainder too (the plugin trims its
+  /// pause position), so re-pausing works mid-remainder.
+  static Future<void> pause() async {
+    final resuming = _resumeInFlight != null;
+    if (resuming) _pausedDuringResume = true;
+    if (_paused && !resuming) return; // already fully paused
+    _paused = true;
+    _pauseGate ??= Completer<void>();
+    try {
+      await _player.pause();
+    } catch (_) {}
+    if (_lastViaFlutterTts) {
+      try {
+        await _tts.pause();
+      } catch (_) {}
+    }
+  }
+
+  /// Resumes paused playback. On the player path this returns after the
+  /// player unpauses (the original chunk await is still pending and completes
+  /// on its own). On the flutter_tts path it re-speaks the paused text — the
+  /// plugin continues from its pause position — and the returned future
+  /// completes when that remainder finishes, is paused again, or is stopped.
+  static Future<void> resume() async {
+    if (!_paused) return;
+    final inFlight = _resumeInFlight;
+    if (inFlight != null) return inFlight.future;
+    if (_lastViaFlutterTts && _lastSpokenText != null) {
+      final done = Completer<void>();
+      _resumeInFlight = done;
+      _pausedDuringResume = false;
+      try {
+        await _tts.speak(_lastSpokenText!);
+      } catch (_) {}
+      _resumeInFlight = null;
+      if (!_pausedDuringResume) {
+        _paused = false;
+        _completePauseGate();
+      }
+      if (!done.isCompleted) done.complete();
+      return;
+    }
+    _paused = false;
+    _completePauseGate();
+    try {
+      await _player.play();
+    } catch (_) {}
+  }
+
+  static void _completePauseGate() {
+    _pauseGate?.complete();
+    _pauseGate = null;
+  }
+
   /// Known MALE Google TTS voice names per locale, in preference order.
   /// A candidate is only applied when it appears in the device's voice
   /// list; unmatched codenames are silently skipped so devices without
@@ -104,15 +188,26 @@ class TtsService {
 
   /// lang: 'en' | 'la' | 'es' — maps to a TTS voice.
   /// Latin uses the Italian voice (ecclesiastical pronunciation).
-  static Future<void> speakPrayer(String text, {String? lang}) async {
+  ///
+  /// [onSentenceStart] fires when each sentence starts PLAYING (Kokoro
+  /// sentence-by-sentence pipeline; once with 0 on the flutter_tts path) so
+  /// callers can sync highlights to the recited words.
+  static Future<void> speakPrayer(
+    String text, {
+    String? lang,
+    void Function(int sentenceIndex)? onSentenceStart,
+  }) async {
     if (!_ready) await init();
     if (text.isEmpty) return;
     final myEpoch = ++_epoch;
     _finishPlayDone();
     final kokoroLang = (lang == 'en' || lang == 'es') ? lang : null;
     if (kokoroLang != null) {
-      if (await _speakWithKokoro(text, kokoroLang, myEpoch)) return;
+      if (await _speakWithKokoro(text, kokoroLang, myEpoch, onSentenceStart)) {
+        return;
+      }
     }
+    onSentenceStart?.call(0);
     await _speakWithFlutterTts(text, _localeFor(lang));
   }
 
@@ -130,6 +225,10 @@ class TtsService {
   static Future<void> stop() async {
     _epoch++;
     _finishPlayDone();
+    _paused = false;
+    _lastSpokenText = null;
+    _resumeInFlight = null;
+    _completePauseGate();
     try {
       await _player.stop();
     } catch (_) {}
@@ -154,11 +253,12 @@ class TtsService {
     String text,
     String lang,
     int myEpoch,
+    void Function(int sentenceIndex)? onSentenceStart,
   ) async {
     try {
       if (!await KokoroEngine.ensureReady(lang)) return false;
       if (myEpoch != _epoch) return true; // stopped while the engine warmed up
-      final sentences = _splitSentences(text);
+      final sentences = splitSentences(text);
       if (sentences.isEmpty) return false;
 
       // Synthesize sentence 1 first so playback starts fast; later sentences
@@ -171,12 +271,21 @@ class TtsService {
           // Kokoro failed mid-pipeline: hand the remainder to flutter_tts so
           // the audio continues without a content gap.
           final rest = sentences.skip(i).join(' ');
-          if (rest.isNotEmpty) await _speakWithFlutterTts(rest, _localeFor(lang));
+          if (rest.isNotEmpty) {
+            onSentenceStart?.call(i);
+            await _speakWithFlutterTts(rest, _localeFor(lang));
+          }
           return true;
         }
         prefetch = i + 1 < sentences.length
             ? KokoroEngine.synthesize(sentences[i + 1], lang)
             : Future<KokoroAudio?>.value(null);
+        // Hold between sentences while paused, then report the sentence that
+        // is about to be heard so highlights stay in sync.
+        final gate = _pauseGate;
+        if (gate != null) await gate.future;
+        if (myEpoch != _epoch) return true; // stopped while paused
+        onSentenceStart?.call(i);
         await _playPcm(audio, myEpoch);
       }
       return true;
@@ -214,7 +323,10 @@ class TtsService {
   /// paragraph/line breaks are boundaries; very short fragments (V., R., St.)
   /// merge into what follows so markers are not spoken alone; overly long
   /// sentences are split at clause punctuation to bound per-sentence latency.
-  static List<String> _splitSentences(String text) {
+  ///
+  /// Public so screens can map sentence positions back to displayed text
+  /// (verse highlighting) with the exact same split the engine speaks.
+  static List<String> splitSentences(String text) {
     final raw = text
         .split(RegExp(r'(?<=[.!?…])\s+|\n+'))
         .map((s) => s.trim())
@@ -259,6 +371,7 @@ class TtsService {
 
   static Future<void> _playSource(AudioSource source, int myEpoch) async {
     _finishPlayDone();
+    _lastViaFlutterTts = false;
     final done = Completer<void>();
     _playDone = done;
     await _player.setAudioSource(source);
@@ -289,6 +402,8 @@ class TtsService {
 
   static Future<void> _speakWithFlutterTts(String text, String language) async {
     try {
+      _lastViaFlutterTts = true;
+      _lastSpokenText = text;
       await _tts.stop();
       await _tts.setLanguage(language);
       await _tts.setSpeechRate(0.42);
