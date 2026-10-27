@@ -428,6 +428,41 @@ class TtsService {
     return bounded;
   }
 
+  /// Per-sentence audio durations for [text] in [lang], synthesized
+  /// TIMING-ONLY through the Kokoro pipeline (no playback): each sentence's
+  /// real generated WAV length. Used by asset-driven screens (pre-rendered
+  /// rosary files carry no timing data) to build per-sentence highlight
+  /// timelines. Returns null when Kokoro is unavailable or any sentence
+  /// fails — callers keep their coarse fallback. The sentence split matches
+  /// [splitSentences] / [sentenceRanges] exactly. [shouldAbort] cancels a
+  /// long synthesis after the requesting playback was replaced.
+  static Future<List<Duration>?> synthesizeSentenceDurations(
+    String text,
+    String lang, {
+    bool Function()? shouldAbort,
+  }) async {
+    if (!_ready) await init();
+    final kokoroLang = (lang == 'en' || lang == 'es') ? lang : null;
+    if (kokoroLang == null || text.isEmpty) return null;
+    try {
+      if (!await KokoroEngine.ensureReady(kokoroLang)) return null;
+      final sentences = splitSentences(text);
+      if (sentences.isEmpty) return null;
+      final out = <Duration>[];
+      for (final sentence in sentences) {
+        if (shouldAbort?.call() ?? false) return null;
+        final audio = await KokoroEngine.synthesize(sentence, kokoroLang);
+        if (audio == null || audio.samples.isEmpty) return null;
+        out.add(Duration(
+            milliseconds:
+                (audio.samples.length * 1000 / audio.sampleRate).round()));
+      }
+      return out;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ---- playback plumbing (shared by Kokoro WAVs and bundled files) ----
 
   static Future<void> _playSource(AudioSource source, int myEpoch) async {

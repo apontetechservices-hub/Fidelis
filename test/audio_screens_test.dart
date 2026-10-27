@@ -5,11 +5,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:fidelis/features/bible/bible_chapter_screen.dart';
+import 'package:fidelis/features/rosary/rosary_controller.dart';
 import 'package:fidelis/features/rosary/rosary_prayer_screen.dart';
 import 'package:fidelis/features/rosary/rosary_audio_files.dart';
+import 'package:fidelis/features/rosary/rosary_prayers.dart';
 import 'package:fidelis/services/audio_controller.dart';
 import 'package:fidelis/services/billing_service.dart';
 import 'package:fidelis/services/bible_service.dart';
+import 'package:fidelis/services/tts_service.dart';
 import 'package:fidelis/config/app_strings.dart';
 import 'package:fidelis/config/theme.dart';
 
@@ -82,6 +85,10 @@ class SweepEngine implements AudioEngine {
   (Duration, Duration?)? get progress => null;
 
   @override
+  Future<List<Duration>?> sentenceDurations(String text, String lang,
+      {bool Function()? shouldAbort}) async => null;
+
+  @override
   Future<void> pause() async {
     log.add('pause');
     _paused = true;
@@ -102,6 +109,29 @@ class SweepEngine implements AudioEngine {
 
   @override
   bool get isPaused => _paused;
+}
+
+/// Mimics a device where every step's audio fails/ends instantly (e.g. a
+/// broken asset load): each chunk completes without waiting. With the old
+/// natural-completion auto-advance this chained the page to the ending
+/// prayers within a second of pressing play.
+class InstantAssetEngine extends FakeAudioEngine {
+  @override
+  Future<void> speakText(
+    String text, {
+    String? lang,
+    void Function(int sentenceIndex)? onSentenceStart,
+    void Function(int charStart, int charEnd, Duration? duration)?
+        onSentenceTiming,
+    void Function(int charStart, int charEnd)? onWordRange,
+  }) async {
+    log.add('speak:$text');
+  }
+
+  @override
+  Future<void> playAsset(String asset) async {
+    log.add('asset:$asset');
+  }
 }
 
 void main() {
@@ -141,6 +171,41 @@ void main() {
       );
       await BibleService.chapter(book, 1);
     });
+  }
+
+  /// The rosary screen's current step index, read from the progress bar
+  /// (value = (step + 1) / stepCount) — exact, no label parsing.
+  int rosaryStep(WidgetTester tester) {
+    final count = RosaryController.buildRosarySteps(
+      mysteryTypes: List.filled(5, 'joyful'),
+      includeLuminous: false,
+      isForDead: false,
+    ).length;
+    final bar = tester.widget<LinearProgressIndicator>(
+        find.byType(LinearProgressIndicator));
+    return ((bar.value! * count) - 1).round();
+  }
+
+  /// The joined text of the recited line's gold spans (the line may be
+  /// split around the highlighted word), or null when nothing highlights.
+  String? speakingLineText(WidgetTester tester) {
+    final parts = <String>[];
+    void walk(TextSpan s) {
+      if (s.style?.color == FidelisTheme.gold &&
+          s.style?.fontWeight == FontWeight.w600 &&
+          s.text != null) {
+        parts.add(s.text!);
+      }
+      for (final c in s.children ?? const <InlineSpan>[]) {
+        if (c is TextSpan) walk(c);
+      }
+    }
+
+    for (final w in tester.widgetList<Widget>(find.byType(SelectableText))) {
+      final span = (w as SelectableText).textSpan;
+      if (span is TextSpan) walk(span);
+    }
+    return parts.isEmpty ? null : parts.join();
   }
 
   tearDown(() async {
@@ -255,6 +320,103 @@ void main() {
               'chapter');
       expect(find.byIcon(Icons.pause), findsOneWidget);
     });
+
+    testWidgets('a chapter ending naturally leaves the page; Next then '
+        'starts the next chapter without pressing play (listening mode '
+        'persists past the natural end)', (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester);
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await tester.runAsync(() => BibleService.chapter(book, 2));
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('bible'), isTrue);
+
+      // Let the whole chapter play out chunk by chunk (natural end).
+      for (var i = 0;
+          i < 12 &&
+              AudioController.instance.state != AudioState.stopped;
+          i++) {
+        engine.finishChunk();
+        await tester.pump();
+        await tester.pump();
+      }
+      expect(AudioController.instance.state, AudioState.stopped);
+      expect(find.text('Genesis 1'), findsOneWidget,
+          reason: 'the page never advances on its own');
+
+      // Next after the natural end: the next chapter auto-plays — no play
+      // press needed (the listening flag persisted).
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Genesis 2'), findsOneWidget);
+      expect(AudioController.instance.isPlayingFor('bible'), isTrue,
+          reason: 'listening persists past the natural chapter end: Next '
+              'starts the next chapter without pressing play');
+    });
+
+    testWidgets('explicit pause ends listening: Next navigates silently',
+        (tester) async {
+      BillingService.premium.value = true;
+      await warmBibleCache(tester);
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await tester.runAsync(() => BibleService.chapter(book, 2));
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('bible'), isTrue);
+
+      await tester.tap(find.byIcon(Icons.pause));
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.state, AudioState.paused);
+      final speaksBefore = engine.log.where((e) => e.startsWith('speak:')).length;
+
+      // Next while paused: silent navigation — the next chapter must NOT
+      // auto-play.
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('Genesis 2'), findsOneWidget);
+      expect(AudioController.instance.state, AudioState.stopped,
+          reason: 'Next after an explicit pause must navigate silently');
+      expect(engine.log.where((e) => e.startsWith('speak:')).length,
+          speaksBefore);
+    });
   });
 
 
@@ -357,8 +519,136 @@ void main() {
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     });
 
-    testWidgets("a step's audio completing naturally continues into the next "
-        'step (audio stops only on pause or exit)', (tester) async {
+    testWidgets('a prayer ending naturally leaves the page in place; the '
+        'next Next press plays the next prayer (no auto-advance)',
+        (tester) async {
+      await warmRosaryManifest(tester);
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
+      expect(rosaryStep(tester), 0);
+
+      // The step's audio runs out on its own (natural completion).
+      engine.finishChunk();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      // The page NEVER advances on its own (the governing rule).
+      expect(rosaryStep(tester), 0,
+          reason: 'a natural completion must leave the page exactly where it '
+              'is — no hands-free flow');
+      expect(AudioController.instance.state, AudioState.stopped);
+      final playsAfterEnd = engine.log
+          .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
+          .length;
+      expect(playsAfterEnd, 1,
+          reason: 'no next-step audio may start on its own');
+
+      // The user is still listening (never paused): Next auto-plays the
+      // next prayer.
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 1);
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue,
+          reason: 'listening persists past the natural end: Next plays the '
+              'next prayer without pressing play');
+      expect(
+        engine.log
+            .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
+            .length,
+        greaterThan(playsAfterEnd),
+      );
+    });
+
+    testWidgets('Next while listening advances exactly ONE step — including '
+        'right as a prayer ends (never a cascade, never a jump to the end)',
+        (tester) async {
+      await warmRosaryManifest(tester);
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 0);
+
+      // Next while playing: exactly one step.
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 1,
+          reason: 'one Next press = exactly one step advance');
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
+
+      // Next pressed right as the step's audio ends naturally: the
+      // completion must not add its own advance — exactly one step.
+      engine.finishChunk();
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 2,
+          reason: 'a Next press landing on a natural completion advances '
+              'exactly one step, never a cascade');
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
+
+      // And again after the new step ends untouched.
+      engine.finishChunk();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 2);
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 3);
+    });
+
+    testWidgets('the page never advances on its own even when every step '
+        'completes instantly (the v1.4.62 cascade repro)', (tester) async {
+      await warmRosaryManifest(tester);
+      final engine = InstantAssetEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      // One play press: with the old natural-completion auto-advance, every
+      // instantly-completing step chained the page to the ending prayers.
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+
+      expect(rosaryStep(tester), 0,
+          reason: 'no auto-advance: a natural completion must never move the '
+              'page, even when completions chain instantly');
+      expect(AudioController.instance.state, AudioState.stopped);
+    });
+
+    testWidgets('explicit pause ends listening: Next navigates silently and '
+        'stops the stale stream; play then starts the shown step',
+        (tester) async {
       await warmRosaryManifest(tester);
       final engine = FakeAudioEngine();
       AudioController.instance.engineForTest = engine;
@@ -373,23 +663,36 @@ void main() {
       await tester.pump();
       expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
 
-      // The step's audio runs out on its own (natural completion).
-      engine.finishChunk();
+      await tester.tap(find.byIcon(Icons.pause));
       await tester.pump();
       await tester.pump();
-      await tester.pump();
+      expect(AudioController.instance.state, AudioState.paused);
 
-      // The rosary flowed on: the next step's audio auto-played.
+      // Next while paused: silent navigation, no autoplay.
+      await tester.tap(find.text('Next'));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(rosaryStep(tester), 1);
+      expect(AudioController.instance.state, AudioState.stopped,
+          reason: "the abandoned step's paused stream is stopped on silent "
+              'navigation so play always means the shown step');
+      final playsAfterNav = engine.log
+          .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
+          .length;
+
+      // Play on the new step starts THAT step's audio fresh.
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump();
+      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
       expect(
         engine.log
             .where((e) => e.startsWith('asset:') || e.startsWith('speak:'))
             .length,
-        greaterThanOrEqualTo(2),
-        reason: "the next step's audio must start automatically after the "
-            "previous step's audio completed",
+        greaterThan(playsAfterNav),
       );
-      expect(AudioController.instance.isPlayingFor('rosary'), isTrue);
-      expect(find.byIcon(Icons.pause), findsOneWidget);
     });
   });
 
@@ -628,6 +931,67 @@ void main() {
       await AudioController.instance.stop();
       await tester.pump();
       expect(countWordTintSpans(tester), 0);
+    });
+
+    testWidgets('asset highlight tracks per-sentence REAL timing — no '
+        'accumulated drift (the last words stay in sync)', (tester) async {
+      await warmRosaryManifest(tester);
+      // Per-sentence durations INVERTED relative to character lengths: the
+      // invocation is long text but short audio, 'Amen.' is short text but
+      // long audio. A whole-text proportional estimate (the old model)
+      // drifts badly; the per-sentence timeline must track the real audio
+      // and reset at every sentence boundary.
+      final engine = TimingFakeEngine(
+        sentenceTimings: [],
+        position: Duration.zero,
+        duration: const Duration(seconds: 10),
+      )..durationsToReport = [
+          const Duration(seconds: 1),
+          const Duration(seconds: 9),
+        ];
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: RosaryPrayerScreen(mysteryType: 'joyful'),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+
+      final text = RosaryPrayers.get('sign_of_the_cross', 'en');
+      final ranges = TtsService.sentenceRanges(text);
+      expect(ranges.length, 2);
+
+      // 0.5s of the 10s asset: inside sentence 1's window ([0, 1s)).
+      engine.position = const Duration(milliseconds: 500);
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+      expect(speakingLineText(tester),
+          text.substring(ranges[0].$1, ranges[0].$2),
+          reason: 'the highlight tracks the per-sentence timeline, not a '
+              'whole-text proportional estimate');
+
+      // 5s: the old whole-text model would put the offset at 50% of the
+      // text (still inside the long invocation); the per-sentence timeline
+      // puts it inside 'Amen.' (sentence 2's window is [1s, 10s)).
+      engine.position = const Duration(seconds: 5);
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+      expect(speakingLineText(tester),
+          text.substring(ranges[1].$1, ranges[1].$2),
+          reason: 'sentence boundaries reset the mapping — drift cannot '
+              'accumulate across the prayer');
+
+      // The last words still highlight in sync at the very end.
+      engine.position = const Duration(milliseconds: 9500);
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump();
+      expect(speakingLineText(tester),
+          text.substring(ranges[1].$1, ranges[1].$2),
+          reason: 'the last words highlight in sync — no accumulated lag');
     });
   });
 

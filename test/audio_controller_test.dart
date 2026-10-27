@@ -40,6 +40,10 @@ class FakeAudioEngine implements AudioEngine {
   (Duration, Duration?)? get progress => null;
 
   @override
+  Future<List<Duration>?> sentenceDurations(String text, String lang,
+      {bool Function()? shouldAbort}) async => null;
+
+  @override
   Future<void> playAsset(String asset) async {
     log.add('asset:$asset');
     _gate = Completer<void>();
@@ -395,6 +399,104 @@ void main() {
     await job;
   });
 
+  testWidgets('asset chunk with highlight text: the per-sentence timeline '
+      'maps the position within the current sentence (no whole-text drift)',
+      (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [],
+      position: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10),
+    )..durationsToReport = [
+        const Duration(seconds: 1),
+        const Duration(seconds: 9),
+      ];
+    final controller = AudioController(engine: engine);
+    const text = 'A much much longer first sentence with many words. Short.';
+
+    final job = controller.start(const AudioJob(id: 'rosary', chunks: [
+      AudioChunk(asset: 'a.ogg', text: text, lang: 'en'),
+    ]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    // 5s of the 10s source: the per-sentence timeline (sentence 1 = 1s,
+    // sentence 2 = 9s) puts the position inside sentence 2's window — the
+    // old whole-text estimate would land at 50% of the characters (inside
+    // sentence 1).
+    var range = controller.wordRangeListenable.value;
+    expect(range, isNotNull);
+    expect(range!.estimated, isTrue);
+    expect(range.charStart, greaterThanOrEqualTo(51),
+        reason: 'the position maps through the REAL per-sentence durations, '
+            'not proportionally across the whole text');
+
+    // The last words stay in sync at the end of the source.
+    engine.position = const Duration(milliseconds: 9500);
+    await tester.pump(const Duration(milliseconds: 250));
+    range = controller.wordRangeListenable.value;
+    expect(range!.charStart, greaterThanOrEqualTo(51),
+        reason: 'no accumulated drift: the final words highlight in their '
+            'sentence');
+
+    // Early in the source: sentence 1.
+    engine.position = const Duration(milliseconds: 500);
+    await tester.pump(const Duration(milliseconds: 250));
+    range = controller.wordRangeListenable.value;
+    expect(range!.charStart, lessThan(50));
+
+    await controller.stop();
+    await job;
+  });
+
+  testWidgets('asset chunk without sentence durations falls back to the '
+      'whole-text estimate', (tester) async {
+    final engine = TimingFakeEngine(
+      sentenceTimings: [],
+      position: const Duration(seconds: 5),
+      duration: const Duration(seconds: 10),
+    ); // durationsToReport: null — synthesis unavailable
+    final controller = AudioController(engine: engine);
+    const text = 'A much much longer first sentence with many words. Short.';
+
+    final job = controller.start(const AudioJob(id: 'rosary', chunks: [
+      AudioChunk(asset: 'a.ogg', text: text, lang: 'en'),
+    ]));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 250));
+
+    final range = controller.wordRangeListenable.value;
+    expect(range, isNotNull,
+        reason: 'the degraded fallback keeps a (coarse) highlight when '
+            'synthesis is unavailable');
+    expect(range!.estimated, isTrue);
+    // 50% of the whole text → inside sentence 1 (the old model's result).
+    expect(range.charStart, inExclusiveRange(0, 50));
+
+    await controller.stop();
+    await job;
+  });
+
+  test('the sentence-duration timeline is cached per (lang, text)', () async {
+    final engine = TimingFakeEngine(sentenceTimings: [])
+      ..durationsToReport = [const Duration(seconds: 2)];
+    final controller = AudioController(engine: engine);
+    const chunk = AudioChunk(asset: 'a.ogg', text: 'Hello.', lang: 'en');
+
+    final job1 = controller.start(AudioJob(id: 'rosary', chunks: [chunk]));
+    await _settle();
+    await controller.stop();
+    await job1;
+
+    final job2 = controller.start(AudioJob(id: 'rosary', chunks: [chunk]));
+    await _settle();
+    await controller.stop();
+    await job2;
+
+    expect(engine.durationsCalls, 1,
+        reason: 'repeated steps sharing one pre-rendered file resolve the '
+            'timeline once');
+  });
+
   testWidgets('pause freezes the word range; stop clears it', (tester) async {
     final engine = TimingFakeEngine(
       sentenceTimings: [(0, 12, const Duration(seconds: 10))],
@@ -437,6 +539,13 @@ class TimingFakeEngine implements AudioEngine {
   Duration position;
   Duration? duration;
 
+  /// Per-sentence durations reported by sentenceDurations (null = the
+  /// engine cannot synthesize → the controller's coarse fallback).
+  List<Duration>? durationsToReport;
+
+  /// Counts sentenceDurations calls (the timeline cache test).
+  int durationsCalls = 0;
+
   Completer<void>? _gate;
   bool _paused = false;
   TimingFakeEngine({required this.sentenceTimings, this.position = Duration.zero, this.duration});
@@ -468,6 +577,13 @@ class TimingFakeEngine implements AudioEngine {
 
   @override
   (Duration, Duration?)? get progress => (position, duration);
+
+  @override
+  Future<List<Duration>?> sentenceDurations(String text, String lang,
+      {bool Function()? shouldAbort}) async {
+    durationsCalls++;
+    return durationsToReport;
+  }
 
   @override
   Future<void> pause() async {
@@ -527,6 +643,10 @@ class WordEventFakeEngine implements AudioEngine {
 
   @override
   (Duration, Duration?)? get progress => null;
+
+  @override
+  Future<List<Duration>?> sentenceDurations(String text, String lang,
+      {bool Function()? shouldAbort}) async => null;
 
   @override
   Future<void> playAsset(String asset) async {

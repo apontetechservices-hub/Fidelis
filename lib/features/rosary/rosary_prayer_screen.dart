@@ -59,10 +59,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   int? _speakingLine;
   (int, int)? _speakingWord;
 
-  /// True when the current step's audio is a pre-rendered asset — its live
-  /// position/duration drive the highlight; runtime TTS chunks drive it via
-  /// the controller's word range instead.
-  bool _stepAudioIsAsset = false;
+  /// Listening mode (the governing rule): ON when the user starts playback;
+  /// stays ON across a natural step completion — the user is still
+  /// listening; cleared ONLY by an explicit pause or leaving the screen
+  /// (dispose). While ON, Next/Previous auto-play the new step's audio;
+  /// while OFF (paused or never started), navigation is silent.
+  bool _listening = false;
 
   static const List<String> _laOrdinals = ['Primum', 'Secundum', 'Tertium', 'Quartum', 'Quintum'];
 
@@ -124,7 +126,6 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     super.initState();
     AudioController.instance.listenable.addListener(_onAudioChanged);
     AudioController.instance.wordRangeListenable.addListener(_onHighlightChanged);
-    AudioController.instance.progressListenable.addListener(_onHighlightChanged);
     _language = widget.language;
     final mysteryTypes = List.filled(5, widget.mysteryType);
     _steps = RosaryController.buildRosarySteps(
@@ -146,10 +147,11 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     AudioController.instance.listenable.removeListener(_onAudioChanged);
     AudioController.instance.wordRangeListenable
         .removeListener(_onHighlightChanged);
-    AudioController.instance.progressListenable
-        .removeListener(_onHighlightChanged);
     // Step audio is tied to this screen — never keep playing after exit.
-    AudioController.instance.stopIfOwner(this);
+    // Deferred out of the unmount phase: stop() notifies listeners, and a
+    // synchronous notification while the widget tree is locked (unmount)
+    // would throw markNeedsBuild on a locked tree.
+    scheduleMicrotask(() => AudioController.instance.stopIfOwner(this));
     _scrollController.dispose();
     _saveState();
     super.dispose();
@@ -173,10 +175,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     }
   }
 
-  /// Recomputes the recited line + word from whichever timing source the
-  /// active chunk provides: the controller's word range (runtime TTS) or
-  /// the live position/duration (pre-rendered files, whose duration is
-  /// known and whose text lives only in the screen).
+  /// Recomputes the recited line + word from the controller's word-range
+  /// stream — the single timing source for BOTH audio kinds: runtime TTS
+  /// chunks (per-sentence Kokoro timing) and pre-rendered assets (the
+  /// controller's per-sentence timeline built from real synthesized
+  /// durations, or its coarse fallback). The screen never estimates from
+  /// raw position/total itself, so no model drift can accumulate here.
   void _onHighlightChanged() {
     if (!mounted) return;
     final info = AudioController.instance.listenable.value;
@@ -187,28 +191,14 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
 
     int? line;
     (int, int)? word;
-    if (_stepAudioIsAsset) {
-      final progress = AudioController.instance.progressListenable.value;
-      final duration = progress?.duration;
-      if (progress != null && duration != null && duration.inMilliseconds > 0) {
-        // Character-proportional estimate from the file's known duration.
-        final fraction =
-            (progress.position.inMilliseconds / duration.inMilliseconds)
-                .clamp(0.0, 1.0);
-        final offset = (fraction * text.length).round().clamp(0, text.length);
-        line = _lineContaining(ranges, offset);
-        word = _wordAround(text, ranges, line, offset);
-      }
-    } else {
-      final range = AudioController.instance.wordRangeListenable.value;
-      if (range != null) {
-        line = _lineContaining(ranges, range.charStart);
-        if (line != null) {
-          final (start, end) = ranges[line];
-          final s = range.charStart.clamp(start, end);
-          final e = range.charEnd.clamp(start, end);
-          if (e > s) word = (s, e);
-        }
+    final range = AudioController.instance.wordRangeListenable.value;
+    if (range != null) {
+      line = _lineContaining(ranges, range.charStart);
+      if (line != null) {
+        final (start, end) = ranges[line];
+        final s = range.charStart.clamp(start, end);
+        final e = range.charEnd.clamp(start, end);
+        if (e > s) word = (s, e);
       }
     }
     if (line != _speakingLine || word != _speakingWord) {
@@ -227,26 +217,6 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     }
     return ranges.isEmpty ? null : ranges.length - 1;
   }
-
-  /// Word boundaries around [offset] within line [line], or null.
-  (int, int)? _wordAround(String text, List<(int, int)> ranges, int? line, int offset) {
-    if (line == null || line >= ranges.length) return null;
-    final (start, end) = ranges[line];
-    if (offset < start || offset > end) return null;
-    var s = offset.clamp(start, end);
-    var e = s;
-    while (s > start && _isWordChar(text[s - 1])) {
-      s--;
-    }
-    while (e < end && _isWordChar(text[e])) {
-      e++;
-    }
-    return e > s ? (s, e) : null;
-  }
-
-  static final RegExp _wordChar = RegExp(r'[0-9A-Za-z\u00C0-\u024F]');
-
-  static bool _isWordChar(String char) => _wordChar.hasMatch(char);
 
   double get _progress => (_currentStep + 1) / _steps.length;
 
@@ -429,6 +399,13 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   /// Dead-variant steps personalized with the deceased's name fall back to
   /// runtime TTS: the generic pre-rendered files use plural wording ("grant
   /// unto them"), so the name substitution only exists in the runtime text.
+  ///
+  /// Starting playback turns listening mode ON (the governing rule): it
+  /// persists across the step's natural completion until an explicit pause
+  /// or leaving the screen. Asset chunks also carry the displayed text so
+  /// the controller can build the per-sentence highlight timeline; steps
+  /// whose content is not a single recited text (litany, mystery
+  /// announcements) pass none — their highlight UX is border/manual.
   Future<void> _startCurrentStepAudio() async {
     final stepIndex = _currentStep;
     final step = _steps[stepIndex];
@@ -443,50 +420,34 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
         key == null ? null : await RosaryAudioFiles.assetFor(key, _language);
     // The user may have moved to another step while the asset resolved.
     if (!mounted || _currentStep != stepIndex) return;
+    _listening = true;
+    final spoken = _fallbackSpeechText(step);
+    final displayed = _currentPrayerText();
     final chunk = asset != null
-        ? AudioChunk(asset: asset)
-        : AudioChunk(text: _fallbackSpeechText(step), lang: _language);
-    _stepAudioIsAsset = asset != null;
+        ? AudioChunk(
+            asset: asset,
+            text: displayed.isEmpty ? null : displayed,
+            lang: _language)
+        : AudioChunk(text: spoken, lang: _language);
     _speakingLine = null;
     _speakingWord = null;
     await AudioController.instance.start(
-      AudioJob(
-        id: _jobId,
-        chunks: [chunk],
-        onCompleted: () => _onStepAudioCompleted(stepIndex),
-      ),
+      AudioJob(id: _jobId, chunks: [chunk]),
       owner: this,
     );
   }
 
-  /// A step's audio finished on its own (not stopped/replaced): keep the
-  /// rosary flowing — advance to the next step and continue playing, so the
-  /// audio stops only on pause or exiting the screen. Guarded to the step
-  /// whose audio finished, so a manual Next/Previous that already moved on
-  /// (or a replacement stream) cannot double-advance.
-  void _onStepAudioCompleted(int stepIndex) {
-    if (!mounted || _currentStep != stepIndex) return;
-    if (_currentStep >= _steps.length - 1) return;
-    setState(() {
-      _currentStep++;
-      _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
-      _litanyIndex = 0;
-      _speakingLine = null;
-      _speakingWord = null;
-    });
-    _scrollToTop();
-    _saveState();
-    unawaited(_startCurrentStepAudio());
-  }
-
   /// Centered play/pause toggle: pauses/resumes this screen's stream, or
-  /// starts it for the current step.
+  /// starts it for the current step. An explicit pause ends listening mode
+  /// (the governing rule); resuming or starting turns it back on.
   Future<void> _toggleAudio() async {
     final controller = AudioController.instance;
     if (controller.isPlayingFor(_jobId)) {
+      _listening = false; // explicit pause: listening mode ends
       await controller.pause();
     } else if (controller.state == AudioState.paused &&
         controller.currentJobId == _jobId) {
+      _listening = true; // resuming is starting playback again
       await controller.resume();
     } else {
       await _startCurrentStepAudio();
@@ -650,9 +611,9 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     return prayerText;
   }
 
-  /// Gold border marking the text currently being recited. Step-level by
-  /// design: the pre-rendered audio carries no timing data, so line-level
-  /// sync is not possible (the litany keeps its manual line advance).
+  /// Gold border marking the text currently being recited. Step-level
+  /// companion to the line/word highlight (which the controller's word
+  /// range drives for both runtime TTS and pre-rendered assets).
   Border? _recitedBorder() => _audioLoadedForMe
       ? Border.all(color: FidelisTheme.gold.withValues(alpha: 0.55), width: 1.5)
       : null;
@@ -981,6 +942,13 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     });
   }
 
+  /// The page NEVER advances on its own (the governing rule): one Next
+  /// press is exactly one step advance, every time — no completion event,
+  /// queue, or race may move it further. While listening (flag ON — set by
+  /// any playback start, persisting across natural completion, cleared only
+  /// by an explicit pause), the new step's audio auto-plays. While OFF
+  /// (paused or never started), navigation is silent and any paused stream
+  /// of the abandoned step is stopped, so play always means the shown step.
   void _nextStep() {
     if (_step.type == RosaryStepType.litany) {
       final invocations = LitanyOfLoreto.getInvocations(_language);
@@ -991,36 +959,36 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       }
     }
 
-    if (_currentStep < _steps.length - 1) {
-      // Auto-continue: audio that is PLAYING carries over to the new step
-      // without pressing play again. Paused or never started: silent.
-      final wasPlaying = AudioController.instance.isPlayingFor(_jobId);
-      setState(() {
-        _currentStep++;
-        _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
-        _litanyIndex = 0;
-        _speakingLine = null;
-        _speakingWord = null;
-      });
-      _scrollToTop();
-      _saveState();
-      if (wasPlaying) unawaited(_startCurrentStepAudio());
-    }
+    _advanceStep(1);
   }
 
   void _previousStep() {
-    if (_currentStep > 0) {
-      final wasPlaying = AudioController.instance.isPlayingFor(_jobId);
-      setState(() {
-        _currentStep--;
-        _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
-        _litanyIndex = 0;
-        _speakingLine = null;
-        _speakingWord = null;
-      });
-      _scrollToTop();
-      _saveState();
-      if (wasPlaying) unawaited(_startCurrentStepAudio());
+    _advanceStep(-1);
+  }
+
+  /// Shared Next/Previous step navigation: exactly one step per press,
+  /// auto-playing the new step's audio only while listening.
+  void _advanceStep(int direction) {
+    final target = _currentStep + direction;
+    if (target < 0 || target > _steps.length - 1) return;
+    final listening = _listening;
+    setState(() {
+      _currentStep = target;
+      _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
+      _litanyIndex = 0;
+      _speakingLine = null;
+      _speakingWord = null;
+    });
+    _scrollToTop();
+    _saveState();
+    final controller = AudioController.instance;
+    if (listening) {
+      // start() replaces the current stream (playing or paused).
+      unawaited(_startCurrentStepAudio());
+    } else if (controller.currentJobId == _jobId) {
+      // Silent navigation: the abandoned step's paused stream is stale —
+      // stop it so a later play starts the shown step fresh.
+      unawaited(controller.stop());
     }
   }
 

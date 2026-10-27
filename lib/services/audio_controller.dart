@@ -130,6 +130,20 @@ abstract class AudioEngine {
   /// the engine can report them (just_audio sources). Null when idle or on
   /// the flutter_tts path (the plugin exposes no timing).
   (Duration, Duration?)? get progress;
+
+  /// Per-sentence audio durations for [text] in [lang], synthesized
+  /// TIMING-ONLY (no playback) with the same sentence split the playback
+  /// path uses. Lets asset-driven screens (pre-rendered rosary files carry
+  /// no timing data) build a per-sentence highlight timeline from the
+  /// engine's real generated durations. Null when the engine cannot
+  /// synthesize (Kokoro unavailable) — the caller keeps a coarse whole-text
+  /// fallback. [shouldAbort] lets the caller cancel a long synthesis after
+  /// the requesting playback was replaced.
+  Future<List<Duration>?> sentenceDurations(
+    String text,
+    String lang, {
+    bool Function()? shouldAbort,
+  });
 }
 
 /// Real engine: delegates to [TtsService] (Kokoro + flutter_tts + bundled
@@ -172,6 +186,16 @@ class TtsAudioEngine implements AudioEngine {
 
   @override
   (Duration, Duration?)? get progress => TtsService.playerProgress;
+
+  @override
+  Future<List<Duration>?> sentenceDurations(
+    String text,
+    String lang, {
+    bool Function()? shouldAbort,
+  }) {
+    return TtsService.synthesizeSentenceDurations(text, lang,
+        shouldAbort: shouldAbort);
+  }
 }
 
 /// Central audio coordinator — the ONLY way screens play audio.
@@ -207,6 +231,30 @@ class AudioController {
   /// (Kokoro pipeline). Null on the flutter_tts path (whose word events
   /// supersede estimates) and for asset chunks.
   (int, int, Duration?)? _sentenceTiming;
+
+  /// Whether the active chunk is a bundled asset: its live position spans
+  /// the whole source, unlike the Kokoro pipeline whose position resets
+  /// with every sentence WAV.
+  bool _activeChunkIsAsset = false;
+
+  /// Per-sentence highlight timeline of the active ASSET chunk: character
+  /// ranges of the chunk's highlight text + each sentence's REAL generated
+  /// duration (Kokoro WAV lengths, timing-only synthesis). The live player
+  /// position maps through the cumulative durations (scaled to the asset's
+  /// total) to the current sentence and proportionally within it — the
+  /// highlight resets at every sentence boundary, so drift never
+  /// accumulates. Null while unresolved or when synthesis is unavailable
+  /// (the coarse whole-text fallback estimate applies instead).
+  List<(int, int, Duration)>? _sentenceTimeline;
+
+  /// Chunk index the installed timeline was resolved for; the timeline only
+  /// drives ticks while that chunk is still the active one.
+  int? _timelineChunkIndex;
+
+  /// Resolved sentence-duration timelines, keyed by '$lang|$text' — repeated
+  /// steps sharing one pre-rendered file (all decade Hail Marys) synthesize
+  /// once. Instance-scoped so tests start clean.
+  final Map<String, List<Duration>> _timelineCache = {};
 
   Timer? _wordTimer;
 
@@ -259,10 +307,22 @@ class AudioController {
       _emit(job.id, AudioState.playing, i, 0);
       _activeChunkText = chunk.text;
       _sentenceTiming = null;
+      _sentenceTimeline = null;
+      _timelineChunkIndex = null;
+      _activeChunkIsAsset = chunk.asset != null;
       _wordRange.value = null;
       try {
         final asset = chunk.asset;
         if (asset != null) {
+          // Asset chunks may carry the displayed text for highlight timing:
+          // resolve the per-sentence timeline (real Kokoro durations) in the
+          // background; until it lands, the coarse whole-text estimate
+          // drives the highlight.
+          final text = chunk.text;
+          final lang = chunk.lang;
+          if (text != null && text.isNotEmpty && lang != null) {
+            unawaited(_ensureSentenceTimeline(text, lang, i, myEpoch));
+          }
           await _engine.playAsset(asset);
         } else {
           await _engine.speakText(
@@ -299,6 +359,32 @@ class AudioController {
       if (myEpoch != _epoch) return;
     }
     _finish(myEpoch, job);
+  }
+
+  /// Resolves the per-sentence highlight timeline for an asset chunk's
+  /// [text] (timing-only synthesis through the engine) and installs it when
+  /// that chunk is still active. Cached per (lang, text) — repeated steps
+  /// sharing one pre-rendered file resolve once.
+  Future<void> _ensureSentenceTimeline(
+      String text, String lang, int chunkIndex, int myEpoch) async {
+    final cacheKey = '$lang|$text';
+    var durations = _timelineCache[cacheKey];
+    if (durations == null) {
+      durations = await _engine.sentenceDurations(
+        text,
+        lang,
+        shouldAbort: () => myEpoch != _epoch,
+      );
+      if (durations == null) return; // synthesis unavailable: coarse fallback
+      if (myEpoch != _epoch) return; // replaced while synthesizing
+      _timelineCache[cacheKey] = durations;
+    }
+    if (myEpoch != _epoch || _info.chunkIndex != chunkIndex) return;
+    final ranges = TtsService.sentenceRanges(text);
+    if (ranges.length != durations.length) return; // split mismatch: fallback
+    _sentenceTimeline = List.generate(
+        durations.length, (i) => (ranges[i].$1, ranges[i].$2, durations![i]));
+    _timelineChunkIndex = chunkIndex;
   }
 
   Future<void> pause() async {
@@ -362,6 +448,9 @@ class AudioController {
     _wordTimer = null;
     _activeChunkText = null;
     _sentenceTiming = null;
+    _sentenceTimeline = null;
+    _timelineChunkIndex = null;
+    _activeChunkIsAsset = false;
     _wordRange.value = null;
     _progress.value = null;
   }
@@ -371,18 +460,47 @@ class AudioController {
     _wordTimer = Timer.periodic(_wordTickInterval, (_) => _onWordTick());
   }
 
-  /// Advances the word-level highlight from the live playback position:
-  /// character-proportional within the current sentence (whose duration the
-  /// Kokoro pipeline knows from its WAV length), or raw position/duration
-  /// for asset chunks whose text lives in the screen.
+  /// Advances the word-level highlight from the live playback position.
+  /// Three timing models, in order of precision:
+  ///  - asset chunks with a resolved per-sentence timeline: the position
+  ///    maps through the sentences' REAL generated durations to the current
+  ///    sentence and proportionally within it — resets at every sentence
+  ///    boundary, no accumulated drift;
+  ///  - Kokoro runtime chunks: character-proportional within the current
+  ///    sentence (whose duration the pipeline knows from its WAV length);
+  ///  - asset chunks without a timeline (synthesis unavailable): a coarse
+  ///    whole-text proportional estimate — the degraded fallback.
+  /// Engine word events (flutter_tts) supersede all estimates.
   void _onWordTick() {
     if (_info.state != AudioState.playing) return;
     final prog = _engine.progress;
     if (prog == null) return;
     final (position, totalDuration) = prog;
     _progress.value = AudioProgress(position: position, duration: totalDuration);
+    final timeline = _sentenceTimeline;
+    if (timeline != null && _timelineChunkIndex == _info.chunkIndex) {
+      _publishTimelineRange(timeline, position, totalDuration);
+      return;
+    }
     final timing = _sentenceTiming;
-    if (timing == null) return;
+    if (timing == null) {
+      // Degraded fallback for asset chunks whose per-sentence timeline is
+      // unavailable: whole-text proportional from the live position.
+      final text = _activeChunkText;
+      if (_activeChunkIsAsset &&
+          text != null &&
+          text.isNotEmpty &&
+          totalDuration != null &&
+          totalDuration.inMilliseconds > 0) {
+        final fraction =
+            (position.inMilliseconds / totalDuration.inMilliseconds)
+                .clamp(0.0, 1.0);
+        final offset =
+            (fraction * text.length).round().clamp(0, text.length);
+        _publishWordRange(offset, offset, estimated: true);
+      }
+      return;
+    }
     final (start, end, sentenceDuration) = timing;
     final duration = sentenceDuration ?? totalDuration;
     if (duration == null || duration.inMilliseconds <= 0 || end <= start) {
@@ -392,6 +510,42 @@ class AudioController {
         (position.inMilliseconds / duration.inMilliseconds).clamp(0.0, 1.0);
     final offset = start + (fraction * (end - start)).round();
     _publishWordRange(offset, offset, estimated: true);
+  }
+
+  /// Maps the live [position] through the per-sentence [timeline] to the
+  /// current sentence and proportionally within it. Sentence boundaries
+  /// come from the sentences' REAL generated durations, scaled to the
+  /// source's total duration so the timeline spans the whole asset (the
+  /// synthesized scale holds when the total is unknown); the within-sentence
+  /// offset resets at every boundary — drift never accumulates.
+  void _publishTimelineRange(
+      List<(int, int, Duration)> timeline, Duration position, Duration? total) {
+    final text = _activeChunkText;
+    if (text == null || text.isEmpty) return;
+    var totalSynth = 0;
+    for (final (_, _, d) in timeline) {
+      totalSynth += d.inMilliseconds;
+    }
+    if (totalSynth <= 0) return;
+    final span = (total != null && total.inMilliseconds > 0)
+        ? total.inMilliseconds
+        : totalSynth;
+    final posMs = position.inMilliseconds.clamp(0, span);
+    var windowStart = 0;
+    for (var i = 0; i < timeline.length; i++) {
+      final (start, end, d) = timeline[i];
+      final window = (d.inMilliseconds / totalSynth * span).round();
+      final windowEnd = windowStart + window;
+      if (posMs < windowEnd || i == timeline.length - 1) {
+        final fraction = window <= 0
+            ? 0.0
+            : ((posMs - windowStart) / window).clamp(0.0, 1.0);
+        final offset = start + (fraction * (end - start)).round();
+        _publishWordRange(offset, offset, estimated: true);
+        return;
+      }
+      windowStart = windowEnd;
+    }
   }
 
   /// Expands a recited offset to the word boundaries containing it and

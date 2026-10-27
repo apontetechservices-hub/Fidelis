@@ -57,6 +57,15 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   String? _loadedLang;
   int? _speakingVerse;
 
+  /// Listening mode (the governing rule): ON when the user starts playback;
+  /// stays ON across a natural chapter end — the user is still listening;
+  /// cleared ONLY by an explicit pause or leaving the screen (dispose).
+  /// While ON, chapter navigation auto-plays the new chapter, including the
+  /// Next press after a chapter finished on its own. Seeded from
+  /// [widget.autoPlay]: auto-continue into this screen means the previous
+  /// screen was listening.
+  bool _listening = false;
+
   /// Character range of the word being recited within [_speakingVerse]'s
   /// text (word-level highlight; null when no word estimate is available).
   (int, int)? _speakingWord;
@@ -72,6 +81,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   @override
   void initState() {
     super.initState();
+    _listening = widget.autoPlay;
     AudioController.instance.listenable.addListener(_onAudioChanged);
     AudioController.instance.wordRangeListenable.addListener(_onWordRangeChanged);
     AppStrings.localeNotifier.addListener(_onLocaleChanged);
@@ -86,8 +96,10 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     AppStrings.localeNotifier.removeListener(_onLocaleChanged);
     // Audio is tied to this screen — never keep playing after exit. Owner-
     // scoped so a replacement chapter screen that already auto-continued is
-    // not cut off.
-    AudioController.instance.stopIfOwner(this);
+    // not cut off. Deferred out of the unmount phase: stop() notifies
+    // listeners, and a synchronous notification while the widget tree is
+    // locked (unmount) would throw markNeedsBuild on a locked tree.
+    scheduleMicrotask(() => AudioController.instance.stopIfOwner(this));
     super.dispose();
   }
 
@@ -197,19 +209,22 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     return (books[index + 1], 1);
   }
 
-  /// Chapter navigation while PLAYING auto-continues with the new chapter
+  /// Chapter navigation while LISTENING auto-continues with the new chapter
   /// (the new screen starts its own stream; the single-stream controller
-  /// replaces the old one). Paused or never started: navigate silently.
+  /// replaces the old one). The listening flag persists past a natural
+  /// chapter end, so Next after a chapter finished on its own also plays —
+  /// only an explicit pause ends the mode. Paused or never started:
+  /// navigate silently.
   Future<void> _goTo(BibleBook book, int chapter) async {
     if (book.key == widget.book.key && chapter == widget.chapter) return;
-    final wasPlaying = AudioController.instance.isPlayingFor(_jobId);
+    final listening = _listening;
     await Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => BibleChapterScreen(
           book: book,
           chapter: chapter,
-          autoPlay: wasPlaying,
+          autoPlay: listening,
         ),
       ),
     );
@@ -231,9 +246,11 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   Future<void> _toggleAudio() async {
     final controller = AudioController.instance;
     if (controller.isPlayingFor(_jobId)) {
+      _listening = false; // explicit pause: listening mode ends
       await controller.pause();
     } else if (controller.state == AudioState.paused &&
         controller.currentJobId == _jobId) {
+      _listening = true; // resuming is starting playback again
       await controller.resume();
     } else {
       await _startAudio();
@@ -253,6 +270,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
+    _listening = true; // starting playback: listening mode ON
     final lang = AppStrings.isSpanish ? 'es' : 'en';
     final chunks = <AudioChunk>[];
     for (var start = 0; start < verses.length; start += _versesPerChunk) {
