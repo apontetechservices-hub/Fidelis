@@ -1,16 +1,23 @@
-// DIAGNOSIS TESTS (no fixes) — rosary audio defects reported on build 1.4.65.
+// REGRESSION GUARDS (v1.4.67+82) — rosary audio defects reported on 1.4.65.
 //
-// Reproduces the SHIPPED bundle state inside the test environment: the
-// pubspec declares `assets/rosary_audio/` as a directory, and Flutter asset
-// directory declarations are NON-RECURSIVE — only files directly in the
-// directory are bundled. The manifest (a direct file) ships; the en/ and
-// es/ subdirectory .ogg files do NOT. The test asset bundle is built with
-// the same flutter_tools rules, so the tests below run against exactly the
-// state the device sees: manifest loadable, every .ogg missing.
-//
-// Problems under diagnosis:
-//   P2: audio stops after the first couple of prayers.
-//   P1: highlighted words lag behind the audio.
+// History: the 1.4.65/1.4.66 APKs declared `assets/rosary_audio/` and
+// `assets/kokoro/` as directories, and Flutter asset directory declarations
+// are NON-RECURSIVE — only files directly inside ship. The manifest (a
+// direct file) shipped; the en/ and es/ .ogg files and the whole
+// kokoro/espeak-ng-data subtree did NOT: every keyed step's asset play
+// failed silently, and Kokoro could not phonemize (no espeak-ng-data).
+// v1.4.67 adds the missing subdirectory declarations; these tests guard the
+// FIXED state. Each was a diagnosis test asserting the broken state and
+// inverted when the fix landed:
+//   P2-A: ogg-missing assertion flipped — the manifest AND the subdirectory
+//         .ogg files now ship and load (all 62 of them).
+//   P2-B: silent-asset-failure walk flipped — every keyed step now PLAYS
+//         its bundled asset (in-flight playback), the runtime-TTS fallback
+//         still never fires, and every attempted asset loads from the bundle.
+//   P2-C: unchanged — with no manifest entry, every step still reaches
+//         runtime TTS (announcements and the litany included).
+//   P1-A: no-word-range assertion flipped — a playing asset chunk publishes
+//         word ranges (the timeline resolves from Kokoro's real durations).
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -22,19 +29,22 @@ import 'package:fidelis/features/rosary/rosary_audio_files.dart';
 import 'package:fidelis/features/rosary/rosary_controller.dart';
 import 'package:fidelis/features/rosary/rosary_prayer_screen.dart';
 import 'package:fidelis/services/audio_controller.dart';
+import 'package:fidelis/services/tts_service.dart';
 
-/// Device-faithful engine for the shipped-bundle state:
-///  - playAsset: the real TtsService.playAssetFile catches just_audio's
-///    PlayerException for a missing bundled asset and returns NORMALLY
-///    (instantly, no audio). We mirror that: record + complete immediately.
-///  - speakText: records; the runtime path would speak here.
-///  - sentenceDurations: the device's Kokoro cannot synthesize (the APK
-///    bundles no espeak-ng-data, so phonemization data is missing), and
-///    synthesizeSentenceDurations returns null on any Kokoro failure —
-///    mirror that with null (no per-sentence timeline can ever resolve).
-class DeviceFaithfulEngine implements AudioEngine {
+/// Engine mirroring the FIXED device state (v1.4.67: the .ogg files and
+/// espeak-ng-data ship):
+///  - playAsset: the real TtsService.playAssetFile awaits until playback
+///    completes or stop() lands — mirror that by staying pending until
+///    stop() (in-flight playback), so the chunk's state stays 'playing'.
+///  - sentenceDurations: the device's Kokoro synthesizes per-sentence
+///    durations (espeak-ng-data ships) — mirror with one duration per
+///    TtsService.sentenceRanges(text) sentence, the same split the
+///    controller's timeline check uses.
+///  - progress: a playing asset reports a non-null (position, duration).
+class BundledAudioEngine implements AudioEngine {
   final List<String> log = [];
   final List<String?> speakLangs = [];
+  Completer<void>? _pendingPlay;
 
   @override
   Future<void> speakText(
@@ -53,6 +63,10 @@ class DeviceFaithfulEngine implements AudioEngine {
   @override
   Future<void> playAsset(String asset) async {
     log.add('asset:$asset');
+    // In-flight playback: the chunk await stays pending until stop() lands
+    // (the next step's start() or the teardown), mirroring the real player.
+    _pendingPlay = Completer<void>();
+    await _pendingPlay!.future;
   }
 
   @override
@@ -62,19 +76,27 @@ class DeviceFaithfulEngine implements AudioEngine {
   Future<void> resume() async {}
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    _pendingPlay?.complete();
+    _pendingPlay = null;
+  }
 
   @override
   bool get isPaused => false;
 
   @override
-  (Duration, Duration?)? get progress => null;
+  (Duration, Duration?)? get progress =>
+      (const Duration(seconds: 2), const Duration(seconds: 30));
 
   @override
   Future<List<Duration>?> sentenceDurations(String text, String lang,
       {bool Function()? shouldAbort}) async {
     log.add('sentenceDurations[$lang]:${text.length}ch');
-    return null; // device: Kokoro unavailable (no espeak-ng-data in APK)
+    // Device: Kokoro synthesizes one REAL duration per sentence — the same
+    // split TtsService.sentenceRanges uses, so the timeline check matches.
+    return TtsService.sentenceRanges(text)
+        .map((_) => const Duration(milliseconds: 1500))
+        .toList();
   }
 }
 
@@ -92,7 +114,8 @@ void main() {
     AudioController.instance.engineForTest = const TtsAudioEngine();
   });
 
-  testWidgets('DIAG P2-A: shipped bundle state — manifest loads, ogg missing',
+  testWidgets(
+      'DIAG P2-A → fixed: manifest loads, every subdirectory .ogg ships',
       (tester) async {
     await tester.runAsync(() async {
       // The manifest IS bundled (a file directly inside the declared dir).
@@ -101,31 +124,31 @@ void main() {
       expect(raw, contains('hail_mary'),
           reason: 'the manifest ships in the APK');
 
-      // The .ogg files are NOT bundled: they live in en/ and es/
-      // SUBDIRECTORIES of the declared directory, and Flutter asset
-      // directory declarations are non-recursive. This is exactly the
-      // device state (verified in fidelis-latest.apk: 0 .ogg entries).
-      var oggLoaded = false;
-      try {
-        await rootBundle.load('assets/rosary_audio/en/hail_mary.ogg');
-        oggLoaded = true;
-      } catch (_) {}
-      expect(oggLoaded, isFalse,
-          reason: 'subdirectory .ogg files are not in the bundle — '
-              'same as the shipped APK');
-      var esLoaded = false;
-      try {
-        await rootBundle.load('assets/rosary_audio/es/hail_mary.ogg');
-        esLoaded = true;
-      } catch (_) {}
-      expect(esLoaded, isFalse);
+      // THE FIX (v1.4.67): the en/ and es/ subdirectory declarations ship
+      // the .ogg files — both load from the bundle now.
+      final en = await rootBundle.load('assets/rosary_audio/en/hail_mary.ogg');
+      expect(en.lengthInBytes, greaterThan(0),
+          reason: 'en/hail_mary.ogg ships (was missing through 1.4.66)');
+      final es = await rootBundle.load('assets/rosary_audio/es/hail_mary.ogg');
+      expect(es.lengthInBytes, greaterThan(0),
+          reason: 'es/hail_mary.ogg ships (was missing through 1.4.66)');
+
+      // And the bundle carries all 62 rosary .ogg files (31 en + 31 es).
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final oggs = manifest
+          .listAssets()
+          .where((a) => a.startsWith('assets/rosary_audio/'))
+          .where((a) => a.endsWith('.ogg'))
+          .length;
+      expect(oggs, 62, reason: '31 en + 31 es .ogg files ship');
     });
   });
 
-  testWidgets('DIAG P2-B: full rosary run — every keyed step is a silent '
-      'asset failure; the runtime-TTS fallback NEVER fires', (tester) async {
+  testWidgets(
+      'DIAG P2-B → fixed: a full rosary run plays every keyed step — no '
+      'silent asset failures, no runtime-TTS fallback', (tester) async {
     await tester.runAsync(() => RosaryAudioFiles.ensureLoaded());
-    final engine = DeviceFaithfulEngine();
+    final engine = BundledAudioEngine();
     AudioController.instance.engineForTest = engine;
 
     await tester.pumpWidget(const MaterialApp(
@@ -168,19 +191,32 @@ void main() {
     print('DIAG P2-B totals: assetAttempts=$assetAttempts '
         'speakAttempts=$speakAttempts of ${steps.length} steps');
 
-    // THE FINDING: every step attempts the (missing) asset; the runtime
-    // path is never reached — no step speaks. The rosary is silent for its
-    // whole run, and the "runtime-TTS fallback" cannot cover asset chunks.
+    // THE FIXED STATE: every keyed step attempts its bundled asset and the
+    // runtime path is never reached — the rosary plays its pre-rendered
+    // audio end to end.
     expect(assetAttempts, steps.length,
-        reason: 'every keyed step resolves a manifest path and attempts '
-            'the missing asset');
+        reason: 'every keyed step resolves a manifest path and plays the '
+            'bundled asset');
     expect(speakAttempts, 0,
-        reason: 'AudioController.start has NO runtime-TTS fallback for '
-            'asset chunks (audio_controller.dart asset branch) — a failed '
-            'playAsset completes the chunk in silence');
+        reason: 'asset chunks play; the runtime-TTS fallback never fires');
+
+    // And every attempted asset actually ships: load each distinct path
+    // from the bundle (real asset-channel I/O under runAsync).
+    final attempted = engine.log
+        .where((e) => e.startsWith('asset:'))
+        .map((e) => e.substring('asset:'.length))
+        .toSet();
+    expect(attempted, isNotEmpty);
+    await tester.runAsync(() async {
+      for (final asset in attempted) {
+        final bytes = await rootBundle.load(asset);
+        expect(bytes.lengthInBytes, greaterThan(0), reason: '$asset ships');
+      }
+    });
   });
 
-  testWidgets('DIAG P2-C: when the manifest lookup yields nothing, every '
+  testWidgets(
+      'DIAG P2-C: when the manifest lookup yields nothing, every '
       'step reaches runtime TTS — including announcements and the litany',
       (tester) async {
     // Simulate the "no manifest entry" branch through the SAME code path a
@@ -191,7 +227,7 @@ void main() {
     // Warm the manifest first: a load started inside the test's FakeAsync
     // zone never completes (its microtask lands on the zone's own queue).
     await tester.runAsync(() => RosaryAudioFiles.ensureLoaded());
-    final engine = DeviceFaithfulEngine();
+    final engine = BundledAudioEngine();
     AudioController.instance.engineForTest = engine;
 
     await tester.pumpWidget(const MaterialApp(
@@ -238,10 +274,11 @@ void main() {
             'runtime path speaks it — announcements and litany included');
   });
 
-  testWidgets('DIAG P1-A: a failed asset chunk publishes NO word range — '
-      'the highlight cannot track audio that never plays', (tester) async {
+  testWidgets(
+      'DIAG P1-A → fixed: a playing asset chunk publishes word ranges — '
+      'the timeline resolves from Kokoro durations', (tester) async {
     await tester.runAsync(() => RosaryAudioFiles.ensureLoaded());
-    final engine = DeviceFaithfulEngine();
+    final engine = BundledAudioEngine();
     AudioController.instance.engineForTest = engine;
 
     await tester.pumpWidget(const MaterialApp(
@@ -255,16 +292,15 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 250));
 
-    // The word tick runs every 200ms while "playing"; with the asset failed
-    // the player has no source (position 0, duration null) and no timeline
-    // can resolve (sentenceDurations returns null on device) — no word
-    // range is ever published.
+    // THE FIXED STATE: the asset plays in-flight (the chunk await stays
+    // pending), the timeline resolved from Kokoro's per-sentence durations
+    // (espeak-ng-data ships), and the 200ms word tick publishes ranges —
+    // the highlight tracks the audio.
     // ignore: avoid_print
-    print('DIAG P1-A wordRange after failed-asset step: '
+    print('DIAG P1-A wordRange after playing asset step: '
         '${AudioController.instance.wordRangeListenable.value}');
-    expect(AudioController.instance.wordRangeListenable.value, isNull,
-        reason: 'no timing source exists for a failed asset chunk: the '
-            'timeline needs sentenceDurations (null on device) and the '
-            'coarse fallback needs a non-null total duration');
+    expect(AudioController.instance.wordRangeListenable.value, isNotNull,
+        reason: 'with the asset playing and the timeline resolved from '
+            'Kokoro durations, the word tick publishes ranges');
   });
 }
