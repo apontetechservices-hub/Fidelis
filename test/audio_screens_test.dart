@@ -12,6 +12,7 @@ import 'package:fidelis/features/rosary/rosary_prayers.dart';
 import 'package:fidelis/services/audio_controller.dart';
 import 'package:fidelis/services/billing_service.dart';
 import 'package:fidelis/services/bible_service.dart';
+import 'package:fidelis/services/kokoro_engine.dart';
 import 'package:fidelis/services/tts_service.dart';
 import 'package:fidelis/config/app_strings.dart';
 import 'package:fidelis/config/theme.dart';
@@ -37,6 +38,7 @@ class SweepEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -120,6 +122,7 @@ class InstantAssetEngine extends FakeAudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,

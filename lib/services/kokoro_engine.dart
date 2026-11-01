@@ -7,6 +7,10 @@ import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 
+import 'tts_text.dart';
+
+export 'tts_text.dart' show KokoroVoice;
+
 /// One synthesized sentence: raw PCM samples + sample rate.
 class KokoroAudio {
   final Float32List samples;
@@ -16,8 +20,12 @@ class KokoroAudio {
 
 /// On-device Kokoro TTS engine (sherpa-onnx 1.13.8, Kokoro v1.0 INT8).
 ///
-/// Owner-chosen voices: EN bm_george (sid 26), ES em_alex (sid 29), speed 0.9.
-/// Kokoro has no Latin voice — 'la' callers must use the flutter_tts path.
+/// Voices are per-profile ([KokoroVoice]): the Bible speaks the owner's
+/// final round-2 configuration — EN bm_daniel (sid 24) / ES em_alex (sid 29),
+/// both at speed 0.81 — while readings and the rosary's timing-only
+/// synthesis keep the standard voices (EN bm_george sid 26 / ES em_alex sid
+/// 29, speed 0.9). Kokoro has no Latin voice — 'la' callers must use the
+/// flutter_tts path.
 ///
 /// Model files ship as Flutter assets under assets/kokoro/ (~155 MB) and are
 /// copied once to the app support directory, because onnxruntime needs real
@@ -32,11 +40,6 @@ class KokoroEngine {
 
   /// Bump when the bundled model files change to force a re-copy on devices.
   static const _stamp = 'kokoro-int8-v1.0-2026-10-26';
-
-  /// Kokoro sids for bm_george (EN) and em_alex (ES) in voices.bin.
-  static const int enSid = 26;
-  static const int esSid = 29;
-  static const double speed = 0.9;
 
   /// Sticky: any hard failure disables Kokoro for the rest of the session and
   /// callers fall back to flutter_tts (audio must never break).
@@ -97,15 +100,19 @@ class KokoroEngine {
     }
   }
 
-  /// Synthesizes [text] with the voice for [lang]. Returns null on failure
-  /// (caller falls back to flutter_tts — audio must never break).
-  static Future<KokoroAudio?> synthesize(String text, String lang) async {
+  /// Synthesizes [text] with [voice]'s sid/speed for [lang]. Returns null
+  /// on failure (caller falls back to flutter_tts — audio must never break).
+  static Future<KokoroAudio?> synthesize(
+    String text,
+    String lang, {
+    KokoroVoice voice = KokoroVoice.standard,
+  }) async {
     if (_failed || (lang != 'en' && lang != 'es')) return null;
     if (!await ensureReady(lang)) return null;
     final ack = await _request('gen', {
       'text': text,
-      'sid': lang == 'es' ? esSid : enSid,
-      'speed': speed,
+      'sid': voice.sidFor(lang),
+      'speed': voice.speed,
     }, timeout: const Duration(minutes: 3));
     if (ack == null || ack['ok'] != true) return null;
     final samples = ack['samples'];

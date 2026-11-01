@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../services/audio_controller.dart';
 import '../../services/bible_service.dart';
 import '../../services/billing_service.dart';
+import '../../services/kokoro_engine.dart';
 import '../../services/tts_service.dart';
 import '../premium/paywall_screen.dart';
 
@@ -266,7 +267,10 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// character-proportionally (sherpa_onnx 1.13.8 exposes no token
   /// timestamps). Lang follows the displayed text: 'es' recites the
   /// Spanish (Torres Amat) text through the existing Spanish voice path,
-  /// 'en' the Douay-Rheims as before.
+  /// 'en' the Douay-Rheims as before. Voice: the owner's final Bible
+  /// configuration ([KokoroVoice.bible] — EN bm_daniel / ES em_alex at
+  /// 0.81, with the per-voice pronunciation lexicon applied in the
+  /// synthesis path).
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
@@ -286,6 +290,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       chunks.add(AudioChunk(
         text: text,
         lang: lang,
+        voice: KokoroVoice.bible,
         onSentenceStart: (sentence) {
           if (!mounted) return;
           final verse = sentence < verseForSentence.length

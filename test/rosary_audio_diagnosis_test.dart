@@ -29,6 +29,7 @@ import 'package:fidelis/features/rosary/rosary_audio_files.dart';
 import 'package:fidelis/features/rosary/rosary_controller.dart';
 import 'package:fidelis/features/rosary/rosary_prayer_screen.dart';
 import 'package:fidelis/services/audio_controller.dart';
+import 'package:fidelis/services/kokoro_engine.dart';
 import 'package:fidelis/services/tts_service.dart';
 
 /// Engine mirroring the FIXED device state (v1.4.67: the .ogg files and
@@ -50,6 +51,7 @@ class BundledAudioEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,

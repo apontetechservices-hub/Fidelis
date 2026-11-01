@@ -6,14 +6,19 @@ import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'kokoro_engine.dart';
+import 'tts_text.dart' as tts_text;
 
 /// On-device text-to-speech for prayer audio (free feature).
 ///
 /// Two engines:
-///  - Kokoro (sherpa-onnx, bundled on-device): EN bm_george / ES em_alex at
-///    speed 0.9, synthesized SENTENCE-BY-SENTENCE so playback starts after the
-///    first sentence and later sentences are generated while the current one
-///    plays. stop() interrupts cleanly between sentences. Used for 'en'/'es'.
+///  - Kokoro (sherpa-onnx, bundled on-device): per-voice profiles — the
+///    standard voices (EN bm_george / ES em_alex at speed 0.9) for readings
+///    and the rosary's timing-only synthesis, the Bible profile (EN
+///    bm_daniel / ES em_alex at speed 0.81) when the caller passes
+///    [KokoroVoice.bible] — synthesized SENTENCE-BY-SENTENCE so playback
+///    starts after the first sentence and later sentences are generated
+///    while the current one plays. stop() interrupts cleanly between
+///    sentences. Used for 'en'/'es'.
 ///  - flutter_tts (system engine): Latin ('la' — Italian voice approximates
 ///    ecclesiastical pronunciation) and the fallback whenever Kokoro is
 ///    unavailable or fails, so audio NEVER breaks. The mature male-voice
@@ -226,6 +231,7 @@ class TtsService {
   static Future<void> speakPrayer(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -241,6 +247,7 @@ class TtsService {
         text,
         kokoroLang,
         myEpoch,
+        voice ?? KokoroVoice.standard,
         onSentenceStart,
         onSentenceTiming,
       )) {
@@ -299,6 +306,7 @@ class TtsService {
     String text,
     String lang,
     int myEpoch,
+    KokoroVoice voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -306,13 +314,23 @@ class TtsService {
     try {
       if (!await KokoroEngine.ensureReady(lang)) return false;
       if (myEpoch != _epoch) return true; // stopped while the engine warmed up
-      final sentences = splitSentences(text);
+      // Pronunciation lexicon (per-voice): applied BEFORE sentence splitting
+      // so the engine speaks the verified respellings. Sentence highlight
+      // ranges are mapped back to the original text's coordinates through
+      // the lexicon alignment, so highlights stay on the displayed words.
+      final (spoken, align) =
+          tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
+      final sentences = tts_text.splitSpeakableSentences(spoken);
       if (sentences.isEmpty) return false;
-      final ranges = sentenceRanges(text);
+      final ranges = [
+        for (final (start, end) in tts_text.speakableSentenceRanges(spoken))
+          (align[start], align[end]),
+      ];
 
       // Synthesize sentence 1 first so playback starts fast; later sentences
       // are generated while the current one plays.
-      var prefetch = KokoroEngine.synthesize(sentences[0], lang);
+      var prefetch =
+          KokoroEngine.synthesize(sentences[0], lang, voice: voice);
       for (var i = 0; i < sentences.length; i++) {
         final audio = await prefetch;
         if (myEpoch != _epoch) return true; // stop() while generating
@@ -327,7 +345,7 @@ class TtsService {
           return true;
         }
         prefetch = i + 1 < sentences.length
-            ? KokoroEngine.synthesize(sentences[i + 1], lang)
+            ? KokoroEngine.synthesize(sentences[i + 1], lang, voice: voice)
             : Future<KokoroAudio?>.value(null);
         // Hold between sentences while paused, then report the sentence that
         // is about to be heard so highlights stay in sync.
@@ -380,53 +398,11 @@ class TtsService {
         '${dir.path}/s_${DateTime.now().microsecondsSinceEpoch}.wav');
   }
 
-  /// Splits text into speakable sentences: sentence-ending punctuation and
-  /// paragraph/line breaks are boundaries; very short fragments (V., R., St.)
-  /// merge into what follows so markers are not spoken alone; overly long
-  /// sentences are split at clause punctuation to bound per-sentence latency.
-  ///
+  /// Splits text into speakable sentences (see [tts_text.splitSpeakableSentences]).
   /// Public so screens can map sentence positions back to displayed text
   /// (verse highlighting) with the exact same split the engine speaks.
-  static List<String> splitSentences(String text) {
-    final raw = text
-        .split(RegExp(r'(?<=[.!?…])\s+|\n+'))
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
-        .toList();
-    // Merge tiny fragments (liturgical markers, abbreviations) forward.
-    final merged = <String>[];
-    for (final part in raw) {
-      if (merged.isNotEmpty && merged.last.length <= 3) {
-        merged[merged.length - 1] = '${merged.last} $part';
-      } else {
-        merged.add(part);
-      }
-    }
-    // Bound per-sentence synthesis latency on slow devices.
-    const maxLen = 280;
-    final bounded = <String>[];
-    for (final sentence in merged) {
-      var rest = sentence;
-      while (rest.length > maxLen) {
-        var cut = -1;
-        for (final pat in const [', ', '; ', ',']) {
-          final idx = rest.lastIndexOf(pat, maxLen);
-          if (idx > 40) {
-            cut = idx + pat.length;
-            break;
-          }
-        }
-        if (cut <= 0) {
-          cut = rest.lastIndexOf(' ', maxLen);
-          if (cut <= 0) cut = maxLen;
-        }
-        bounded.add(rest.substring(0, cut).trim());
-        rest = rest.substring(cut).trim();
-      }
-      if (rest.isNotEmpty) bounded.add(rest);
-    }
-    return bounded;
-  }
+  static List<String> splitSentences(String text) =>
+      tts_text.splitSpeakableSentences(text);
 
   /// Per-sentence audio durations for [text] in [lang], synthesized
   /// TIMING-ONLY through the Kokoro pipeline (no playback): each sentence's
@@ -436,6 +412,9 @@ class TtsService {
   /// fails — callers keep their coarse fallback. The sentence split matches
   /// [splitSentences] / [sentenceRanges] exactly. [shouldAbort] cancels a
   /// long synthesis after the requesting playback was replaced.
+  ///
+  /// Keeps the standard voices: the rosary's pre-rendered files were
+  /// generated with them, so their timing synthesis must match.
   static Future<List<Duration>?> synthesizeSentenceDurations(
     String text,
     String lang, {
@@ -541,15 +520,6 @@ class TtsService {
   /// order as [splitSentences]. Public so screens can map engine-reported
   /// ranges back to their displayed units with the exact same split the
   /// engine speaks.
-  static List<(int, int)> sentenceRanges(String text) {
-    final ranges = <(int, int)>[];
-    var cursor = 0;
-    for (final sentence in splitSentences(text)) {
-      var at = text.indexOf(sentence, cursor);
-      if (at < 0) at = cursor;
-      ranges.add((at, at + sentence.length));
-      cursor = at + sentence.length;
-    }
-    return ranges;
-  }
+  static List<(int, int)> sentenceRanges(String text) =>
+      tts_text.speakableSentenceRanges(text);
 }

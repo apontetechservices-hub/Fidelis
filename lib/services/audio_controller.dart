@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'kokoro_engine.dart';
 import 'tts_service.dart';
 
 /// Playback state of the single audio stream.
@@ -80,12 +81,23 @@ class AudioChunk {
   /// TTS language: 'en' | 'es' | 'la'.
   final String? lang;
 
+  /// Kokoro voice profile for this chunk's synthesis (en/es). Null keeps
+  /// the standard voices; the Bible passes [KokoroVoice.bible] (Daniel EN /
+  /// Alex ES at 0.81) so its pronunciation lexicon and voice apply.
+  final KokoroVoice? voice;
+
   /// Called when sentence [sentenceIndex] of this chunk's text starts
   /// playing (Kokoro sentence-by-sentence pipeline; fires once with 0 on the
   /// flutter_tts path). Used for highlight syncing.
   final void Function(int sentenceIndex)? onSentenceStart;
 
-  const AudioChunk({this.text, this.asset, this.lang, this.onSentenceStart});
+  const AudioChunk({
+    this.text,
+    this.asset,
+    this.lang,
+    this.voice,
+    this.onSentenceStart,
+  });
 }
 
 /// A playback request: an ordered list of chunks played one after another.
@@ -108,6 +120,7 @@ abstract class AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -155,6 +168,7 @@ class TtsAudioEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -163,6 +177,7 @@ class TtsAudioEngine implements AudioEngine {
     return TtsService.speakPrayer(
       text,
       lang: lang,
+      voice: voice,
       onSentenceStart: onSentenceStart,
       onSentenceTiming: onSentenceTiming,
       onWordRange: onWordRange,
@@ -328,6 +343,7 @@ class AudioController {
           await _engine.speakText(
             chunk.text ?? '',
             lang: chunk.lang,
+            voice: chunk.voice,
             onSentenceStart: (s) {
               if (myEpoch == _epoch) {
                 _emit(job.id, AudioState.playing, i, s);

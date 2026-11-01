@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fidelis/services/audio_controller.dart';
+import 'package:fidelis/services/kokoro_engine.dart';
 
 /// Scriptable engine recording every call, so the single-stream rule and
 /// state transitions are verified without real audio plugins.
@@ -11,6 +12,10 @@ class FakeAudioEngine implements AudioEngine {
   /// Language passed to each speakText call, in order — lets tests verify
   /// the audio language routing without touching the text log format.
   final List<String?> langs = [];
+
+  /// Voice profile passed to each speakText call, in order — lets tests
+  /// verify the per-chunk voice routing (the Bible's Daniel/Alex profile).
+  final List<KokoroVoice?> voices = [];
 
   /// Gate of the chunk currently "playing"; completes when it finishes.
   Completer<void>? _gate;
@@ -24,6 +29,7 @@ class FakeAudioEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -31,6 +37,7 @@ class FakeAudioEngine implements AudioEngine {
   }) async {
     log.add('speak:$text');
     langs.add(lang);
+    voices.add(voice);
     onSentenceStart?.call(0);
     _gate = Completer<void>();
     await _gate!.future;
@@ -554,6 +561,7 @@ class TimingFakeEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
@@ -627,6 +635,7 @@ class WordEventFakeEngine implements AudioEngine {
   Future<void> speakText(
     String text, {
     String? lang,
+    KokoroVoice? voice,
     void Function(int sentenceIndex)? onSentenceStart,
     void Function(int charStart, int charEnd, Duration? duration)?
         onSentenceTiming,
