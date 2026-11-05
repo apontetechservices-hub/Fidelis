@@ -313,6 +313,10 @@ void _workerMain(_WorkerSetup setup) {
           tts = null;
           final dir = setup.modelDir;
           final lang = m['lang'] as String;
+          // Phonemization fix (2026-11-05): sherpa-onnx passes `lang` straight
+          // to espeak-ng as the voice name. 'en' = British RP (non-rhotic),
+          // which made every English voice drop the R ("Lord" -> "lawd").
+          // 'en-us' = American (rhotic). Spanish ('es') unchanged.
           tts = sherpa.OfflineTts(sherpa.OfflineTtsConfig(
             model: sherpa.OfflineTtsModelConfig(
               kokoro: sherpa.OfflineTtsKokoroModelConfig(
@@ -320,7 +324,7 @@ void _workerMain(_WorkerSetup setup) {
                 voices: '$dir/voices.bin',
                 tokens: '$dir/tokens.txt',
                 dataDir: '$dir/espeak-ng-data',
-                lang: lang,
+                lang: lang == 'en' ? 'en-us' : lang,
               ),
               numThreads: 2,
               debug: false,
