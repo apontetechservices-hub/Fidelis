@@ -758,6 +758,8 @@ class _ReadingsScreenState extends State<ReadingsScreen> {
       chunks: [
         for (final text in sections) AudioChunk(text: text, lang: _audioLang()),
       ],
+      // The media notification's title.
+      title: AppStrings.t('title_readings'),
     );
     await AudioController.instance.start(job, owner: this);
     if (mounted) setState(() => _speaking = false);

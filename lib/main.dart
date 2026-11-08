@@ -1,17 +1,41 @@
 import 'dart:async';
 
+import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'app.dart';
+import 'services/audio_controller.dart';
+import 'services/audio_service_handler.dart';
 import 'services/notification_service.dart';
 import 'services/tts_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
+  // The media notification + lock-screen player for background audio: the
+  // handler mirrors the AudioController's state into the media session and
+  // routes the notification's play/pause/stop back through it, so the
+  // in-app controls and the player always agree. The notification exists
+  // only while audio is playing or paused (a backgrounded playback that
+  // ends naturally parks it paused); no audio, no player. Must run before
+  // runApp and before any audio starts.
+  await AudioService.init(
+    builder: () => FidelisAudioHandler(),
+    config: const AudioServiceConfig(
+      androidNotificationChannelId: 'com.studiofideli.fidelis.audio',
+      androidNotificationChannelName: 'Fidelis audio',
+      androidNotificationChannelDescription: 'Prayer audio playback',
+      // Pausing leaves the foreground so the notification stays swipeable
+      // (resumable or dismissable); playing re-enters the foreground.
+      androidStopForegroundOnPause: true,
+    ),
+  );
+  _wireAudioFocus();
   NotificationService.initialize();
   NotificationService.rescheduleSaved();
   // Warm the Kokoro TTS asset cache in the background (first launch copies
@@ -19,4 +43,21 @@ void main() {
   // marker check). Synthesis itself stays lazy.
   unawaited(TtsService.warmAssets());
   runApp(const FidelisApp());
+}
+
+/// Audio focus + unplug reactions: when another app takes focus (music, a
+/// call, an alarm) or the headphones are unplugged, Fidelis pauses — and
+/// STAYS paused after the interruption ends (no auto-resume; the user
+/// resumes manually). Spoken-audio attributes: the system asks us to pause
+/// rather than duck. Best-effort: never blocks startup.
+Future<void> _wireAudioFocus() async {
+  try {
+    final session = await AudioSession.instance;
+    await session.configure(AudioSessionConfiguration.speech());
+    session.interruptionEventStream
+        .where((event) => event.begin)
+        .listen((_) => unawaited(AudioController.instance.pause()));
+    session.becomingNoisyEventStream
+        .listen((_) => unawaited(AudioController.instance.pause()));
+  } catch (_) {}
 }

@@ -1,5 +1,7 @@
 package com.studiofideli.fidelis
 
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 
-class MainActivity : FlutterActivity()
+/// AudioServiceActivity links the activity to audio_service's shared
+/// FlutterEngine so the background media session keeps the app alive.
+class MainActivity : AudioServiceActivity()

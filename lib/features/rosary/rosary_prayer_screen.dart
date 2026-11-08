@@ -432,7 +432,14 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     _speakingLine = null;
     _speakingWord = null;
     await AudioController.instance.start(
-      AudioJob(id: _jobId, chunks: [chunk]),
+      AudioJob(
+        id: _jobId,
+        chunks: [chunk],
+        // The media notification's title: the prayer being recited.
+        title: widget.isForDead
+            ? AppStrings.t('rosary_for_the_dead')
+            : AppStrings.t('title_holy_rosary'),
+      ),
       owner: this,
     );
   }

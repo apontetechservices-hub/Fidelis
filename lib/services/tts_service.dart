@@ -31,7 +31,13 @@ import 'tts_text.dart' as tts_text;
 /// selection never throws and never blocks speech.
 class TtsService {
   static final FlutterTts _tts = FlutterTts();
-  static final AudioPlayer _player = AudioPlayer();
+
+  /// Interruption handling is the app's, not just_audio's: its default
+  /// handler auto-RESUMES playback when an interruption (a call, another
+  /// app's audio) ends, which the app must not do — after an interruption
+  /// Fidelis stays paused until the user resumes. The pause reactions are
+  /// wired to audio_session's streams at startup (see main.dart).
+  static final AudioPlayer _player = AudioPlayer(handleInterruptions: false);
   static bool _ready = false;
 
   /// Incremented by every new playback request and by stop(); an in-flight
@@ -469,7 +475,18 @@ class TtsService {
     await _player.play();
     late final StreamSubscription<PlayerState> sub;
     sub = _player.playerStateStream.listen((s) {
-      if (s.processingState == ProcessingState.completed) _finishPlayDone();
+      if (s.processingState == ProcessingState.completed) {
+        _finishPlayDone();
+        // Clear the stale playing flag (the Android quirk leaves
+        // playWhenReady true after a natural end) so the media notification
+        // shows PAUSED rather than a phantom playing state. Acoustically a
+        // no-op: the source already ended.
+        unawaited(() async {
+          try {
+            await _player.pause();
+          } catch (_) {}
+        }());
+      }
     });
     try {
       await done.future;

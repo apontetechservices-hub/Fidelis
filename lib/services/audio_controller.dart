@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'kokoro_engine.dart';
 import 'tts_service.dart';
@@ -111,7 +113,16 @@ class AudioJob {
   /// Called when the job plays to completion (not when stopped/replaced).
   final VoidCallback? onCompleted;
 
-  const AudioJob({required this.id, required this.chunks, this.onCompleted});
+  /// Human title of the playing content for the media notification
+  /// (e.g. 'James 1', 'The Holy Rosary'). Null keeps the app name.
+  final String? title;
+
+  const AudioJob({
+    required this.id,
+    required this.chunks,
+    this.onCompleted,
+    this.title,
+  });
 }
 
 /// Low-level audio engine behind the controller. Abstracted so tests can
@@ -225,8 +236,17 @@ class TtsAudioEngine implements AudioEngine {
 ///  - Jobs run their chunk loop here, not in the screens, so leaving a
 ///    screen cannot leave an orphaned loop restarting audio; screens call
 ///    [stopIfOwner] in dispose to end their own audio.
-class AudioController {
-  AudioController({AudioEngine? engine}) : _engine = engine ?? const TtsAudioEngine();
+class AudioController with WidgetsBindingObserver {
+  AudioController({AudioEngine? engine, this.externalPauseRequests})
+      : _engine = engine ?? const TtsAudioEngine() {
+    // Foreground/background tracking drives the parked-after-end state (the
+    // media notification stays paused when a backgrounded playback ends).
+    // Best-effort: tests without a binding skip the observer.
+    try {
+      WidgetsBinding.instance.addObserver(this);
+    } catch (_) {}
+    externalPauseRequests?.listen((_) => unawaited(pause()));
+  }
 
   static final AudioController instance = AudioController();
 
@@ -237,6 +257,19 @@ class AudioController {
   int _epoch = 0;
   Object? _owner;
   AudioPlaybackInfo _info = const AudioPlaybackInfo.stopped();
+
+  /// Title of the current job for the media notification; null when stopped.
+  String? _currentJobTitle;
+
+  /// A job that finished naturally while the app was backgrounded: parked
+  /// so the media notification stays in a paused state and a resume replays
+  /// the chunk the playback ended on. Null when nothing is parked.
+  _ParkedPlayback? _parked;
+
+  /// Whether the app is in the foreground (WidgetsBinding observer).
+  /// Defaults to true: the parked-after-end state applies only when the
+  /// user has actually left the app mid-playback.
+  bool _inForeground = true;
 
   /// Text of the chunk currently loaded in the engine, for expanding
   /// recited offsets to word boundaries. Null for asset chunks.
@@ -277,6 +310,13 @@ class AudioController {
   /// the job loop waits on it so a flutter_tts pause (which completes the
   /// current chunk early) does not skip to the next chunk while paused.
   Completer<void>? _resumeGate;
+
+  /// External pause requests — audio-focus loss (another app, a call) and
+  /// headset unplug — wired to audio_session's streams at startup (see
+  /// main.dart); tests inject a stream. Each event pauses the current
+  /// playback, which then STAYS paused: no auto-resume, the user resumes
+  /// manually.
+  final Stream<void>? externalPauseRequests;
   final ValueNotifier<AudioPlaybackInfo> _notifier =
       ValueNotifier<AudioPlaybackInfo>(const AudioPlaybackInfo.stopped());
 
@@ -290,6 +330,10 @@ class AudioController {
   ValueListenable<AudioPlaybackInfo> get listenable => _notifier;
   AudioState get state => _info.state;
   String? get currentJobId => _info.jobId;
+
+  /// Human title of the playing content (the media notification). Null when
+  /// stopped.
+  String? get currentJobTitle => _currentJobTitle;
 
   /// Word-level highlight stream for the active chunk's text.
   ValueListenable<AudioWordRange?> get wordRangeListenable => _wordRange;
@@ -306,6 +350,12 @@ class AudioController {
   // ignore: avoid_setters_without_getters
   set engineForTest(AudioEngine engine) => _engine = engine;
 
+  /// Test hook: force the foreground/background state (production reads the
+  /// WidgetsBinding observer).
+  @visibleForTesting
+  // ignore: avoid_setters_without_getters
+  set appInForegroundForTest(bool value) => _inForeground = value;
+
   /// Starts [job], stopping whatever is currently playing. The chunk loop
   /// lives here so it can always be halted centrally.
   Future<void> start(AudioJob job, {Object? owner}) async {
@@ -314,6 +364,8 @@ class AudioController {
     await stop();
     final myEpoch = ++_epoch;
     _owner = owner;
+    _currentJobTitle = job.title;
+    _requestAudioFocus();
     _emit(job.id, AudioState.playing, 0, 0);
     _startWordTimer();
     for (var i = 0; i < job.chunks.length; i++) {
@@ -377,6 +429,18 @@ class AudioController {
     _finish(myEpoch, job);
   }
 
+  /// Takes audio focus for the new job so other apps' audio pauses while
+  /// Fidelis plays (the player path re-requests on every play() too;
+  /// idempotent while focus is held). Best-effort: never blocks or fails
+  /// playback (the plugin may be unavailable, e.g. in tests).
+  void _requestAudioFocus() {
+    unawaited(() async {
+      try {
+        await (await AudioSession.instance).setActive(true);
+      } catch (_) {}
+    }());
+  }
+
   /// Resolves the per-sentence highlight timeline for an asset chunk's
   /// [text] (timing-only synthesis through the engine) and installs it when
   /// that chunk is still active. Cached per (lang, text) — repeated steps
@@ -415,6 +479,22 @@ class AudioController {
 
   Future<void> resume() async {
     if (_info.state != AudioState.paused) return;
+    final parked = _parked;
+    if (parked != null) {
+      // The job finished naturally while the app was backgrounded (the
+      // media notification stayed paused): "resume" replays the chunk the
+      // playback ended on, through the normal job loop.
+      await start(
+        AudioJob(
+          id: parked.job.id,
+          chunks: parked.job.chunks.sublist(parked.chunkIndex),
+          onCompleted: parked.job.onCompleted,
+          title: parked.job.title,
+        ),
+        owner: parked.owner,
+      );
+      return;
+    }
     _emit(_info.jobId, AudioState.playing, _info.chunkIndex, _info.sentenceIndex);
     final gate = _resumeGate;
     unawaited(() async {
@@ -433,6 +513,8 @@ class AudioController {
   Future<void> stop() async {
     _epoch++;
     _owner = null;
+    _parked = null;
+    _currentJobTitle = null;
     _info = const AudioPlaybackInfo.stopped();
     _notifier.value = _info;
     _clearHighlight();
@@ -452,8 +534,29 @@ class AudioController {
   void _finish(int myEpoch, AudioJob job) {
     if (myEpoch != _epoch) return;
     _epoch++;
-    _owner = null;
-    _info = const AudioPlaybackInfo.stopped();
+    if (_inForeground) {
+      // Foreground end (the historical behavior): the stream goes idle and
+      // the screen's own controls take over from here.
+      _owner = null;
+      _currentJobTitle = null;
+      _info = const AudioPlaybackInfo.stopped();
+    } else {
+      // Backgrounded end: the media notification must stay in a PAUSED
+      // state (resumable, dismissable) instead of vanishing — park the
+      // finished job; a later resume replays the chunk it ended on. The
+      // owner is kept so leaving the page still ends the parked stream.
+      _parked = _ParkedPlayback(
+        job: job,
+        owner: _owner,
+        chunkIndex: _info.chunkIndex,
+      );
+      _info = AudioPlaybackInfo(
+        state: AudioState.paused,
+        jobId: job.id,
+        chunkIndex: _info.chunkIndex,
+        sentenceIndex: _info.sentenceIndex,
+      );
+    }
     _notifier.value = _info;
     _clearHighlight();
     job.onCompleted?.call();
@@ -598,4 +701,27 @@ class AudioController {
     );
     _notifier.value = _info;
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _inForeground = true;
+    } else if (state == AppLifecycleState.paused) {
+      _inForeground = false;
+    }
+  }
+}
+
+/// A job that finished naturally while the app was backgrounded (see
+/// [AudioController._finish]).
+class _ParkedPlayback {
+  final AudioJob job;
+  final Object? owner;
+  final int chunkIndex;
+
+  const _ParkedPlayback({
+    required this.job,
+    required this.owner,
+    required this.chunkIndex,
+  });
 }

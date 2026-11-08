@@ -296,7 +296,12 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       ));
     }
     await AudioController.instance.start(
-      AudioJob(id: _jobId, chunks: chunks),
+      AudioJob(
+        id: _jobId,
+        chunks: chunks,
+        // The media notification's title: the chapter being recited.
+        title: '${BibleService.bookName(widget.book)} ${widget.chapter}',
+      ),
       owner: this,
     );
   }
