@@ -35,6 +35,9 @@ Future<void> main() async {
       // Pausing leaves the foreground so the notification stays swipeable
       // (resumable or dismissable); playing re-enters the foreground.
       androidStopForegroundOnPause: true,
+      // The notification's accent: the app's liturgical gold — the player
+      // reads as part of Fidelis.
+      notificationColor: Color(0xFFC5A55A),
     ),
   );
   _wireAudioFocus();

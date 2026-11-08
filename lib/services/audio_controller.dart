@@ -263,6 +263,13 @@ class AudioController with WidgetsBindingObserver {
   /// Title of the current job for the media notification; null when stopped.
   String? _currentJobTitle;
 
+  /// The most recently started job with its owner, kept across stop() so
+  /// the media session's play can RESTART the last-played content when
+  /// nothing is loaded (e.g. a headset play button after a stop). Not the
+  /// parked playback (which resume() handles) — the full job from its
+  /// first chunk.
+  _LastJob? _lastJob;
+
   /// A job that finished naturally while the app was backgrounded: parked
   /// so the media notification stays in a paused state and a resume replays
   /// the chunk the playback ended on. Null when nothing is parked.
@@ -366,6 +373,7 @@ class AudioController with WidgetsBindingObserver {
     await stop();
     final myEpoch = ++_epoch;
     _owner = owner;
+    _lastJob = _LastJob(job: job, owner: owner);
     _currentJobTitle = job.title;
     _requestAudioFocus();
     _emit(job.id, AudioState.playing, 0, 0);
@@ -509,6 +517,16 @@ class AudioController with WidgetsBindingObserver {
       if (gate != null && !gate.isCompleted) gate.complete();
       if (identical(_resumeGate, gate)) _resumeGate = null;
     }());
+  }
+
+  /// Restarts the last-played content (the media session's play when
+  /// nothing is loaded — e.g. a headset play button after a stop). No-op
+  /// when nothing has played yet this session. The original owner is kept:
+  /// while its screen still exists, leaving it still ends the stream.
+  Future<void> restartLast() async {
+    final last = _lastJob;
+    if (last == null) return;
+    await start(last.job, owner: last.owner);
   }
 
   /// Stops whatever is playing, regardless of owner.
@@ -712,6 +730,14 @@ class AudioController with WidgetsBindingObserver {
       _inForeground = false;
     }
   }
+}
+
+/// The most recently started job (see [AudioController._lastJob]).
+class _LastJob {
+  final AudioJob job;
+  final Object? owner;
+
+  const _LastJob({required this.job, required this.owner});
 }
 
 /// A job that finished naturally while the app was backgrounded (see

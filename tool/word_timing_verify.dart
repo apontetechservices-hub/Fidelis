@@ -89,29 +89,21 @@ nat.OfflineTts _engineFor(String lang) {
   });
 }
 
-/// Synthesizes one sentence with [voice]'s slot config for [lang]: the
-/// primary sid, plus the blend partner render PCM-mixed at the slot's
-/// ratio when the slot carries one — the same synthesis the app's engine
-/// worker performs (both sids under the same engine phonemization; the
-/// mixed length is the schedule's timing source).
-(Float32List, int) synthesizeSlotSentence(
+/// Synthesizes one sentence with [voice]'s slot config for [lang] — through
+/// the app's ONE slot-synthesis path ([synthesizeSlotSentence] in
+/// lib/services/tts_text.dart, the same function the engine worker runs).
+/// The tool's synthesis call IS the app's playback path by construction.
+(Float32List, int) renderSlotSentence(
     nat.OfflineTts engine, String text, KokoroVoice voice, String lang) {
-  final audio =
-      engine.generate(text: text, sid: voice.sidFor(lang), speed: voice.speed);
-  if (audio.samples.isEmpty) {
-    throw StateError('empty synthesis (sid ${voice.sidFor(lang)}): $text');
-  }
-  var samples = Float32List.fromList(audio.samples);
-  final blendSid = voice.blendSidFor(lang);
-  if (blendSid != null && blendSid != voice.sidFor(lang)) {
-    final partner =
-        engine.generate(text: text, sid: blendSid, speed: voice.speed);
-    if (partner.samples.isNotEmpty && partner.sampleRate == audio.sampleRate) {
-      samples = mixKokoroBlend(
-          samples, Float32List.fromList(partner.samples), voice.blendRatio);
-    }
-  }
-  return (samples, audio.sampleRate);
+  return synthesizeSlotSentence(
+    (t, sid, speed) {
+      final audio = engine.generate(text: t, sid: sid, speed: speed);
+      return (Float32List.fromList(audio.samples), audio.sampleRate);
+    },
+    text,
+    voice,
+    lang,
+  );
 }
 
 /// Loads one chapter's verses exactly like BibleService.chapter: asterisk
@@ -186,6 +178,8 @@ Map<String, Object?> verifyChapter(
   final chapterDir = '$outDir/${bookKey}_$chapter-$lang';
   Directory(chapterDir).createSync(recursive: true);
 
+  stdout.writeln('[readout] playback ${slotReadoutLine(voice, lang)}');
+
   final chunksReport = <Object?>[];
   var totalAudioMs = 0;
   var totalWords = 0;
@@ -209,7 +203,7 @@ Map<String, Object?> verifyChapter(
     var sampleRate = 0;
     for (var i = 0; i < sentences.length; i++) {
       final (samples, rate) =
-          synthesizeSlotSentence(engine, sentences[i], voice, lang);
+          renderSlotSentence(engine, sentences[i], voice, lang);
       if (samples.isEmpty) {
         throw StateError('empty synthesis for chunk $start sentence $i');
       }
@@ -349,46 +343,6 @@ List<(String, String)> rosaryDecadeSteps(String lang) {
   ];
 }
 
-/// The app's asset-timeline word schedule (AudioController
-/// ._publishTimelineRange's mapping, inverted to per-word windows): each
-/// sentence's REAL synthesized duration gets a window scaled to the
-/// asset's total duration; words map proportionally within their
-/// sentence's window. Equivalent to computeWordSchedule over the
-/// synthesized durations, uniformly scaled by assetTotal/totalSynth.
-List<WordTiming> assetTimelineWordSchedule(
-    String text, List<Duration> sentenceDurations, int assetTotalMs) {
-  final schedule = computeWordSchedule(text, sentenceDurations);
-  final totalSynth =
-      sentenceDurations.fold<int>(0, (n, d) => n + d.inMilliseconds);
-  if (totalSynth <= 0 || assetTotalMs <= 0) return const [];
-  final factor = assetTotalMs / totalSynth;
-  return [
-    for (final w in schedule)
-      WordTiming(
-        w.charStart,
-        w.charEnd,
-        Duration(milliseconds: (w.start.inMilliseconds * factor).round()),
-        Duration(milliseconds: (w.end.inMilliseconds * factor).round()),
-      ),
-  ];
-}
-
-/// Real duration of a bundled audio file, as the live player would report
-/// it (ffprobe's container duration).
-int _assetDurationMs(String path) {
-  final r = Process.runSync('ffprobe', [
-    '-v', 'error',
-    '-show_entries', 'format=duration',
-    '-of', 'csv=p=0',
-    path,
-  ]);
-  final v = double.tryParse(r.stdout.trim());
-  if (v == null || v <= 0) {
-    throw StateError('ffprobe failed for $path: ${r.stderr}');
-  }
-  return (v * 1000).round();
-}
-
 Map<String, Object?> _rosaryChapterEntry({
   required String label,
   required String lang,
@@ -442,145 +396,84 @@ Map<String, Object?> _rosaryVoiceConfig(KokoroVoice voice, String lang,
       'lexicon': voice.lexiconFor(lang),
     };
 
-/// Verifies ONE rosary decade (the first joyful) in [lang] through BOTH
-/// timing mechanisms the rosary path uses:
-///  - runtime slots: the decade's step texts synthesized with the rosary
-///    slot config — the synthesis-pass schedule the runtime path
-///    highlights with (computeWordSchedule over real mixed durations);
-///  - pre-rendered assets: the bundled .ogg files the decade actually
-///    plays, against the app's asset-timeline schedule (timing-only
-///    synthesis with the STANDARD voices — the voice the files were
-///    generated with — scaled to the asset's real duration).
-/// Returns TWO chapter entries (runtime + asset) for the manifest.
+/// Verifies ONE rosary decade (the first joyful) in [lang] through the
+/// APP'S REAL PLAYBACK PATH: after the runtime-only fix the rosary plays
+/// every step through the rosary slot config ([KokoroVoice.rosary]) with
+/// the schedule derived from the SAME synthesis that produces the audio —
+/// there is no asset path anymore (the pre-rendered files are dormant).
+/// The synthesis runs through the shared [synthesizeSlotSentence] — the
+/// same function the app's engine worker runs — so the tool's synthesis
+/// call is the app's playback path by construction. Returns ONE chapter
+/// entry (runtime) for the manifest.
 List<Map<String, Object?>> verifyRosaryDecade(String lang, String outDir) {
   final engine = _engineFor(lang);
   final slotVoice = KokoroVoice.rosary;
-  final standardVoice = KokoroVoice.standard;
   final steps = rosaryDecadeSteps(lang);
 
-  // The bundled manifest: (lang, step key) → pre-rendered file.
-  final manifestRaw = jsonDecode(
-          File('assets/rosary_audio/rosary_audio_manifest.json')
-              .readAsStringSync())
-      as Map<String, dynamic>;
-  final langMap = manifestRaw[lang] as Map<String, dynamic>? ?? const {};
+  stdout.writeln('[readout] playback ${slotReadoutLine(slotVoice, lang)}');
 
   final runtimeChunks = <Map<String, Object?>>[];
-  final assetChunks = <Map<String, Object?>>[];
   var runtimeAudioMs = 0;
   var runtimeWords = 0;
-  var assetAudioMs = 0;
-  var assetWords = 0;
 
   for (var s = 0; s < steps.length; s++) {
     final (key, text) = steps[s];
     final stepDir = '$outDir/rosary_$lang/$key';
     Directory(stepDir).createSync(recursive: true);
 
-    // ---- Part A: the runtime slot config (synthesis-pass schedule) ----
+    // The runtime slot config (synthesis-pass schedule) — the app's only
+    // rosary path now.
     final (spokenA, _) =
         applyPronunciationLexicon(text, slotVoice.lexiconFor(lang));
     final sentencesA = splitSpeakableSentences(spokenA);
-    if (sentencesA.isNotEmpty) {
-      final allSamples = <Float32List>[];
-      final durations = <Duration>[];
-      var rate = 0;
-      for (var i = 0; i < sentencesA.length; i++) {
-        final (samples, r) =
-            synthesizeSlotSentence(engine, sentencesA[i], slotVoice, lang);
-        rate = r;
-        allSamples.add(samples);
-        durations
-            .add(Duration(milliseconds: (samples.length * 1000 / r).round()));
-        stderr.writeln('  [rosary $key $lang runtime] sentence '
-            '${i + 1}/${sentencesA.length} '
-            '(${durations.last.inMilliseconds}ms)');
-      }
-      final totalLen = allSamples.fold<int>(0, (n, x) => n + x.length);
-      final concat = Float32List(totalLen);
-      var at = 0;
-      for (final x in allSamples) {
-        concat.setAll(at, x);
-        at += x.length;
-      }
-      final wavFile = File('$stepDir/runtime.wav');
-      wavFile.writeAsBytesSync(encodeWav16(concat, rate));
-      final schedule = computeWordSchedule(spokenA, durations);
-      final words = [
-        for (final w in schedule)
-          {
-            'word': spokenA.substring(w.charStart, w.charEnd),
-            'charStart': w.charStart,
-            'charEnd': w.charEnd,
-            'startMs': w.start.inMilliseconds,
-            'endMs': w.end.inMilliseconds,
-          },
-      ];
-      runtimeAudioMs += totalLen * 1000 ~/ rate;
-      runtimeWords += words.length;
-      runtimeChunks.add({
-        'index': s,
-        'firstVerse': s,
-        'lastVerse': s,
-        'originalText': text,
-        'spokenText': spokenA,
-        'wav': wavFile.path,
-        'sampleRate': rate,
-        'sentenceCount': sentencesA.length,
-        'audioMs': totalLen * 1000 ~/ rate,
-        'words': words,
-      });
-    }
-
-    // ---- Part B: the pre-rendered asset vs the asset-timeline schedule ----
-    final entry = langMap[key];
-    final file = entry is Map ? entry['file'] as String? : null;
-    if (file == null || file.isEmpty) continue;
-    final assetPath = 'assets/rosary_audio/$file';
-    if (!File(assetPath).existsSync()) continue;
-    final assetTotalMs = _assetDurationMs(assetPath);
-    // Timing-only synthesis with the STANDARD voices — the voice the
-    // pre-rendered files were generated with (their timeline must match).
-    final (spokenB, _) =
-        applyPronunciationLexicon(text, standardVoice.lexiconFor(lang));
-    final sentencesB = splitSpeakableSentences(spokenB);
-    if (sentencesB.isEmpty) continue;
-    final durationsB = <Duration>[];
-    for (var i = 0; i < sentencesB.length; i++) {
+    if (sentencesA.isEmpty) continue;
+    final allSamples = <Float32List>[];
+    final durations = <Duration>[];
+    var rate = 0;
+    for (var i = 0; i < sentencesA.length; i++) {
       final (samples, r) =
-          synthesizeSlotSentence(engine, sentencesB[i], standardVoice, lang);
-      durationsB
+          renderSlotSentence(engine, sentencesA[i], slotVoice, lang);
+      rate = r;
+      allSamples.add(samples);
+      durations
           .add(Duration(milliseconds: (samples.length * 1000 / r).round()));
-      stderr.writeln('  [rosary $key $lang asset-timeline] sentence '
-          '${i + 1}/${sentencesB.length} '
-          '(${durationsB.last.inMilliseconds}ms)');
+      stderr.writeln('  [rosary $key $lang runtime] sentence '
+          '${i + 1}/${sentencesA.length} '
+          '(${durations.last.inMilliseconds}ms)');
     }
-    final scheduleB =
-        assetTimelineWordSchedule(spokenB, durationsB, assetTotalMs);
-    final wordsB = [
-      for (final w in scheduleB)
+    final totalLen = allSamples.fold<int>(0, (n, x) => n + x.length);
+    final concat = Float32List(totalLen);
+    var at = 0;
+    for (final x in allSamples) {
+      concat.setAll(at, x);
+      at += x.length;
+    }
+    final wavFile = File('$stepDir/runtime.wav');
+    wavFile.writeAsBytesSync(encodeWav16(concat, rate));
+    final schedule = computeWordSchedule(spokenA, durations);
+    final words = [
+      for (final w in schedule)
         {
-          'word': spokenB.substring(w.charStart, w.charEnd),
+          'word': spokenA.substring(w.charStart, w.charEnd),
           'charStart': w.charStart,
           'charEnd': w.charEnd,
           'startMs': w.start.inMilliseconds,
           'endMs': w.end.inMilliseconds,
         },
     ];
-    assetAudioMs += assetTotalMs;
-    assetWords += wordsB.length;
-    assetChunks.add({
+    runtimeAudioMs += totalLen * 1000 ~/ rate;
+    runtimeWords += words.length;
+    runtimeChunks.add({
       'index': s,
       'firstVerse': s,
       'lastVerse': s,
       'originalText': text,
-      'spokenText': spokenB,
-      'wav': assetPath,
-      'sampleRate': 0,
-      'sentenceCount': sentencesB.length,
-      'audioMs': assetTotalMs,
-      'assetTotalMs': assetTotalMs,
-      'words': wordsB,
+      'spokenText': spokenA,
+      'wav': wavFile.path,
+      'sampleRate': rate,
+      'sentenceCount': sentencesA.length,
+      'audioMs': totalLen * 1000 ~/ rate,
+      'words': words,
     });
   }
 
@@ -592,16 +485,6 @@ List<Map<String, Object?>> verifyRosaryDecade(String lang, String outDir) {
       chunks: runtimeChunks,
       totalAudioMs: runtimeAudioMs,
       totalWords: runtimeWords,
-    ),
-    _rosaryChapterEntry(
-      label: 'Rosary-joyful1-asset',
-      lang: lang,
-      voiceConfig: _rosaryVoiceConfig(standardVoice, lang,
-          slot: 'rosary-asset-timeline (standard voices — the generating '
-              'voice of the pre-rendered files)'),
-      chunks: assetChunks,
-      totalAudioMs: assetAudioMs,
-      totalWords: assetWords,
     ),
   ];
 }

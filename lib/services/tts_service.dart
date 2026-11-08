@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -51,6 +52,24 @@ class TtsService {
     audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
   );
   static bool _ready = false;
+
+  /// Sink for the audio readout lines — the playback-start slot config, the
+  /// engine outcome, the equalizer application, and every fallback. The
+  /// owner's demand: every playback prints what is about to be heard, so a
+  /// wrong voice is diagnosable from the build itself. Tests capture
+  /// through the sink; production prints via debugPrint.
+  static void Function(String line)? readoutSink;
+
+  /// Emits one readout line (prefixed so the lines are greppable).
+  static void _emitReadout(String line) {
+    final full = '[Fidelis audio] $line';
+    final sink = readoutSink;
+    if (sink != null) {
+      sink(full);
+    } else {
+      debugPrint(full);
+    }
+  }
 
   /// Incremented by every new playback request and by stop(); an in-flight
   /// Kokoro pipeline aborts as soon as its epoch no longer matches.
@@ -208,9 +227,30 @@ class TtsService {
   }
 
   /// Applies the active slot's equalizer shaping to the shared player
-  /// (see [applyEqualizerGains]).
+  /// (see [applyEqualizerGains]). The gains are also REMEMBERED in
+  /// [_pendingSlotEq]: just_audio's equalizer parameters resolve only on the
+  /// player's first platform activation (the first source load), so a
+  /// shaping applied before any load times out unseen — [_playSource]
+  /// re-applies the remembered shaping after each load, which is what
+  /// actually reaches the platform.
+  static Map<int, double>? _pendingSlotEq;
+
   static Future<void> applySlotEqualizer(Map<int, double>? gains) {
+    _pendingSlotEq = gains;
     return applyEqualizerGains(_equalizer, gains);
+  }
+
+  /// Applies the pending slot shaping after a source load activated the
+  /// player's platform. No-op for flat slots (null/empty shaping).
+  static Future<void> _applyPendingSlotEqualizer() async {
+    final gains = _pendingSlotEq;
+    if (gains == null || gains.isEmpty) return;
+    final applied = await applyEqualizerGains(_equalizer, gains);
+    _emitReadout(applied
+        ? 'eq applied: enabled=true '
+            'bands{${gains.entries.map((e) => '${e.key}:${e.value.toStringAsFixed(1)}dB').join(',')}}'
+        : 'eq UNAVAILABLE: the platform parameters never resolved '
+            '(shaping skipped)');
   }
 
   /// Returns the first available male voice for [language], or null to
@@ -265,18 +305,30 @@ class TtsService {
     if (text.isEmpty) return;
     final myEpoch = ++_epoch;
     _finishPlayDone();
+    final activeVoice = voice ?? KokoroVoice.standard;
     final kokoroLang = (lang == 'en' || lang == 'es') ? lang : null;
+    // The playback-start readout: the ACTIVE slot config — the sids, speed,
+    // and EQ state about to be heard (the owner's demand).
+    if (kokoroLang != null) {
+      _emitReadout('playback ${tts_text.slotReadoutLine(activeVoice, kokoroLang)}');
+    } else {
+      _emitReadout('playback slot=latin lang=${lang ?? 'la'} '
+          'voice=system(flutter_tts) speed=0.42 eq=flat');
+    }
     if (kokoroLang != null) {
       if (await _speakWithKokoro(
         text,
         kokoroLang,
         myEpoch,
-        voice ?? KokoroVoice.standard,
+        activeVoice,
         onSentenceStart,
         onSentenceTiming,
       )) {
+        _emitReadout('engine=kokoro (the slot config above executed)');
         return;
       }
+      _emitReadout('FALLBACK engine=flutter_tts (system voice) '
+          'reason=kokoro unavailable for $kokoroLang');
     }
     onSentenceStart?.call(0);
     await _speakWithFlutterTts(
@@ -370,7 +422,12 @@ class TtsService {
         if (myEpoch != _epoch) return true; // stop() while generating
         if (audio == null || audio.samples.isEmpty) {
           // Kokoro failed mid-pipeline: hand the remainder to flutter_tts so
-          // the audio continues without a content gap.
+          // the audio continues without a content gap. Logged loudly: a
+          // fallback speaks in the SYSTEM voice — the owner must be able to
+          // tell that the slot config did not serve this audio.
+          _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
+              'voice) reason=sentence ${i + 1}/${sentences.length} '
+              'synthesis failed');
           final rest = sentences.skip(i).join(' ');
           if (rest.isNotEmpty) {
             onSentenceStart?.call(i);
@@ -500,6 +557,12 @@ class TtsService {
       _finishPlayDone();
       return;
     }
+    // The platform is active now (the load activated it): the slot shaping
+    // actually applies HERE. A pre-load application times out unseen on a
+    // cold player — just_audio's equalizer parameters resolve only on this
+    // first activation, so the pre-load call could never reach the
+    // platform.
+    await _applyPendingSlotEqualizer();
     await _player.play();
     late final StreamSubscription<PlayerState> sub;
     sub = _player.playerStateStream.listen((s) {
@@ -576,25 +639,30 @@ class TtsService {
 /// clears any earlier shaping. The band gains apply once the equalizer's
 /// parameters resolve (the player's first platform activation); the bounded
 /// wait keeps platforms without the effect from hanging the caller.
-/// Best-effort: never throws — audio must never break. Public so the wiring
-/// is testable against a scripted platform.
-Future<void> applyEqualizerGains(
+/// Best-effort: never throws — audio must never break. Returns true when
+/// the shaping reached the platform (the clear always does; the gains only
+/// when the parameters resolved in time). Public so the wiring is testable
+/// against a scripted platform.
+Future<bool> applyEqualizerGains(
   AndroidEqualizer equalizer,
   Map<int, double>? gains, {
   Duration parametersTimeout = const Duration(seconds: 3),
 }) async {
   try {
     await equalizer.setEnabled(gains != null && gains.isNotEmpty);
-    if (gains == null || gains.isEmpty) return;
+    if (gains == null || gains.isEmpty) return true;
     final params = await equalizer.parameters
         .then<AndroidEqualizerParameters?>((p) => p)
         .timeout(parametersTimeout, onTimeout: () => null);
-    if (params == null) return;
+    if (params == null) return false;
     for (final entry in gains.entries) {
       final i = entry.key;
       if (i >= 0 && i < params.bands.length) {
         await params.bands[i].setGain(entry.value);
       }
     }
-  } catch (_) {}
+    return true;
+  } catch (_) {
+    return false;
+  }
 }

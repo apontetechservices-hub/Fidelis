@@ -11,11 +11,25 @@ import 'tts_text.dart';
 
 export 'tts_text.dart' show KokoroVoice;
 
-/// One synthesized sentence: raw PCM samples + sample rate.
+/// One synthesized sentence: raw PCM samples + sample rate, plus the
+/// slot-blend execution record (the owner's proof that the directed blend
+/// actually rendered: blended=true and the mixed length is the LONGER of
+/// the two renders).
 class KokoroAudio {
   final Float32List samples;
   final int sampleRate;
-  const KokoroAudio(this.samples, this.sampleRate);
+
+  /// True when the slot's blend partner rendered and the PCM mix executed.
+  final bool blended;
+
+  /// The primary render's sample count (the solo extent).
+  final int primarySamples;
+
+  /// The blend partner render's sample count; null without a blend.
+  final int? partnerSamples;
+
+  const KokoroAudio(this.samples, this.sampleRate,
+      {this.blended = false, this.primarySamples = 0, this.partnerSamples});
 }
 
 /// On-device Kokoro TTS engine (sherpa-onnx 1.13.8, Kokoro v1.0 INT8).
@@ -102,12 +116,14 @@ class KokoroEngine {
     }
   }
 
-  /// Synthesizes [text] with [voice]'s sid/speed for [lang]; when the
-  /// slot carries a blend partner for [lang], the text is rendered by BOTH
-  /// sids under the same engine phonemization and the renders are PCM-mixed
-  /// at the slot's ratio (the mixed length is the schedule's timing
-  /// source). Returns null on failure (caller falls back to flutter_tts —
-  /// audio must never break).
+  /// Synthesizes [text] with [voice]'s slot config for [lang]: the slot's
+  /// sid/speed, and when the slot carries a blend partner for [lang], the
+  /// text is rendered by BOTH sids under the same engine phonemization and
+  /// the renders are PCM-mixed at the slot's ratio (the mixed length is the
+  /// schedule's timing source). The render itself runs in the worker
+  /// through the shared [synthesizeSlotSentence] — the one slot-synthesis
+  /// path the word-timing verifier also drives. Returns null on failure
+  /// (caller falls back to flutter_tts — audio must never break).
   static Future<KokoroAudio?> synthesize(
     String text,
     String lang, {
@@ -117,16 +133,20 @@ class KokoroEngine {
     if (!await ensureReady(lang)) return null;
     final ack = await _request('gen', {
       'text': text,
-      'sid': voice.sidFor(lang),
-      'speed': voice.speed,
-      'blendSid': voice.blendSidFor(lang),
-      'blendRatio': voice.blendRatio,
+      'lang': lang,
+      'voice': voice,
     }, timeout: const Duration(minutes: 3));
     if (ack == null || ack['ok'] != true) return null;
     final samples = ack['samples'];
     final rate = ack['rate'];
     if (samples is! Float32List || rate is! int) return null;
-    return KokoroAudio(samples, rate);
+    return KokoroAudio(
+      samples,
+      rate,
+      blended: ack['blended'] == true,
+      primarySamples: (ack['primarySamples'] as int?) ?? 0,
+      partnerSamples: ack['partnerSamples'] as int?,
+    );
   }
 
   /// Releases the worker isolate and native engine (e.g. on hard failure).
@@ -357,37 +377,31 @@ void _workerMain(_WorkerSetup setup) {
       case 'gen':
         try {
           final text = m['text'] as String;
-          final sid = m['sid'] as int;
-          final speed = (m['speed'] as num).toDouble();
-          final blendSid = m['blendSid'] as int?;
-          final blendRatio = (m['blendRatio'] as num?)?.toDouble() ?? 1.0;
-          final audio = tts!.generate(text: text, sid: sid, speed: speed);
-          var samples = audio.samples;
-          // Synthesis-level voice blend: render the same text with the
-          // partner sid under the same engine phonemization, then PCM-mix
-          // at the slot's ratio. The mixed buffer's length (the longer
-          // render) is the audio the schedule times against.
-          if (blendSid != null &&
-              blendSid != sid &&
-              blendRatio > 0.0 &&
-              blendRatio < 1.0) {
-            final partner =
-                tts!.generate(text: text, sid: blendSid, speed: speed);
-            if (partner.samples.isNotEmpty &&
-                partner.sampleRate == audio.sampleRate) {
-              samples = mixKokoroBlend(
-                Float32List.fromList(audio.samples),
-                Float32List.fromList(partner.samples),
-                blendRatio,
-              );
-            }
-          }
+          final voice = m['voice'] as KokoroVoice;
+          final lang = m['lang'] as String;
+          // The ONE slot-synthesis path (tts_text.dart): the primary render
+          // plus the blend partner render PCM-mixed at the slot's ratio.
+          // The word-timing verifier drives this same function; the blend
+          // record is the owner's proof that the directed blend rendered.
+          final (samples, rate, blended, primarySamples, partnerSamples) =
+              synthesizeSlotSentenceDetailed(
+            (t, sid, speed) {
+              final audio = tts!.generate(text: t, sid: sid, speed: speed);
+              return (audio.samples, audio.sampleRate);
+            },
+            text,
+            voice,
+            lang,
+          );
           setup.toMain.send({
             'type': 'ack',
             'id': id,
             'ok': true,
             'samples': samples,
-            'rate': audio.sampleRate,
+            'rate': rate,
+            'blended': blended,
+            'primarySamples': primarySamples,
+            'partnerSamples': partnerSamples,
           });
         } catch (e) {
           setup.toMain.send({

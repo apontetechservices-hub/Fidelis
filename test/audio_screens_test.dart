@@ -904,9 +904,12 @@ void main() {
     testWidgets('the recited line highlights and the word advances within '
         'it while the step audio plays', (tester) async {
       await warmRosaryManifest(tester);
-      // Pre-rendered-file-like engine: a 12s asset with a live position.
+      // Runtime-synthesis engine: the step's sentence timing arrives through
+      // onSentenceTiming (the SAME synthesis that produces the audio — the
+      // runtime path's one timing source), with a live position.
+      final text = RosaryPrayers.get('sign_of_the_cross', 'en');
       final engine = TimingFakeEngine(
-        sentenceTimings: [],
+        sentenceTimings: [(0, text.length, const Duration(seconds: 12))],
         position: const Duration(seconds: 6),
         duration: const Duration(seconds: 12),
       );
@@ -936,22 +939,30 @@ void main() {
       expect(countWordTintSpans(tester), 0);
     });
 
-    testWidgets('asset highlight tracks per-sentence REAL timing — no '
+    testWidgets('runtime highlight tracks per-sentence REAL timing — no '
         'accumulated drift (the last words stay in sync)', (tester) async {
       await warmRosaryManifest(tester);
       // Per-sentence durations INVERTED relative to character lengths: the
       // invocation is long text but short audio, 'Amen.' is short text but
-      // long audio. A whole-text proportional estimate (the old model)
-      // drifts badly; the per-sentence timeline must track the real audio
-      // and reset at every sentence boundary.
+      // long audio. The runtime path's schedule comes from the SAME
+      // synthesis that produces the audio (onSentenceTiming's per-sentence
+      // durations) — the highlight maps within the CURRENT sentence and
+      // resets at every sentence boundary, so drift cannot accumulate.
+      final text = RosaryPrayers.get('sign_of_the_cross', 'en');
+      final ranges = TtsService.sentenceRanges(text);
+      expect(ranges.length, 2);
+      // The per-sentence timings the SAME synthesis reports (inverted
+      // relative to character lengths), fired on demand as each sentence
+      // starts playing.
       final engine = TimingFakeEngine(
-        sentenceTimings: [],
+        sentenceTimings: [
+          (ranges[0].$1, ranges[0].$2, const Duration(seconds: 1)),
+          (ranges[1].$1, ranges[1].$2, const Duration(seconds: 9)),
+        ],
         position: Duration.zero,
         duration: const Duration(seconds: 10),
-      )..durationsToReport = [
-          const Duration(seconds: 1),
-          const Duration(seconds: 9),
-        ];
+        autoFireTimings: false,
+      );
       AudioController.instance.engineForTest = engine;
       await tester.pumpWidget(const MaterialApp(
         home: RosaryPrayerScreen(mysteryType: 'joyful'),
@@ -961,26 +972,27 @@ void main() {
       await tester.tap(find.byIcon(Icons.play_arrow));
       await tester.pump();
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 250));
-      await tester.pump();
 
-      final text = RosaryPrayers.get('sign_of_the_cross', 'en');
-      final ranges = TtsService.sentenceRanges(text);
-      expect(ranges.length, 2);
-
-      // 0.5s of the 10s asset: inside sentence 1's window ([0, 1s)).
+      // Sentence 1 starts playing: its timing (1s) arrives from the same
+      // synthesis pass. 0.5s into it: inside sentence 1's window.
       engine.position = const Duration(milliseconds: 500);
+      engine.emitTiming(0);
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pump();
       expect(speakingLineText(tester),
           text.substring(ranges[0].$1, ranges[0].$2),
-          reason: 'the highlight tracks the per-sentence timeline, not a '
-              'whole-text proportional estimate');
+          reason: 'the highlight tracks the per-sentence timing from the '
+              'same synthesis that produces the audio, not a whole-text '
+              'proportional estimate');
 
-      // 5s: the old whole-text model would put the offset at 50% of the
-      // text (still inside the long invocation); the per-sentence timeline
-      // puts it inside 'Amen.' (sentence 2's window is [1s, 10s)).
+      // Sentence 2 starts playing (the player position resets with the new
+      // sentence WAV — the fake's scripted position stands in for the
+      // position within the current sentence). 5s of sentence 2's 9s: the
+      // old whole-text model would put the offset at 50% of the text
+      // (still inside the long invocation); the per-sentence timing puts
+      // it inside 'Amen.' (sentence 2's window).
       engine.position = const Duration(seconds: 5);
+      engine.emitTiming(1);
       await tester.pump(const Duration(milliseconds: 250));
       await tester.pump();
       expect(speakingLineText(tester),

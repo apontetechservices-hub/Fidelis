@@ -12,7 +12,6 @@ import '../../services/audio_controller.dart';
 import '../../services/kokoro_engine.dart';
 import '../../services/tts_service.dart';
 import 'litany_of_loreto.dart';
-import 'rosary_audio_files.dart';
 import 'rosary_state.dart';
 
 class RosaryPrayerScreen extends StatefulWidget {
@@ -393,51 +392,30 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     );
   }
 
-  /// Plays the current step through the central controller: the pre-rendered
-  /// file for (step, language) when one exists, otherwise runtime TTS with
-  /// the step's text — never silence.
+  /// Plays the current step through the central controller via RUNTIME
+  /// SYNTHESIS ONLY: the rosary's directed slot ([KokoroVoice.rosary] — EN
+  /// af_aoede; ES af_aoede blended 70/30 with ef_dora under Spanish
+  /// phonemization, speed 0.9, the rosary-scoped bless-ed correction), with
+  /// the highlight schedule derived from the SAME synthesis that produces
+  /// the audio (the Kokoro pipeline's per-sentence timing — ONE source).
   ///
-  /// Dead-variant steps personalized with the deceased's name fall back to
-  /// runtime TTS: the generic pre-rendered files use plural wording ("grant
-  /// unto them"), so the name substitution only exists in the runtime text.
+  /// The pre-rendered assets under assets/rosary_audio/ are NO LONGER in
+  /// the playback path: they were rendered with the standard voices
+  /// (bm_george / em_alex) — the wrong voices for the directed grid — and
+  /// their bundled timing predates the current texts, so their timeline
+  /// drifted from the audio they played. The files stay dormant on disk,
+  /// unused.
   ///
   /// Starting playback turns listening mode ON (the governing rule): it
   /// persists across the step's natural completion until an explicit pause
-  /// or leaving the screen. Asset chunks also carry the displayed text so
-  /// the controller can build the per-sentence highlight timeline; steps
-  /// whose content is not a single recited text (litany, mystery
-  /// announcements) pass none — their highlight UX is border/manual.
+  /// or leaving the screen.
   Future<void> _startCurrentStepAudio() async {
-    final stepIndex = _currentStep;
-    final step = _steps[stepIndex];
-    final personalized = (widget.deceasedName?.isNotEmpty ?? false) &&
-        (step.type == RosaryStepType.deProfundis ||
-            step.type == RosaryStepType.eternalRest ||
-            step.type == RosaryStepType.deadRosaryClosing);
-    final key = personalized
-        ? null
-        : RosaryAudioFiles.keyForStep(step, mysteryType: widget.mysteryType);
-    final asset =
-        key == null ? null : await RosaryAudioFiles.assetFor(key, _language);
-    // The user may have moved to another step while the asset resolved.
-    if (!mounted || _currentStep != stepIndex) return;
+    final step = _steps[_currentStep];
     _listening = true;
-    final spoken = _fallbackSpeechText(step);
-    final displayed = _currentPrayerText();
-    final chunk = asset != null
-        ? AudioChunk(
-            asset: asset,
-            text: displayed.isEmpty ? null : displayed,
-            lang: _language)
-        : AudioChunk(
-            text: spoken,
-            lang: _language,
-            // The rosary's runtime slot: EN af_aoede / ES af_aoede blended
-            // 70/30 with ef_dora (Spanish phonemization for both), speed
-            // 0.9. Pre-rendered assets keep their own audio + the standard
-            // voices' timing synthesis, which matches how they were
-            // generated.
-            voice: KokoroVoice.rosary);
+    final chunk = AudioChunk(
+        text: _fallbackSpeechText(step),
+        lang: _language,
+        voice: KokoroVoice.rosary);
     _speakingLine = null;
     _speakingWord = null;
     await AudioController.instance.start(

@@ -170,6 +170,93 @@ const Map<String, Map<String, String>> kokoroVoiceLexicon = {
   'ef_dora': {},
 };
 
+/// A Kokoro engine render callback: synthesizes [text] with [sid] at
+/// [speed], returning the raw samples and the engine's sample rate.
+typedef KokoroGenerate = (Float32List, int) Function(
+    String text, int sid, double speed);
+
+/// The app's ONE slot-synthesis path: renders [text] for [voice]'s slot in
+/// [lang] through [generate] — the primary sid at the slot's speed, plus the
+/// blend partner render PCM-mixed at the slot's ratio when the slot carries
+/// a partner for [lang]. Both renders run under the SAME engine
+/// phonemization; the mixed length (the longer render) is the schedule's
+/// timing source. The engine worker (kokoro_engine.dart) and the
+/// word-timing verifier (tool/word_timing_verify.dart) BOTH synthesize
+/// through this function — the tool's synthesis call is the app's playback
+/// path by construction, not a replica.
+(Float32List, int) synthesizeSlotSentence(
+    KokoroGenerate generate, String text, KokoroVoice voice, String lang) {
+  final (samples, rate, _, _, _) =
+      synthesizeSlotSentenceDetailed(generate, text, voice, lang);
+  return (samples, rate);
+}
+
+/// The full slot-synthesis record: the mixed samples, the rate, and the
+/// blend execution — whether the partner rendered and the PCM mix executed
+/// (the owner's proof that the directed blend actually rendered), plus the
+/// two renders' sample counts (the mixed length is the LONGER render).
+typedef SlotRender = (
+  Float32List samples,
+  int rate,
+  bool blended,
+  int primarySamples,
+  int? partnerSamples,
+);
+
+SlotRender synthesizeSlotSentenceDetailed(
+    KokoroGenerate generate, String text, KokoroVoice voice, String lang) {
+  final sid = voice.sidFor(lang);
+  final (primary, rate) = generate(text, sid, voice.speed);
+  var samples = primary;
+  var blended = false;
+  int? partnerSamples;
+  final blendSid = voice.blendSidFor(lang);
+  if (blendSid != null &&
+      blendSid != sid &&
+      voice.blendRatio > 0.0 &&
+      voice.blendRatio < 1.0) {
+    final (partner, partnerRate) = generate(text, blendSid, voice.speed);
+    partnerSamples = partner.length;
+    // A failed/empty partner render never quiets the slot: the primary
+    // keeps full solo volume instead of mixing with silence.
+    if (partner.isNotEmpty && partnerRate == rate) {
+      samples = mixKokoroBlend(primary, partner, voice.blendRatio);
+      blended = true;
+    }
+  }
+  return (samples, rate, blended, primary.length, partnerSamples);
+}
+
+/// The slot label for the readout line: the grid's named slots, or
+/// 'custom' for ad-hoc profiles.
+String slotNameFor(KokoroVoice voice) {
+  if (identical(voice, KokoroVoice.bible)) return 'bible';
+  if (identical(voice, KokoroVoice.rosary)) return 'rosary';
+  if (identical(voice, KokoroVoice.standard)) return 'standard';
+  return 'custom';
+}
+
+/// The playback-start readout line for [voice]'s slot in [lang]: the active
+/// sid(s), speed, and equalizer state — the owner's demand that every
+/// playback print what is about to be heard. The app's TtsService logs this
+/// at playback start and the word-timing verifier prints the same line for
+/// every verified slot (one format, one source).
+String slotReadoutLine(KokoroVoice voice, String lang) {
+  final sid = voice.sidFor(lang);
+  final blendSid = voice.blendSidFor(lang);
+  final voiceDesc = blendSid == null
+      ? '${voice.nameFor(lang)}($sid)'
+      : '${voice.nameFor(lang)}($sid)+${voice.blendNameFor(lang)}'
+          '($blendSid) blend=${voice.blendRatio.toStringAsFixed(2)}';
+  final eq = voice.equalizerFor(lang);
+  final eqDesc = (eq == null || eq.isEmpty)
+      ? 'flat'
+      : 'bands{${eq.entries.map((e) => '${e.key}:${e.value.toStringAsFixed(1)}dB').join(',')}}';
+  return 'slot=${slotNameFor(voice)} lang=$lang voice=$voiceDesc '
+      'speed=${voice.speed.toStringAsFixed(2)} eq=$eqDesc '
+      'lexicon=${voice.lexiconFor(lang).length}';
+}
+
 /// PCM-mixes two renders of the SAME text at [primaryRatio] — the primary
 /// voice's share (the partner gets 1 - primaryRatio) — for the synthesis-
 /// level voice blend. Each voice contributes over its own extent: a

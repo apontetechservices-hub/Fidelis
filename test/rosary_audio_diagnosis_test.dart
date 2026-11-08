@@ -45,6 +45,10 @@ import 'package:fidelis/services/tts_service.dart';
 class BundledAudioEngine implements AudioEngine {
   final List<String> log = [];
   final List<String?> speakLangs = [];
+
+  /// Voice profile passed to each speakText call, in order — the
+  /// runtime-only spec asserts every step recites through the rosary slot.
+  final List<KokoroVoice?> speakVoices = [];
   Completer<void>? _pendingPlay;
 
   @override
@@ -59,7 +63,16 @@ class BundledAudioEngine implements AudioEngine {
   }) async {
     log.add('speak[$lang]:${text.length}ch:${text.substring(0, text.length > 40 ? 40 : text.length)}');
     speakLangs.add(lang);
+    speakVoices.add(voice);
+    // The Kokoro pipeline's per-sentence timing: the schedule derives from
+    // the SAME synthesis that produces the audio (one timing source).
     onSentenceStart?.call(0);
+    onSentenceTiming?.call(0, text.length, const Duration(seconds: 5));
+    // In-flight playback: the chunk await stays pending until stop() lands
+    // (the next step's start() or the teardown), mirroring the real player
+    // so the state stays 'playing' and the word tick runs.
+    _pendingPlay = Completer<void>();
+    await _pendingPlay!.future;
   }
 
   @override
@@ -193,28 +206,23 @@ void main() {
     print('DIAG P2-B totals: assetAttempts=$assetAttempts '
         'speakAttempts=$speakAttempts of ${steps.length} steps');
 
-    // THE FIXED STATE: every keyed step attempts its bundled asset and the
-    // runtime path is never reached — the rosary plays its pre-rendered
-    // audio end to end.
-    expect(assetAttempts, steps.length,
-        reason: 'every keyed step resolves a manifest path and plays the '
-            'bundled asset');
-    expect(speakAttempts, 0,
-        reason: 'asset chunks play; the runtime-TTS fallback never fires');
-
-    // And every attempted asset actually ships: load each distinct path
-    // from the bundle (real asset-channel I/O under runAsync).
-    final attempted = engine.log
-        .where((e) => e.startsWith('asset:'))
-        .map((e) => e.substring('asset:'.length))
-        .toSet();
-    expect(attempted, isNotEmpty);
-    await tester.runAsync(() async {
-      for (final asset in attempted) {
-        final bytes = await rootBundle.load(asset);
-        expect(bytes.lengthInBytes, greaterThan(0), reason: '$asset ships');
-      }
-    });
+    // THE RUNTIME-ONLY SPEC: every keyed step recites through the RUNTIME
+    // path with the rosary slot (KokoroVoice.rosary — the directed voices,
+    // the schedule from the same synthesis) and NO pre-rendered asset ever
+    // plays. The bundled files stay dormant on disk, unused: they were
+    // rendered with the standard voices (the wrong voices for the directed
+    // grid) and their bundled timing predates the current texts.
+    expect(speakAttempts, steps.length,
+        reason: 'every keyed step recites through runtime synthesis');
+    expect(assetAttempts, 0,
+        reason: 'the pre-rendered assets are OUT of the rosary playback '
+            'path — no asset fallback');
+    expect(engine.speakVoices.length, steps.length);
+    for (final v in engine.speakVoices) {
+      expect(identical(v, KokoroVoice.rosary), isTrue,
+          reason: 'every step recites through the rosary slot '
+              '(KokoroVoice.rosary), not the standard profile');
+    }
   });
 
   testWidgets(
@@ -277,8 +285,9 @@ void main() {
   });
 
   testWidgets(
-      'DIAG P1-A → fixed: a playing asset chunk publishes word ranges — '
-      'the timeline resolves from Kokoro durations', (tester) async {
+      'DIAG P1-A → runtime: a playing step publishes word ranges — the '
+      'schedule derives from the same synthesis that produces the audio',
+      (tester) async {
     await tester.runAsync(() => RosaryAudioFiles.ensureLoaded());
     final engine = BundledAudioEngine();
     AudioController.instance.engineForTest = engine;
@@ -294,15 +303,14 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pump(const Duration(milliseconds: 250));
 
-    // THE FIXED STATE: the asset plays in-flight (the chunk await stays
-    // pending), the timeline resolved from Kokoro's per-sentence durations
-    // (espeak-ng-data ships), and the 200ms word tick publishes ranges —
-    // the highlight tracks the audio.
+    // THE RUNTIME STATE: the step plays through runtime synthesis (the
+    // rosary slot), the engine's per-sentence timing drives the word tick,
+    // and the highlight publishes ranges — one timing source, the same
+    // synthesis that produces the audio.
     // ignore: avoid_print
-    print('DIAG P1-A wordRange after playing asset step: '
+    print('DIAG P1-A wordRange after playing runtime step: '
         '${AudioController.instance.wordRangeListenable.value}');
     expect(AudioController.instance.wordRangeListenable.value, isNotNull,
-        reason: 'with the asset playing and the timeline resolved from '
-            'Kokoro durations, the word tick publishes ranges');
-  });
-}
+        reason: 'with the step playing through runtime synthesis and the '
+            'sentence timing reported, the word tick publishes ranges');
+  });}

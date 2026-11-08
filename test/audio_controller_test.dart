@@ -553,9 +553,22 @@ class TimingFakeEngine implements AudioEngine {
   /// Counts sentenceDurations calls (the timeline cache test).
   int durationsCalls = 0;
 
+  /// When true (the default), speakText fires every [sentenceTimings]
+  /// entry immediately — the one-sentence-per-chunk shape. When false, the
+  /// timings fire only through [emitTiming], so a test can walk the
+  /// Kokoro pipeline's sentence sequence (each sentence's timing arrives
+  /// when that sentence starts playing).
+  final bool autoFireTimings;
+
   Completer<void>? _gate;
   bool _paused = false;
-  TimingFakeEngine({required this.sentenceTimings, this.position = Duration.zero, this.duration});
+  void Function(int sentenceIndex)? _onSentenceStart;
+  void Function(int, int, Duration?)? _onSentenceTiming;
+  TimingFakeEngine(
+      {required this.sentenceTimings,
+      this.position = Duration.zero,
+      this.duration,
+      this.autoFireTimings = true});
 
   @override
   Future<void> speakText(
@@ -568,12 +581,26 @@ class TimingFakeEngine implements AudioEngine {
     void Function(int charStart, int charEnd)? onWordRange,
   }) async {
     log.add('speak:$text');
-    for (final timing in sentenceTimings) {
-      onSentenceStart?.call(0);
-      onSentenceTiming?.call(timing.$1, timing.$2, timing.$3);
+    _onSentenceStart = onSentenceStart;
+    _onSentenceTiming = onSentenceTiming;
+    if (autoFireTimings) {
+      for (final timing in sentenceTimings) {
+        onSentenceStart?.call(0);
+        onSentenceTiming?.call(timing.$1, timing.$2, timing.$3);
+      }
     }
     _gate = Completer<void>();
     await _gate!.future;
+  }
+
+  /// Fires sentence timing [i] on demand (the Kokoro pipeline reports each
+  /// sentence's timing when that sentence starts playing). No-op past the
+  /// scripted list or when no speak is in flight.
+  void emitTiming(int i) {
+    if (i >= sentenceTimings.length) return;
+    final timing = sentenceTimings[i];
+    _onSentenceStart?.call(i);
+    _onSentenceTiming?.call(timing.$1, timing.$2, timing.$3);
   }
 
   @override
