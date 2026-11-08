@@ -101,10 +101,11 @@ void main() {
   });
 
   group('chapter counts match the verse text', () {
-    // English (Douay-Rheims) only: the Spanish Torres Amat text divides
-    // some books into more chapters than books.json declares — a pre-
-    // existing translation quirk outside this fix's scope. The English
-    // counts are exact, and they are what drives the boundary conditions.
+    // English (Douay-Rheims): books.json's `chapters` counts are exact for
+    // the English text, and they are what the English boundary conditions
+    // use. The Spanish Torres Amat text divides 19 books into more
+    // chapters — it has its own per-language count (`chapters_es`) and its
+    // own boundary tests in test/bible_spanish_boundaries_test.dart.
     test('every book declares the chapters its English verse text has',
         () async {
       final books = await BibleService.books();

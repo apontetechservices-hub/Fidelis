@@ -167,7 +167,7 @@ class _BibleHomeScreenState extends State<BibleHomeScreen> {
               ),
               Text(
                 AppStrings.t('chapters_count')
-                    .replaceAll('{{n}}', '${book.chapters}'),
+                    .replaceAll('{{n}}', '${book.chaptersInTextLang}'),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),

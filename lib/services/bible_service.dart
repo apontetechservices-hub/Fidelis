@@ -5,13 +5,28 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../config/app_strings.dart';
 
-/// One book of the Douay-Rheims Bible.
+/// One book of the Bible. Chapter counts are PER-LANGUAGE: the English
+/// Douay-Rheims text and the Spanish Torres Amat text divide 19 books into
+/// different numbers of chapters, so every consumer — navigation (Next/
+/// Previous end-of-book detection), the chapter picker, last-position
+/// restore, and the count labels — reads [chaptersFor] / [chaptersInTextLang]
+/// instead of the English [chapters] directly.
 class BibleBook {
   final String key;
   final String name;
   final String testament; // 'OT' | 'NT'
   final int order;
+
+  /// Chapters of the ENGLISH text (Douay-Rheims, dr_bible.json) — books.json's
+  /// `chapters`. Also the fallback when a hand-constructed book (tests) has no
+  /// Spanish count.
   final int chapters;
+
+  /// Chapters of the SPANISH text (Torres Amat, sp_bible.json) — books.json's
+  /// `chapters_es`, derived by counting the chapters present in the bundled
+  /// Spanish text (tool/gen_spanish_chapter_counts.py; guarded by
+  /// test/bible_spanish_boundaries_test.dart). Never hand-typed.
+  final int? chaptersEs;
 
   const BibleBook({
     required this.key,
@@ -19,7 +34,17 @@ class BibleBook {
     required this.testament,
     required this.order,
     required this.chapters,
+    this.chaptersEs,
   });
+
+  /// Chapter count of this book's text in [lang] ('en' | 'es') — the count of
+  /// chapters the displayed text actually has.
+  int chaptersFor(String lang) =>
+      lang == 'es' ? (chaptersEs ?? chapters) : chapters;
+
+  /// Chapter count in the language the app currently displays
+  /// ([BibleService.textLang]).
+  int get chaptersInTextLang => chaptersFor(BibleService.textLang);
 }
 
 /// One verse of a chapter.
@@ -70,6 +95,7 @@ class BibleService {
               testament: b['testament'] as String,
               order: b['order'] as int,
               chapters: b['chapters'] as int,
+              chaptersEs: b['chapters_es'] as int?,
             ))
         .toList()
       ..sort((a, b) {
@@ -90,11 +116,17 @@ class BibleService {
   }
 
   /// Next chapter in reading order: the following chapter of [book], or —
-  /// past the book's last chapter — chapter 1 of the NEXT book in canonical
-  /// order (index-based on the ordered [books] list). Past the last chapter
-  /// of Apocalypse (the final book) this returns null: Next is a no-op.
+  /// past the book's last chapter IN THE CURRENTLY DISPLAYED LANGUAGE —
+  /// chapter 1 of the NEXT book in canonical order (index-based on the
+  /// ordered [books] list). The Spanish Torres Amat text divides 19 books
+  /// into more chapters than the English counts declare, so the end-of-book
+  /// check must use the current language's count ([BibleBook
+  /// .chaptersInTextLang]) — otherwise Spanish Next hands off to the next
+  /// book early and the text's remaining chapters are never reached. Past
+  /// the last chapter of Apocalypse (the final book) this returns null:
+  /// Next is a no-op.
   static Future<(BibleBook, int)?> nextChapter(BibleBook book, int chapter) async {
-    if (chapter < book.chapters) return (book, chapter + 1);
+    if (chapter < book.chaptersInTextLang) return (book, chapter + 1);
     final all = await books();
     final index = all.indexWhere((b) => b.key == book.key);
     if (index < 0 || index >= all.length - 1) return null;
@@ -103,14 +135,15 @@ class BibleService {
 
   /// Previous chapter in reading order: the preceding chapter of [book], or
   /// — before chapter 1 — the LAST chapter of the previous book in canonical
-  /// order. Before Genesis 1 this returns null.
+  /// order, in the currently displayed language. Before Genesis 1 this
+  /// returns null.
   static Future<(BibleBook, int)?> previousChapter(BibleBook book, int chapter) async {
     if (chapter > 1) return (book, chapter - 1);
     final all = await books();
     final index = all.indexWhere((b) => b.key == book.key);
     if (index <= 0) return null;
     final prev = all[index - 1];
-    return (prev, prev.chapters);
+    return (prev, prev.chaptersInTextLang);
   }
 
   /// Display name of a book in the active app language.
@@ -149,6 +182,9 @@ class BibleService {
   }
 
   /// Returns the saved (book, chapter) or null when nothing was read yet.
+  /// The chapter is validated against the CURRENTLY DISPLAYED language's
+  /// count: a position saved past a language's count (the two languages
+  /// divide 19 books differently) is out of range for that language's text.
   static Future<(BibleBook, int)?> lastPosition() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -158,7 +194,9 @@ class BibleService {
       final all = await books();
       for (final book in all) {
         if (book.key == key) {
-          if (chapter >= 1 && chapter <= book.chapters) return (book, chapter);
+          if (chapter >= 1 && chapter <= book.chaptersInTextLang) {
+            return (book, chapter);
+          }
           return null;
         }
       }
