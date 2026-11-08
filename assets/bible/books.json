@@ -29,7 +29,7 @@
    "name": "Numbers",
    "testament": "OT",
    "order": 4,
-   "chapters": 35,
+   "chapters": 36,
    "chapters_es": 36
   },
   {
@@ -45,7 +45,7 @@
    "name": "Josue",
    "testament": "OT",
    "order": 6,
-   "chapters": 22,
+   "chapters": 24,
    "chapters_es": 24
   },
   {
@@ -53,7 +53,7 @@
    "name": "Judges",
    "testament": "OT",
    "order": 7,
-   "chapters": 17,
+   "chapters": 21,
    "chapters_es": 21
   },
   {
@@ -61,7 +61,7 @@
    "name": "Ruth",
    "testament": "OT",
    "order": 8,
-   "chapters": 2,
+   "chapters": 4,
    "chapters_es": 4
   },
   {
@@ -77,7 +77,7 @@
    "name": "2 Kings",
    "testament": "OT",
    "order": 10,
-   "chapters": 23,
+   "chapters": 24,
    "chapters_es": 24
   },
   {
@@ -101,7 +101,7 @@
    "name": "1 Paralipomenon",
    "testament": "OT",
    "order": 13,
-   "chapters": 27,
+   "chapters": 29,
    "chapters_es": 29
   },
   {
@@ -125,7 +125,7 @@
    "name": "Nehemias",
    "testament": "OT",
    "order": 16,
-   "chapters": 11,
+   "chapters": 13,
    "chapters_es": 13
   },
   {
@@ -141,7 +141,7 @@
    "name": "Judith",
    "testament": "OT",
    "order": 18,
-   "chapters": 11,
+   "chapters": 16,
    "chapters_es": 16
   },
   {
@@ -149,7 +149,7 @@
    "name": "Esther",
    "testament": "OT",
    "order": 19,
-   "chapters": 13,
+   "chapters": 16,
    "chapters_es": 16
   },
   {
@@ -157,7 +157,7 @@
    "name": "Job",
    "testament": "OT",
    "order": 20,
-   "chapters": 19,
+   "chapters": 42,
    "chapters_es": 42
   },
   {
@@ -205,7 +205,7 @@
    "name": "Ecclesiasticus",
    "testament": "OT",
    "order": 26,
-   "chapters": 48,
+   "chapters": 51,
    "chapters_es": 51
   },
   {
@@ -221,7 +221,7 @@
    "name": "Jeremias",
    "testament": "OT",
    "order": 28,
-   "chapters": 51,
+   "chapters": 52,
    "chapters_es": 52
   },
   {
@@ -245,7 +245,7 @@
    "name": "Ezechiel",
    "testament": "OT",
    "order": 31,
-   "chapters": 44,
+   "chapters": 48,
    "chapters_es": 48
   },
   {
@@ -261,7 +261,7 @@
    "name": "Osee",
    "testament": "OT",
    "order": 33,
-   "chapters": 11,
+   "chapters": 14,
    "chapters_es": 14
   },
   {
@@ -277,7 +277,7 @@
    "name": "Amos",
    "testament": "OT",
    "order": 35,
-   "chapters": 7,
+   "chapters": 9,
    "chapters_es": 9
   },
   {
@@ -301,7 +301,7 @@
    "name": "Micheas",
    "testament": "OT",
    "order": 38,
-   "chapters": 6,
+   "chapters": 7,
    "chapters_es": 7
   },
   {
@@ -341,7 +341,7 @@
    "name": "Zacharias",
    "testament": "OT",
    "order": 43,
-   "chapters": 11,
+   "chapters": 14,
    "chapters_es": 14
   },
   {
@@ -365,7 +365,7 @@
    "name": "2 Machabees",
    "testament": "OT",
    "order": 46,
-   "chapters": 14,
+   "chapters": 15,
    "chapters_es": 15
   },
   {
@@ -421,7 +421,7 @@
    "name": "1 Corinthians",
    "testament": "NT",
    "order": 7,
-   "chapters": 15,
+   "chapters": 16,
    "chapters_es": 16
   },
   {

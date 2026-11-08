@@ -6,8 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'app.dart';
+import 'config/app_strings.dart';
 import 'services/audio_controller.dart';
 import 'services/audio_service_handler.dart';
+import 'services/bible_address_migration.dart';
 import 'services/notification_service.dart';
 import 'services/tts_service.dart';
 
@@ -36,6 +38,18 @@ Future<void> main() async {
     ),
   );
   _wireAudioFocus();
+  // The app language must be known before the Bible address migration: the
+  // stored last-reading position is language-agnostic, and Spanish-saved
+  // positions are already in the standard numbering (see
+  // BibleAddressMigration). Loading here also gives the first build the
+  // saved locale without waiting for the app state's own load.
+  await AppStrings.load();
+  // Bible address migration (v1.4.77): the English text was rebuilt to the
+  // standard Douay-Rheims chapter divisions, so the stored last-reading
+  // position from the old English numbering must remap to keep pointing at
+  // the same verse text. One-time, flag-guarded; runs before runApp so no
+  // Bible screen can read an unmigrated position.
+  await BibleAddressMigration.apply();
   NotificationService.initialize();
   NotificationService.rescheduleSaved();
   // Warm the Kokoro TTS asset cache in the background (first launch copies

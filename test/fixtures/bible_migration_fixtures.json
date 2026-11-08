@@ -1,0 +1,600 @@
+{
+ "chapter": [
+  {
+   "book": "Ruth",
+   "old_ch": 2,
+   "new_ch": 4,
+   "first_verse_text": "Then Booz went up to the gate, and sat there. And when he had seen the kinsman going by, of whom he had spoken before, he said to him, calling him by his name: Turn aside for a little while, and sit down here. He turned aside, and sat down."
+  },
+  {
+   "book": "Ruth",
+   "old_ch": 1,
+   "new_ch": 1,
+   "first_verse_text": "In the *days of one of the judges, when the judges ruled, there came a famine in the land. And a certain man of Bethlehem Juda, went to sojourn in the land of Moab with his wife and his two sons."
+  },
+  {
+   "book": "Numbers",
+   "old_ch": 30,
+   "new_ch": 31,
+   "first_verse_text": "And the Lord spoke to Moses,* saying:"
+  },
+  {
+   "book": "Numbers",
+   "old_ch": 35,
+   "new_ch": 36,
+   "first_verse_text": "And the princes of the families of Galaad,* the son of Machir, the son of Manasses, of the stock of the children of Joseph, came: and spoke to Moses before the princes of Israel, and said:"
+  },
+  {
+   "book": "Josue",
+   "old_ch": 12,
+   "new_ch": 13,
+   "first_verse_text": "Josue was old, *and far advanced in years, and the Lord said to him: Thou art grown old, and advanced in age, and there is a very large country left, which is not yet divided by lot,"
+  },
+  {
+   "book": "Josue",
+   "old_ch": 22,
+   "new_ch": 24,
+   "first_verse_text": "And* Josue gathered together all the tribes of Israel in Sichem, and called for the ancients, and the princes, and the judges, and the masters: and they stood in the sight of the Lord:"
+  },
+  {
+   "book": "Judges",
+   "old_ch": 3,
+   "new_ch": 4,
+   "first_verse_text": "And the children of Israel again did evil in the sight of the Lord after the death of Aod,"
+  },
+  {
+   "book": "Judges",
+   "old_ch": 15,
+   "new_ch": 19,
+   "first_verse_text": "There was a certain Levite, who dwelt on the side of Mount Ephraim, who took a wife of Bethlehem Juda:"
+  },
+  {
+   "book": "2 Kings",
+   "old_ch": 23,
+   "new_ch": 23,
+   "first_verse_text": "Now these are David's last words. David, the son of Isai, said: The man to whom it was appointed concerning the Christ of the God of Jacob, *the excellent psalmist of Israel, said:"
+  },
+  {
+   "book": "2 Kings",
+   "old_ch": 1,
+   "new_ch": 1,
+   "first_verse_text": "Now *it came to pass, after Saul was dead, that David returned from the slaughter of the Amalecites, and abode two days in Siceleg."
+  },
+  {
+   "book": "1 Paralipomenon",
+   "old_ch": 25,
+   "new_ch": 27,
+   "first_verse_text": "Now the children of Israel, according to their number, the heads of families, captains of thousands and of hundreds, and officers, that served the king according to their companies, who came in and went out every month in the year, under every chief, were four and twenty thousand."
+  },
+  {
+   "book": "Nehemias",
+   "old_ch": 11,
+   "new_ch": 13,
+   "first_verse_text": "And* on that day they read in the book of Moses, in the hearing of the people: and therein was found written, that the Ammonites and the Moabites should not come into the church of God for ever:"
+  },
+  {
+   "book": "Judith",
+   "old_ch": 9,
+   "new_ch": 11,
+   "first_verse_text": "Then Holofernes said to her: Be of good comfort, and fear not in thy heart: for I have never hurt a man that was willing to serve Nabuchodonosor, the king."
+  },
+  {
+   "book": "Esther",
+   "old_ch": 6,
+   "new_ch": 7,
+   "first_verse_text": "So *the king and Aman went in, to drink with the queen."
+  },
+  {
+   "book": "Esther",
+   "old_ch": 13,
+   "new_ch": 16,
+   "first_verse_text": "The great king Artaxerxes, *from India to Ethiopia, to the governors and princes of a hundred and twenty-seven provinces, which obey our command, sendeth greeting."
+  },
+  {
+   "book": "Job",
+   "old_ch": 17,
+   "new_ch": 34,
+   "first_verse_text": "And Eliu continued his discourse, and said:"
+  },
+  {
+   "book": "Job",
+   "old_ch": 19,
+   "new_ch": 42,
+   "first_verse_text": "Then Job answered the Lord, and said:"
+  },
+  {
+   "book": "Job",
+   "old_ch": 1,
+   "new_ch": 1,
+   "first_verse_text": "There *was a man in the land of Hus, whose name was Job, and that man was simple and upright, and fearing God, and avoiding evil."
+  },
+  {
+   "book": "Ecclesiasticus",
+   "old_ch": 27,
+   "new_ch": 28,
+   "first_verse_text": "He *that seeketh to revenge himself, shall find vengeance from the Lord, and he will surely keep his sins in remembrance."
+  },
+  {
+   "book": "Ecclesiasticus",
+   "old_ch": 32,
+   "new_ch": 34,
+   "first_verse_text": "The hopes of a man that is void of understanding are vain and deceitful: and dreams lift up fools."
+  },
+  {
+   "book": "Jeremias",
+   "old_ch": 45,
+   "new_ch": 46,
+   "first_verse_text": "The word of the Lord, that came to Jeremias, the prophet, against the Gentiles,"
+  },
+  {
+   "book": "Ezechiel",
+   "old_ch": 35,
+   "new_ch": 36,
+   "first_verse_text": "And thou son of man, prophesy to the mountains of Israel, and say: *Ye mountains of Israel, hear the word of the Lord:"
+  },
+  {
+   "book": "Osee",
+   "old_ch": 5,
+   "new_ch": 6,
+   "first_verse_text": "In their affliction they will rise early to me: Come, and let us return to the Lord."
+  },
+  {
+   "book": "Amos",
+   "old_ch": 6,
+   "new_ch": 8,
+   "first_verse_text": "These things the Lord shewed to me: and behold a hook to draw down the fruit."
+  },
+  {
+   "book": "Micheas",
+   "old_ch": 2,
+   "new_ch": 3,
+   "first_verse_text": "And I said: Hear, O ye princes of Jacob, and ye chiefs of the house of Israel: Is it not your part to know judgment,"
+  },
+  {
+   "book": "Zacharias",
+   "old_ch": 3,
+   "new_ch": 6,
+   "first_verse_text": "And I turned, and lifted up my eyes, and saw: and behold four chariots came out from the midst of two mountains: and the mountains were mountains of brass."
+  },
+  {
+   "book": "2 Machabees",
+   "old_ch": 3,
+   "new_ch": 4,
+   "first_verse_text": "But Simon, of whom we spoke before, who was the betrayer of the money, and of his country, spoke ill of Onias, as though he had incited Heliodorus to do these things, and had been the promoter of evils:"
+  },
+  {
+   "book": "2 Machabees",
+   "old_ch": 1,
+   "new_ch": 1,
+   "first_verse_text": "To the brethren, the Jews that are throughout Egypt; the brethren, the Jews that are in Jerusalem, and in the land of Judea, send health and good peace."
+  },
+  {
+   "book": "1 Corinthians",
+   "old_ch": 13,
+   "new_ch": 14,
+   "first_verse_text": "Follow after charity, be zealous for spiritual gifts: but rather that you may prophesy."
+  }
+ ],
+ "verse": [
+  {
+   "book": "Ruth",
+   "old": [
+    2,
+    44
+   ],
+   "new": [
+    4,
+    1
+   ],
+   "text": "Then Booz went up to the gate, and sat there. And when he had seen the kinsman going by, of whom he had spoken before, he said to him, calling him by his name: Turn aside for a little while, and sit down here. He turned aside, and sat down."
+  },
+  {
+   "book": "Ruth",
+   "old": [
+    2,
+    65
+   ],
+   "new": [
+    4,
+    22
+   ],
+   "text": "Obed begot Isai, Isai begot David."
+  },
+  {
+   "book": "Numbers",
+   "old": [
+    30,
+    19
+   ],
+   "new": [
+    31,
+    1
+   ],
+   "text": "And the Lord spoke to Moses,* saying:"
+  },
+  {
+   "book": "Numbers",
+   "old": [
+    30,
+    72
+   ],
+   "new": [
+    31,
+    54
+   ],
+   "text": "And that which was received, they brought into the tabernacle of the testimony, for a memorial of the children of Israel before the Lord."
+  },
+  {
+   "book": "Job",
+   "old": [
+    17,
+    158
+   ],
+   "new": [
+    34,
+    1
+   ],
+   "text": "And Eliu continued his discourse, and said:"
+  },
+  {
+   "book": "Job",
+   "old": [
+    19,
+    108
+   ],
+   "new": [
+    42,
+    16
+   ],
+   "text": "And Job lived after these things, a hundred and forty years, and he saw his children, and his children's children, unto the fourth generation, and he died an old man, and full of days."
+  },
+  {
+   "book": "James",
+   "old": [
+    1,
+    2
+   ],
+   "new": [
+    1,
+    1
+   ],
+   "text": "James, a servant of God, and of our Lord Jesus Christ, to the twelve tribes which are dispersed, greeting."
+  },
+  {
+   "book": "James",
+   "old": [
+    1,
+    28
+   ],
+   "new": [
+    1,
+    27
+   ],
+   "text": "Religion, pure and immaculate with God and the Father, is this: To visit the fatherless and widows in their tribulation, and to keep one's self immaculate from this world."
+  },
+  {
+   "book": "Josue",
+   "old": [
+    18,
+    54
+   ],
+   "new": [
+    20,
+    1
+   ],
+   "text": "And *the Lord spoke to Josue, saying: Speak to the children of Israel, and say to them:"
+  },
+  {
+   "book": "Judges",
+   "old": [
+    3,
+    33
+   ],
+   "new": [
+    4,
+    1
+   ],
+   "text": "And the children of Israel again did evil in the sight of the Lord after the death of Aod,"
+  },
+  {
+   "book": "Genesis",
+   "old": [
+    40,
+    8
+   ],
+   "new": [
+    40,
+    8
+   ],
+   "text": "They answered: We have dreamed a dream, and there is nobody to interpret it to us. And Joseph said to them: Doth not interpretation belong to God? Tell me what you have dreamed."
+  },
+  {
+   "book": "Genesis",
+   "old": [
+    40,
+    9
+   ],
+   "new": [
+    40,
+    10
+   ],
+   "text": "On which were three branches, which by little and little sent out buds, and after the blossoms brought forth ripe grapes:"
+  },
+  {
+   "book": "Genesis",
+   "old": [
+    40,
+    22
+   ],
+   "new": [
+    40,
+    23
+   ],
+   "text": "But the chief butler, when things prospered with him, forgot his interpreter."
+  },
+  {
+   "book": "Isaias",
+   "old": [
+    5,
+    6
+   ],
+   "new": [
+    5,
+    6
+   ],
+   "text": "And I will make it desolate: it shall not be pruned, and it shall not be digged: but briers and thorns shall come up: and I will command the clouds to rain no rain upon it."
+  },
+  {
+   "book": "Isaias",
+   "old": [
+    5,
+    7
+   ],
+   "new": [
+    5,
+    8
+   ],
+   "text": "Woe to you that join house to house, and lay field to field, even to the end of the place: shall you alone dwell in the midst of the earth?"
+  },
+  {
+   "book": "Isaias",
+   "old": [
+    5,
+    29
+   ],
+   "new": [
+    5,
+    30
+   ],
+   "text": "And they shall make a noise against them that day, like the roaring of the sea: we shall look towards the land, and behold darkness of tribulation, and the light is darkened with the mist thereof."
+  },
+  {
+   "book": "Esther",
+   "old": [
+    6,
+    8
+   ],
+   "new": [
+    7,
+    8
+   ],
+   "text": "And when the king came back out of the garden set with trees, and entered into the place of the banquet, he found Aman was fallen upon the bed on which Esther lay, and he said: He will force the queen, also, in my presence, in my own house. The word was not yet gone out of the king's mouth, and immediately they covered his face."
+  },
+  {
+   "book": "Esther",
+   "old": [
+    6,
+    9
+   ],
+   "new": [
+    7,
+    10
+   ],
+   "text": "So Aman was hanged on the gibbet, which he had prepared for Mardochai: and the king's wrath ceased."
+  },
+  {
+   "book": "2 Machabees",
+   "old": [
+    1,
+    35
+   ],
+   "new": [
+    1,
+    36
+   ],
+   "text": "And Nehemias called this place Nephthar, which is interpreted purification. But many call it Nephi."
+  },
+  {
+   "book": "Psalms",
+   "old": [
+    129,
+    5
+   ],
+   "new": [
+    129,
+    4
+   ],
+   "text": "For with thee there is merciful forgiveness: and by reason of thy law, I have waited for thee, O Lord. My soul hath relied on his word: "
+  },
+  {
+   "book": "Psalms",
+   "old": [
+    129,
+    6
+   ],
+   "new": [
+    129,
+    5
+   ],
+   "text": "my soul hath hoped in the Lord."
+  },
+  {
+   "book": "Deuteronomy",
+   "old": [
+    34,
+    2
+   ],
+   "new": [
+    34,
+    1
+   ],
+   "text": "Then *Moses went up from the plains of Moab, upon Mount Nebo, to the top of Phasga, **over-against Jericho: and the Lord shewed him all the land of Galaad, as far as Dan,"
+  },
+  {
+   "book": "Deuteronomy",
+   "old": [
+    34,
+    13
+   ],
+   "new": [
+    34,
+    12
+   ],
+   "text": "And all the mighty hand, and great miracles, which Moses did before all Israel."
+  },
+  {
+   "book": "Genesis",
+   "old": [
+    1,
+    1
+   ],
+   "new": [
+    1,
+    1
+   ],
+   "text": "In the *beginning God created heaven and earth."
+  },
+  {
+   "book": "Exodus",
+   "old": [
+    20,
+    1
+   ],
+   "new": [
+    20,
+    1
+   ],
+   "text": "And the Lord spoke all these words:*"
+  },
+  {
+   "book": "Psalms",
+   "old": [
+    23,
+    1
+   ],
+   "new": [
+    23,
+    1
+   ],
+   "text": "On the first day of the week, a psalm for David. The *earth is the Lord's and the fulness thereof; the world, and all they that dwell therein."
+  },
+  {
+   "book": "Proverbs",
+   "old": [
+    31,
+    10
+   ],
+   "new": [
+    31,
+    10
+   ],
+   "text": "Who shall find a valiant woman? far, and from the uttermost coasts is the price of her."
+  },
+  {
+   "book": "Wisdom",
+   "old": [
+    19,
+    20
+   ],
+   "new": [
+    19,
+    20
+   ],
+   "text": "On the other side, the flames wasted not the flesh of corruptible animals walking therein, neither did they melt that good food, which was apt to melt as ice. For in all things thou didst magnify thy people, O Lord, and didst honour them, and didst not despise them, but didst assist them at all times, and in every place."
+  },
+  {
+   "book": "Matthew",
+   "old": [
+    5,
+    1
+   ],
+   "new": [
+    5,
+    1
+   ],
+   "text": "Now *Jesus seeing the multitudes, went up into a mountain, and when he had sat down, his disciples came to him."
+  },
+  {
+   "book": "John",
+   "old": [
+    3,
+    16
+   ],
+   "new": [
+    3,
+    16
+   ],
+   "text": "*For God so loved the world, as to give his only begotten Son: that whosoever believeth in him, may not perish, but may have life everlasting."
+  },
+  {
+   "book": "Acts",
+   "old": [
+    1,
+    1
+   ],
+   "new": [
+    1,
+    1
+   ],
+   "text": "The former treatise I made, O Theophilus, of all things, which Jesus began to do and to teach,"
+  },
+  {
+   "book": "Romans",
+   "old": [
+    8,
+    28
+   ],
+   "new": [
+    8,
+    28
+   ],
+   "text": "And we know that to them that love God, all things work together unto good, to such as according to purpose, are called to be saints."
+  },
+  {
+   "book": "Apocalypse",
+   "old": [
+    21,
+    1
+   ],
+   "new": [
+    21,
+    1
+   ],
+   "text": "And* I saw a new heaven and a new earth. For the first heaven and the first earth was past away, and the sea is now no more."
+  },
+  {
+   "book": "Tobias",
+   "old": [
+    14,
+    15
+   ],
+   "new": [
+    14,
+    15
+   ],
+   "text": "And he found them in health in a good old age: and he took care of them, and he closed their eyes: and all the inheritance of Raguel's house came to him: and he saw his children's children to the fifth generation."
+  },
+  {
+   "book": "Daniel",
+   "old": [
+    13,
+    42
+   ],
+   "new": [
+    13,
+    42
+   ],
+   "text": "Then Susanna cried out with a loud voice, and said: O eternal God, who knowest hidden things, who knowest all things before they come to pass,"
+  }
+ ]
+}

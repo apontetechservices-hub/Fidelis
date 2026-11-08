@@ -185,22 +185,28 @@ void main() {
   });
 
   group('per-language counts are actually per-language', () {
-    test('the 19 diverging books differ between the languages', () async {
+    test('English and Spanish chapter counts are unified (v1.4.77 rebuild)',
+        () async {
+      // The English text was rebuilt to the standard Douay-Rheims chapter
+      // divisions — the same divisions the Spanish Torres Amat text already
+      // used — so no book divides differently between the languages any
+      // more. The per-language count plumbing stays (chaptersFor), but the
+      // two languages now always agree.
       final books = await BibleService.books();
       final diverging = books.where((b) => b.chaptersEs != b.chapters).toList();
-      expect(diverging.length, 19);
-      expect(diverging.every((b) => b.chaptersEs! > b.chapters), isTrue,
-          reason: 'the Spanish text only ever divides MORE chapters');
+      expect(diverging, isEmpty,
+          reason: 'books whose English and Spanish chapter counts still '
+              'differ: ${diverging.map((b) => b.key).toList()}');
     });
 
-    test('chaptersFor follows the selected language; English behavior unchanged',
+    test('chaptersFor follows the selected language; counts are unified',
         () async {
       final books = await BibleService.books();
       final job = books.firstWhere((b) => b.key == 'Job');
-      expect(job.chapters, 19); // English count, unchanged
+      expect(job.chapters, 42); // English count, rebuilt to the standard DR
       expect(job.chaptersEs, 42); // Spanish count, from the bundled text
       await AppStrings.setLanguage('en');
-      expect(job.chaptersInTextLang, 19);
+      expect(job.chaptersInTextLang, 42);
       await AppStrings.setLanguage('es');
       expect(job.chaptersInTextLang, 42);
     });

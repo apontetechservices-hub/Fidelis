@@ -96,7 +96,7 @@ void main() {
       final prev = await BibleService.previousChapter(books[46], 1); // Matthew
       expect(prev, isNotNull);
       expect(prev!.$1.key, '2 Machabees');
-      expect(prev.$2, 14); // 2 Machabees chapter count per books.json
+      expect(prev.$2, 15); // 2 Machabees chapter count per books.json
     });
   });
 
