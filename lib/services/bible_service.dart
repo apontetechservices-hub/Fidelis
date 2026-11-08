@@ -72,9 +72,45 @@ class BibleService {
               chapters: b['chapters'] as int,
             ))
         .toList()
-      ..sort((a, b) => a.order.compareTo(b.order));
+      ..sort((a, b) {
+        // Canonical order: the whole Old Testament block first (orders
+        // 1..46), then the New Testament block (orders 1..27) — exactly the
+        // order the book picker presents. books.json restarts `order` at 1
+        // for the NT, so sorting on `order` alone interleaves OT and NT
+        // books sharing an order value (Dart's sort is unstable), and the
+        // neighbour lookup jumped across testaments at book boundaries
+        // (Genesis 50 → Matthew 1, Apocalypse 22 → Jeremias 1).
+        final aBlock = a.testament == 'NT' ? 1 : 0;
+        final bBlock = b.testament == 'NT' ? 1 : 0;
+        if (aBlock != bBlock) return aBlock.compareTo(bBlock);
+        return a.order.compareTo(b.order);
+      });
     _books = parsed;
     return parsed;
+  }
+
+  /// Next chapter in reading order: the following chapter of [book], or —
+  /// past the book's last chapter — chapter 1 of the NEXT book in canonical
+  /// order (index-based on the ordered [books] list). Past the last chapter
+  /// of Apocalypse (the final book) this returns null: Next is a no-op.
+  static Future<(BibleBook, int)?> nextChapter(BibleBook book, int chapter) async {
+    if (chapter < book.chapters) return (book, chapter + 1);
+    final all = await books();
+    final index = all.indexWhere((b) => b.key == book.key);
+    if (index < 0 || index >= all.length - 1) return null;
+    return (all[index + 1], 1);
+  }
+
+  /// Previous chapter in reading order: the preceding chapter of [book], or
+  /// — before chapter 1 — the LAST chapter of the previous book in canonical
+  /// order. Before Genesis 1 this returns null.
+  static Future<(BibleBook, int)?> previousChapter(BibleBook book, int chapter) async {
+    if (chapter > 1) return (book, chapter - 1);
+    final all = await books();
+    final index = all.indexWhere((b) => b.key == book.key);
+    if (index <= 0) return null;
+    final prev = all[index - 1];
+    return (prev, prev.chapters);
   }
 
   /// Display name of a book in the active app language.

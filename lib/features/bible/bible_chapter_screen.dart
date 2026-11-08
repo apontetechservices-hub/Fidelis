@@ -192,22 +192,14 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   }
 
   /// Neighbouring chapter, walking across book boundaries in canon order.
+  /// The boundary walk itself lives in [BibleService] (canonical book list,
+  /// index-based neighbour lookup) so the owner's boundary check can test
+  /// every book-to-book transition directly.
   Future<(BibleBook, int)?> _neighbour(int direction) async {
-    final book = widget.book;
-    final chapter = widget.chapter;
     if (direction < 0) {
-      if (chapter > 1) return (book, chapter - 1);
-      final books = await BibleService.books();
-      final index = books.indexWhere((b) => b.key == book.key);
-      if (index <= 0) return null;
-      final prev = books[index - 1];
-      return (prev, prev.chapters);
+      return BibleService.previousChapter(widget.book, widget.chapter);
     }
-    if (chapter < book.chapters) return (book, chapter + 1);
-    final books = await BibleService.books();
-    final index = books.indexWhere((b) => b.key == book.key);
-    if (index < 0 || index >= books.length - 1) return null;
-    return (books[index + 1], 1);
+    return BibleService.nextChapter(widget.book, widget.chapter);
   }
 
   /// Chapter navigation while LISTENING auto-continues with the new chapter
