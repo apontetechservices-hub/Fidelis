@@ -12,9 +12,10 @@ import 'package:fidelis/services/tts_text.dart';
 
 import 'audio_controller_test.dart';
 
-/// The owner's final Bible voice decision (round-2 configuration): EN
-/// bm_daniel (sid 24), ES em_alex (sid 29, voice unchanged), both at speed
-/// 0.81, with Daniel's verified pronunciation correction as the Bible's
+/// The owner's voice-grid Bible slot: EN am_michael (sid 16) blended
+/// 70/30 with am_echo (sid 12) at the synthesis level, speed 0.81, with
+/// the English slot's boom-softening equalizer; ES em_alex (sid 29, voice
+/// unchanged) solo. Michael's round-2 pronunciation list is the Bible's
 /// standing per-voice lexicon. The readings/rosary-timing voices keep the
 /// long-standing standard configuration.
 void main() {
@@ -25,15 +26,27 @@ void main() {
   });
 
   group('KokoroVoice profiles', () {
-    test('bible profile is the owner round-2 configuration', () {
+    test('bible profile is the owner voice-grid configuration', () {
       const v = KokoroVoice.bible;
-      expect(v.enSid, 24); // bm_daniel
+      expect(v.enSid, 16); // am_michael
       expect(v.esSid, 29); // em_alex
       expect(v.speed, 0.81);
-      expect(v.enName, 'bm_daniel');
+      expect(v.enName, 'am_michael');
       expect(v.esName, 'em_alex');
-      expect(v.sidFor('en'), 24);
+      expect(v.sidFor('en'), 16);
       expect(v.sidFor('es'), 29);
+      // EN blend: am_echo (sid 12) at 70/30; ES speaks solo.
+      expect(v.enBlendSid, 12);
+      expect(v.enBlendName, 'am_echo');
+      expect(v.blendRatio, 0.7);
+      expect(v.esBlendSid, isNull);
+      expect(v.blendSidFor('en'), 12);
+      expect(v.blendSidFor('es'), isNull);
+      // EQ: the gentle boom softening on the ENGLISH slot only.
+      expect(v.enEqualizer, {0: -4.0, 1: -2.0});
+      expect(v.esEqualizer, isNull);
+      expect(v.equalizerFor('en'), {0: -4.0, 1: -2.0});
+      expect(v.equalizerFor('es'), isNull);
     });
 
     test('standard profile is unchanged (readings + rosary timing)', () {
@@ -45,18 +58,20 @@ void main() {
       expect(v.esName, 'em_alex');
     });
 
-    test('lexicon is per-voice data: Daniel verified, Alex clean', () {
-      expect(kokoroVoiceLexicon['bm_daniel'], {'ruleth': 'Rouleth'});
+    test('lexicon is per-voice data: Michael verified, Alex clean', () {
+      // The owner's addendum: ruleth + pasture corrections; the round-2
+      // 'Salm' respelling is REMOVED ('psalm' phonemizes natively under
+      // en-us with no audible L — the Bible-EN lexicon must not carry a
+      // psalm entry).
+      expect(kokoroVoiceLexicon['am_michael'],
+          {'ruleth': 'Rouleth', 'pasture': 'Pastsher'});
       // Round 2 verified Alex's Spanish clean — no corrections.
       expect(kokoroVoiceLexicon['em_alex'], isEmpty);
-      // The other audition voices' respellings (Pastcher/Pastsher for
-      // pasture, Salm for psalm) were tuned to THEIR quirks and must not
-      // appear in Daniel's list.
-      expect(kokoroVoiceLexicon['bm_daniel']!.containsKey('pasture'), isFalse);
-      expect(kokoroVoiceLexicon['bm_daniel']!.containsKey('psalm'), isFalse);
-      expect(kokoroVoiceLexicon['bm_daniel']!.containsKey('led'), isFalse);
+      // Daniel no longer ships in any slot — his entry is gone.
+      expect(kokoroVoiceLexicon.containsKey('bm_daniel'), isFalse);
       // Lookup through the profiles.
-      expect(KokoroVoice.bible.lexiconFor('en'), {'ruleth': 'Rouleth'});
+      expect(KokoroVoice.bible.lexiconFor('en'),
+          {'ruleth': 'Rouleth', 'pasture': 'Pastsher'});
       expect(KokoroVoice.bible.lexiconFor('es'), isEmpty);
       expect(KokoroVoice.standard.lexiconFor('en'), isEmpty);
       expect(KokoroVoice.standard.lexiconFor('es'), isEmpty);
@@ -64,17 +79,17 @@ void main() {
   });
 
   group('applyPronunciationLexicon', () {
-    const daniel = {'ruleth': 'Rouleth'};
+    const lex = {'ruleth': 'Rouleth'};
 
     test('replaces the verified word as specified', () {
       const text = 'The Lord ruleth me: and I shall want nothing.';
-      final (spoken, _) = applyPronunciationLexicon(text, daniel);
+      final (spoken, _) = applyPronunciationLexicon(text, lex);
       expect(spoken, 'The Lord Rouleth me: and I shall want nothing.');
     });
 
     test('matches case-insensitively, whole words only', () {
       final (spoken, _) =
-          applyPronunciationLexicon('Ruleth over them; rulethly, unruleth.', daniel);
+          applyPronunciationLexicon('Ruleth over them; rulethly, unruleth.', lex);
       // Sentence-initial capital still gets the specified respelling;
       // "rulethly" and "unruleth" are different words and stay untouched.
       expect(spoken, 'Rouleth over them; rulethly, unruleth.');
@@ -82,8 +97,8 @@ void main() {
 
     test('is idempotent (respellings never match their source words)', () {
       const text = 'The Lord ruleth me: and I shall want nothing.';
-      final (spoken, _) = applyPronunciationLexicon(text, daniel);
-      final (again, _) = applyPronunciationLexicon(spoken, daniel);
+      final (spoken, _) = applyPronunciationLexicon(text, lex);
+      final (again, _) = applyPronunciationLexicon(spoken, lex);
       expect(again, spoken);
     });
 
@@ -100,7 +115,7 @@ void main() {
     test('alignment maps spoken sentence ranges back to the original text', () {
       const text =
           'The Lord ruleth me: and I shall want nothing. He restoreth my soul.';
-      final (spoken, align) = applyPronunciationLexicon(text, daniel);
+      final (spoken, align) = applyPronunciationLexicon(text, lex);
       expect(spoken.contains('Rouleth'), isTrue);
       // The spoken text is one char longer (Rouleth vs ruleth).
       expect(spoken.length, text.length + 1);

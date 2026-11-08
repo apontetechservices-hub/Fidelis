@@ -259,10 +259,11 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// character-proportionally (sherpa_onnx 1.13.8 exposes no token
   /// timestamps). Lang follows the displayed text: 'es' recites the
   /// Spanish (Torres Amat) text through the existing Spanish voice path,
-  /// 'en' the Douay-Rheims as before. Voice: the owner's final Bible
-  /// configuration ([KokoroVoice.bible] — EN bm_daniel / ES em_alex at
-  /// 0.81, with the per-voice pronunciation lexicon applied in the
-  /// synthesis path).
+  /// 'en' the Douay-Rheims as before. Voice: the owner's voice-grid Bible
+  /// slot ([KokoroVoice.bible] — EN am_michael blended 70/30 with am_echo
+  /// / ES em_alex at 0.81, with the per-voice pronunciation lexicon applied
+  /// in the synthesis path and the English slot's equalizer shaping applied
+  /// at playback).
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;

@@ -163,6 +163,46 @@ class ScriptedPlayer extends AudioPlayerPlatform {
     return DisposeResponse();
   }
 
+  // The audio-effect surface the shared player's AudioPipeline activates
+  // (the English-Bible slot's AndroidEqualizer): every platform activation
+  // fetches the equalizer parameters BEFORE the play request is sent, so
+  // the scripted player must answer them or the load/play sequence breaks.
+  @override
+  Future<AudioEffectSetEnabledResponse> audioEffectSetEnabled(
+      AudioEffectSetEnabledRequest request) async {
+    log.add('audioEffectSetEnabled:${request.enabled}');
+    return AudioEffectSetEnabledResponse();
+  }
+
+  @override
+  Future<AndroidEqualizerGetParametersResponse> androidEqualizerGetParameters(
+      AndroidEqualizerGetParametersRequest request) async {
+    log.add('androidEqualizerGetParameters');
+    return AndroidEqualizerGetParametersResponse(
+      parameters: AndroidEqualizerParametersMessage(
+        minDecibels: -15.0,
+        maxDecibels: 15.0,
+        bands: [
+          for (var i = 0; i < 5; i++)
+            AndroidEqualizerBandMessage(
+              index: i,
+              lowerFrequency: 30.0 * (1 << i),
+              upperFrequency: 30.0 * (1 << (i + 1)),
+              centerFrequency: 30.0 * (1 << i) * 1.4,
+              gain: 0.0,
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Future<AndroidEqualizerBandSetGainResponse> androidEqualizerBandSetGain(
+      AndroidEqualizerBandSetGainRequest request) async {
+    log.add('androidEqualizerBandSetGain:${request.bandIndex}');
+    return AndroidEqualizerBandSetGainResponse();
+  }
+
   /// Simulates playback running to the end (ExoPlayer STATE_ENDED:
   /// processingState=completed, playWhenReady stays true, the pending play
   /// result completes).

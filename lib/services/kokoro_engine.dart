@@ -20,12 +20,14 @@ class KokoroAudio {
 
 /// On-device Kokoro TTS engine (sherpa-onnx 1.13.8, Kokoro v1.0 INT8).
 ///
-/// Voices are per-profile ([KokoroVoice]): the Bible speaks the owner's
-/// final round-2 configuration — EN bm_daniel (sid 24) / ES em_alex (sid 29),
-/// both at speed 0.81 — while readings and the rosary's timing-only
-/// synthesis keep the standard voices (EN bm_george sid 26 / ES em_alex sid
-/// 29, speed 0.9). Kokoro has no Latin voice — 'la' callers must use the
-/// flutter_tts path.
+/// Voices are per-slot profiles ([KokoroVoice]): the Bible speaks the
+/// owner's voice-grid configuration — EN am_michael blended 70/30 with
+/// am_echo (both sids render, PCM-mixed) at speed 0.81 / ES em_alex solo —
+/// the rosary's runtime slot speaks EN af_aoede / ES af_aoede blended
+/// 70/30 with ef_dora under Spanish phonemization, and readings plus the
+/// rosary's timing-only synthesis keep the standard voices (EN bm_george
+/// sid 26 / ES em_alex sid 29, speed 0.9). Kokoro has no Latin voice —
+/// 'la' callers must use the flutter_tts path.
 ///
 /// Model files ship as Flutter assets under assets/kokoro/ (~155 MB) and are
 /// copied once to the app support directory, because onnxruntime needs real
@@ -100,8 +102,12 @@ class KokoroEngine {
     }
   }
 
-  /// Synthesizes [text] with [voice]'s sid/speed for [lang]. Returns null
-  /// on failure (caller falls back to flutter_tts — audio must never break).
+  /// Synthesizes [text] with [voice]'s sid/speed for [lang]; when the
+  /// slot carries a blend partner for [lang], the text is rendered by BOTH
+  /// sids under the same engine phonemization and the renders are PCM-mixed
+  /// at the slot's ratio (the mixed length is the schedule's timing
+  /// source). Returns null on failure (caller falls back to flutter_tts —
+  /// audio must never break).
   static Future<KokoroAudio?> synthesize(
     String text,
     String lang, {
@@ -113,6 +119,8 @@ class KokoroEngine {
       'text': text,
       'sid': voice.sidFor(lang),
       'speed': voice.speed,
+      'blendSid': voice.blendSidFor(lang),
+      'blendRatio': voice.blendRatio,
     }, timeout: const Duration(minutes: 3));
     if (ack == null || ack['ok'] != true) return null;
     final samples = ack['samples'];
@@ -348,16 +356,37 @@ void _workerMain(_WorkerSetup setup) {
         }
       case 'gen':
         try {
-          final audio = tts!.generate(
-            text: m['text'] as String,
-            sid: m['sid'] as int,
-            speed: (m['speed'] as num).toDouble(),
-          );
+          final text = m['text'] as String;
+          final sid = m['sid'] as int;
+          final speed = (m['speed'] as num).toDouble();
+          final blendSid = m['blendSid'] as int?;
+          final blendRatio = (m['blendRatio'] as num?)?.toDouble() ?? 1.0;
+          final audio = tts!.generate(text: text, sid: sid, speed: speed);
+          var samples = audio.samples;
+          // Synthesis-level voice blend: render the same text with the
+          // partner sid under the same engine phonemization, then PCM-mix
+          // at the slot's ratio. The mixed buffer's length (the longer
+          // render) is the audio the schedule times against.
+          if (blendSid != null &&
+              blendSid != sid &&
+              blendRatio > 0.0 &&
+              blendRatio < 1.0) {
+            final partner =
+                tts!.generate(text: text, sid: blendSid, speed: speed);
+            if (partner.samples.isNotEmpty &&
+                partner.sampleRate == audio.sampleRate) {
+              samples = mixKokoroBlend(
+                Float32List.fromList(audio.samples),
+                Float32List.fromList(partner.samples),
+                blendRatio,
+              );
+            }
+          }
           setup.toMain.send({
             'type': 'ack',
             'id': id,
             'ok': true,
-            'samples': audio.samples,
+            'samples': samples,
             'rate': audio.sampleRate,
           });
         } catch (e) {

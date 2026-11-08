@@ -84,8 +84,10 @@ class AudioChunk {
   final String? lang;
 
   /// Kokoro voice profile for this chunk's synthesis (en/es). Null keeps
-  /// the standard voices; the Bible passes [KokoroVoice.bible] (Daniel EN /
-  /// Alex ES at 0.81) so its pronunciation lexicon and voice apply.
+  /// the standard voices; the Bible passes [KokoroVoice.bible] (Michael
+  /// EN blend / Alex ES at 0.81) and the rosary's runtime steps pass
+  /// [KokoroVoice.rosary] (Aoede EN / Aoede+Dora ES blend) so their
+  /// pronunciation lexicons, blends, and speeds apply.
   final KokoroVoice? voice;
 
   /// Called when sentence [sentenceIndex] of this chunk's text starts

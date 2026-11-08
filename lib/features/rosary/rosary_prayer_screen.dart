@@ -9,6 +9,7 @@ import 'rosary_controller.dart';
 import 'rosary_prayers.dart';
 import 'mystery_data.dart';
 import '../../services/audio_controller.dart';
+import '../../services/kokoro_engine.dart';
 import '../../services/tts_service.dart';
 import 'litany_of_loreto.dart';
 import 'rosary_audio_files.dart';
@@ -428,7 +429,15 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             asset: asset,
             text: displayed.isEmpty ? null : displayed,
             lang: _language)
-        : AudioChunk(text: spoken, lang: _language);
+        : AudioChunk(
+            text: spoken,
+            lang: _language,
+            // The rosary's runtime slot: EN af_aoede / ES af_aoede blended
+            // 70/30 with ef_dora (Spanish phonemization for both), speed
+            // 0.9. Pre-rendered assets keep their own audio + the standard
+            // voices' timing synthesis, which matches how they were
+            // generated.
+            voice: KokoroVoice.rosary);
     _speakingLine = null;
     _speakingWord = null;
     await AudioController.instance.start(

@@ -11,14 +11,17 @@ import 'tts_text.dart' as tts_text;
 /// On-device text-to-speech for prayer audio (free feature).
 ///
 /// Two engines:
-///  - Kokoro (sherpa-onnx, bundled on-device): per-voice profiles — the
-///    standard voices (EN bm_george / ES em_alex at speed 0.9) for readings
-///    and the rosary's timing-only synthesis, the Bible profile (EN
-///    bm_daniel / ES em_alex at speed 0.81) when the caller passes
-///    [KokoroVoice.bible] — synthesized SENTENCE-BY-SENTENCE so playback
-///    starts after the first sentence and later sentences are generated
-///    while the current one plays. stop() interrupts cleanly between
-///    sentences. Used for 'en'/'es'.
+///  - Kokoro (sherpa-onnx, bundled on-device): per-slot voice-grid profiles
+///    — the standard voices (EN bm_george / ES em_alex at speed 0.9) for
+///    readings and the rosary's timing-only synthesis, the Bible profile
+///    (EN am_michael blended 70/30 with am_echo / ES em_alex at speed
+///    0.81) when the caller passes [KokoroVoice.bible], and the rosary's
+///    runtime slot ([KokoroVoice.rosary] — EN af_aoede / ES af_aoede
+///    blended 70/30 with ef_dora) for steps without a pre-rendered file —
+///    synthesized SENTENCE-BY-SENTENCE so playback starts after the first
+///    sentence and later sentences are generated while the current one
+///    plays. stop() interrupts cleanly between sentences. Used for
+///    'en'/'es'.
 ///  - flutter_tts (system engine): Latin ('la' — Italian voice approximates
 ///    ecclesiastical pronunciation) and the fallback whenever Kokoro is
 ///    unavailable or fails, so audio NEVER breaks. The mature male-voice
@@ -32,12 +35,21 @@ import 'tts_text.dart' as tts_text;
 class TtsService {
   static final FlutterTts _tts = FlutterTts();
 
+  /// Slot-scoped equalizer: the shared player carries an Android equalizer
+  /// so the English-Bible slot's boom-softening curve can be applied while
+  /// that slot plays and cleared for every other slot. Best-effort — the
+  /// effect is Android-only and all application errors are swallowed.
+  static final AndroidEqualizer _equalizer = AndroidEqualizer();
+
   /// Interruption handling is the app's, not just_audio's: its default
   /// handler auto-RESUMES playback when an interruption (a call, another
   /// app's audio) ends, which the app must not do — after an interruption
   /// Fidelis stays paused until the user resumes. The pause reactions are
   /// wired to audio_session's streams at startup (see main.dart).
-  static final AudioPlayer _player = AudioPlayer(handleInterruptions: false);
+  static final AudioPlayer _player = AudioPlayer(
+    handleInterruptions: false,
+    audioPipeline: AudioPipeline(androidAudioEffects: [_equalizer]),
+  );
   static bool _ready = false;
 
   /// Incremented by every new playback request and by stop(); an in-flight
@@ -195,6 +207,12 @@ class TtsService {
     } catch (_) {}
   }
 
+  /// Applies the active slot's equalizer shaping to the shared player
+  /// (see [applyEqualizerGains]).
+  static Future<void> applySlotEqualizer(Map<int, double>? gains) {
+    return applyEqualizerGains(_equalizer, gains);
+  }
+
   /// Returns the first available male voice for [language], or null to
   /// keep the engine default. Falls back to any device voice whose name
   /// carries an explicit gender marker (e.g. '#male_1' on some engines).
@@ -275,6 +293,8 @@ class TtsService {
     if (!_ready) await init();
     final myEpoch = ++_epoch;
     _finishPlayDone();
+    // Bundled files (pre-rendered rosary audio) play flat: no slot shaping.
+    unawaited(applySlotEqualizer(null));
     try {
       await _playSource(AudioSource.asset(assetPath), myEpoch);
     } catch (_) {}
@@ -288,6 +308,9 @@ class TtsService {
     _resumeInFlight = null;
     _wordRangeSink = null;
     _completePauseGate();
+    // Job transitions and screen exits clear any slot equalizer shaping;
+    // the next slot re-applies its own (or stays flat).
+    unawaited(applySlotEqualizer(null));
     try {
       await _player.stop();
     } catch (_) {}
@@ -320,6 +343,11 @@ class TtsService {
     try {
       if (!await KokoroEngine.ensureReady(lang)) return false;
       if (myEpoch != _epoch) return true; // stopped while the engine warmed up
+      // Slot-scoped equalizer shaping (the English-Bible boom softening);
+      // every other slot clears it. Fire-and-forget: the band gains apply
+      // once the player's equalizer parameters resolve, never blocking
+      // synthesis.
+      unawaited(applySlotEqualizer(voice.equalizerFor(lang)));
       // Pronunciation lexicon (per-voice): applied BEFORE sentence splitting
       // so the engine speaks the verified respellings. Sentence highlight
       // ranges are mapped back to the original text's coordinates through
@@ -514,6 +542,8 @@ class TtsService {
     try {
       _lastViaFlutterTts = true;
       _lastSpokenText = text;
+      // The fallback engine plays flat: no slot equalizer shaping.
+      unawaited(applySlotEqualizer(null));
       // The whole text is one utterance with no known duration; its
       // word-boundary events (installed in init()) carry the highlight.
       _wordRangeSink = onWordRange;
@@ -539,4 +569,32 @@ class TtsService {
   /// engine speaks.
   static List<(int, int)> sentenceRanges(String text) =>
       tts_text.speakableSentenceRanges(text);
+}
+
+/// Applies slot equalizer [gains] (band index → dB gain) to [equalizer]:
+/// non-null gains enable the effect and set the listed bands; null/empty
+/// clears any earlier shaping. The band gains apply once the equalizer's
+/// parameters resolve (the player's first platform activation); the bounded
+/// wait keeps platforms without the effect from hanging the caller.
+/// Best-effort: never throws — audio must never break. Public so the wiring
+/// is testable against a scripted platform.
+Future<void> applyEqualizerGains(
+  AndroidEqualizer equalizer,
+  Map<int, double>? gains, {
+  Duration parametersTimeout = const Duration(seconds: 3),
+}) async {
+  try {
+    await equalizer.setEnabled(gains != null && gains.isNotEmpty);
+    if (gains == null || gains.isEmpty) return;
+    final params = await equalizer.parameters
+        .then<AndroidEqualizerParameters?>((p) => p)
+        .timeout(parametersTimeout, onTimeout: () => null);
+    if (params == null) return;
+    for (final entry in gains.entries) {
+      final i = entry.key;
+      if (i >= 0 && i < params.bands.length) {
+        await params.bands[i].setGain(entry.value);
+      }
+    }
+  } catch (_) {}
 }
