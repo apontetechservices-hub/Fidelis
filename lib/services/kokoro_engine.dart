@@ -56,7 +56,9 @@ class KokoroEngine {
   static const _assetRoot = 'assets/kokoro';
 
   /// Bump when the bundled model files change to force a re-copy on devices.
-  static const _stamp = 'kokoro-int8-v1.0-2026-10-26';
+  /// 2026-11-10: bumped with the asset-preparation fix so every device wipes
+  /// whatever partial state earlier builds left and re-copies cleanly.
+  static const _stamp = 'kokoro-int8-v1.0-2026-11-10';
 
   /// Sticky: any hard failure disables Kokoro for the rest of the session and
   /// callers fall back to flutter_tts (audio must never break).
@@ -87,6 +89,36 @@ class KokoroEngine {
     _recordFailure(error);
   }
 
+  /// Test hook: clear all session state (sticky failure, cached prep,
+  /// model dir, last error, test seams) so a test can drive preparation
+  /// from scratch.
+  @visibleForTesting
+  static void resetForTest() {
+    _failed = false;
+    _prepFuture = null;
+    _modelDirPath = null;
+    _loadedLang = null;
+    lastError = null;
+    debugPrepDirOverride = null;
+    debugAssetLoaderOverride = null;
+  }
+
+  /// Test seam: overrides the model directory (production: the app support
+  /// directory). Tests point this at an empty temp dir to drive the REAL
+  /// preparation path — the same bundle lookups the device performs.
+  @visibleForTesting
+  static String? debugPrepDirOverride;
+
+  /// Test seam: overrides the asset-byte loader (production: rootBundle.load,
+  /// which throws on an asset that is not in the bundle). Tests inject load
+  /// failures to prove the recorded error names the exact asset and step.
+  @visibleForTesting
+  static Future<ByteData> Function(String key)? debugAssetLoaderOverride;
+
+  /// The preparation stamp, for tests that assert the .ready marker.
+  @visibleForTesting
+  static String get debugStamp => _stamp;
+
   static Isolate? _isolate;
   static ReceivePort? _responses;
   static ReceivePort? _exitPort;
@@ -97,8 +129,8 @@ class KokoroEngine {
   static String? _loadedLang;
 
   /// Copies the bundled model files to the app support directory if needed.
-  /// Cheap no-op after the first run (marker check only). Safe to call at
-  /// startup to keep the first listen tap fast.
+  /// Cheap no-op after a complete preparation (marker + the files the engine
+  /// init reads). Safe to call at startup to keep the first listen tap fast.
   static Future<bool> prepareAssets() async {
     if (_failed) return false;
     try {
@@ -298,80 +330,181 @@ class KokoroEngine {
     }
   }
 
-  static Future<bool> _prepare() async {
+  /// Files the worker's engine init reads. The fast path re-verifies them so
+  /// a lost or partially-cleared directory is re-copied, not trusted.
+  static const _criticalFiles = [
+    'model.int8.onnx',
+    'voices.bin',
+    'tokens.txt',
+    'espeak-ng-data/phontab',
+  ];
+
+  /// True when [dirPath] already holds a complete preparation for [_stamp]:
+  /// the marker matches AND every file the engine init reads exists. Anything
+  /// else — no marker, an older stamp, a missing file — falls through to a
+  /// clean re-copy, because installs over previous builds arrive with
+  /// whatever partial or stale state earlier attempts left behind.
+  static bool _prepComplete(String dirPath) {
     try {
-      final support = await getApplicationSupportDirectory();
-      final dirPath = '${support.path}/kokoro';
-      _modelDirPath = dirPath;
       final marker = File('$dirPath/.ready');
-      if (marker.existsSync() && marker.readAsStringSync() == _stamp) {
-        return true;
-      }
-      // Copy in a background isolate: loading the 114 MB model asset spikes
-      // memory and must not jank the UI. rootBundle there needs the binary
-      // messenger token of this isolate.
-      final token = RootIsolateToken.instance;
-      if (token == null) {
-        _recordFailure('asset copy skipped (no root isolate token)');
+      if (!marker.existsSync() || marker.readAsStringSync() != _stamp) {
         return false;
       }
-      return await Isolate.run(() async {
-        BackgroundIsolateBinaryMessenger.ensureInitialized(token);
-        final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-        final assets = manifest
-            .listAssets()
-            .where((a) => a.startsWith('$_assetRoot/'))
-            .toList()
-          ..sort();
-        if (assets.isEmpty) {
-          _recordFailure('no kokoro assets in the bundle');
-          return false;
-        }
-        for (final asset in assets) {
-          final rel = asset.substring(_assetRoot.length);
-          final file = File('$dirPath$rel');
-          await file.parent.create(recursive: true);
-          final bytes = await rootBundle.load(asset);
-          await file.writeAsBytes(
-            bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
-            flush: true,
-          );
-        }
-        // The model ships as split parts (GitHub's 100 MB file limit);
-        // reassemble and drop the parts to halve the on-device footprint.
-        final modelFile = File('$dirPath/model.int8.onnx');
-        if (await modelFile.exists()) await modelFile.delete();
-        final parts = Directory(dirPath)
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.uri.pathSegments.last
-                .startsWith('model.int8.onnx.part-'))
-            .toList()
-          ..sort((a, b) => a.path.compareTo(b.path));
-        if (parts.isEmpty) {
-          _recordFailure('model parts missing after asset copy');
-          return false;
-        }
-        final sink = modelFile.openWrite(mode: FileMode.write);
-        for (final part in parts) {
-          await sink.addStream(part.openRead());
-        }
-        await sink.flush();
-        await sink.close();
-        for (final part in parts) {
-          try {
-            await part.delete();
-          } catch (_) {}
-        }
-        // Written last: its presence means the copy is complete, so a crash
-        // mid-copy simply re-copies on the next launch.
-        await File('$dirPath/.ready').writeAsString(_stamp, flush: true);
-        return true;
-      });
+      for (final name in _criticalFiles) {
+        if (!File('$dirPath/$name').existsSync()) return false;
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<bool> _prepare() async {
+    try {
+      final dirPath = debugPrepDirOverride ??
+          '${(await getApplicationSupportDirectory()).path}/kokoro';
+      _modelDirPath = dirPath;
+      if (_prepComplete(dirPath)) return true;
+      await _copyAssets(dirPath);
+      return true;
     } catch (e) {
       _recordFailure('asset copy failed: $e');
       return false;
     }
+  }
+
+  /// Copies every bundled kokoro asset to [dirPath], always from a CLEAN
+  /// state: previous content (partial copies from a crashed attempt, stale
+  /// files from older builds) is wiped first so a re-copy can never mix old
+  /// and new files.
+  ///
+  /// Runs on the ROOT isolate. The old implementation copied inside
+  /// Isolate.run — but rootBundle is unusable on background isolates:
+  /// PlatformAssetBundle.load reaches for ServicesBinding.instance, which no
+  /// background isolate has (statics are per-isolate, and
+  /// BackgroundIsolateBinaryMessenger.ensureInitialized registers the
+  /// isolate with the engine without initializing any binding). In release
+  /// builds the framework's descriptive assert is stripped and the bare
+  /// null-check fires — "Null check operator used on a null value" — which
+  /// is exactly what every on-device preparation hit before any file was
+  /// copied. Every step here is async and the copy is one-time
+  /// (marker-gated), so the UI stays responsive; the only UI-thread cost is
+  /// receiving each asset's bytes, the largest being the three ~40 MB model
+  /// parts.
+  ///
+  /// Every failure names the SPECIFIC asset and step (the audio diagnostics
+  /// screen shows it verbatim) — never a bare "asset copy failed".
+  static Future<void> _copyAssets(String dirPath) async {
+    // 1. Wipe whatever a previous attempt left behind.
+    try {
+      final type = FileSystemEntity.typeSync(dirPath);
+      if (type == FileSystemEntityType.directory) {
+        await Directory(dirPath).delete(recursive: true);
+      } else if (type != FileSystemEntityType.notFound) {
+        await File(dirPath).delete(); // a file where the directory belongs
+      }
+      await Directory(dirPath).create(recursive: true);
+    } catch (e) {
+      throw _PrepException('clear the stale model directory $dirPath: $e');
+    }
+    // 2. Enumerate the bundled assets from the manifest — the same bundle
+    //    lookup the device exercises (an undeclared subdirectory never
+    //    appears here: the October non-recursive-declaration failure class).
+    List<String> assets;
+    try {
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      assets = manifest
+          .listAssets()
+          .where((a) => a.startsWith('$_assetRoot/'))
+          .toList()
+        ..sort();
+    } catch (e) {
+      throw _PrepException('read the asset manifest (AssetManifest.bin): $e');
+    }
+    if (assets.isEmpty) {
+      throw _PrepException('no assets under $_assetRoot/ in the bundle '
+          'manifest (pubspec.yaml does not declare them)');
+    }
+    // 3. Copy each asset; any failure names the asset and the step.
+    for (final asset in assets) {
+      final rel = asset.substring(_assetRoot.length);
+      final file = File('$dirPath$rel');
+      try {
+        await file.parent.create(recursive: true);
+      } catch (e) {
+        throw _PrepException('create the directory for $asset: $e');
+      }
+      final ByteData bytes;
+      try {
+        bytes = await _loadAsset(asset);
+      } catch (e) {
+        throw _PrepException('$asset is not in the asset bundle: $e');
+      }
+      try {
+        await file.writeAsBytes(
+          bytes.buffer.asUint8List(bytes.offsetInBytes, bytes.lengthInBytes),
+          flush: true,
+        );
+      } catch (e) {
+        throw _PrepException('write $asset to ${file.path}: $e');
+      }
+    }
+    // 4. The model ships as split parts (GitHub's 100 MB file limit);
+    //    reassemble and drop the parts to halve the on-device footprint.
+    final modelFile = File('$dirPath/model.int8.onnx');
+    try {
+      if (await modelFile.exists()) await modelFile.delete();
+    } catch (e) {
+      throw _PrepException('remove a stale model.int8.onnx: $e');
+    }
+    final parts = Directory(dirPath)
+        .listSync()
+        .whereType<File>()
+        .where((f) =>
+            f.uri.pathSegments.last.startsWith('model.int8.onnx.part-'))
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+    if (parts.isEmpty) {
+      throw _PrepException('model.int8.onnx.part-* missing after asset copy '
+          '(the model parts are not declared in pubspec.yaml?)');
+    }
+    try {
+      final sink = modelFile.openWrite(mode: FileMode.write);
+      for (final part in parts) {
+        await sink.addStream(part.openRead());
+      }
+      await sink.flush();
+      await sink.close();
+    } catch (e) {
+      throw _PrepException(
+          'reassemble model.int8.onnx from ${parts.length} parts: $e');
+    }
+    for (final part in parts) {
+      try {
+        await part.delete();
+      } catch (_) {}
+    }
+    // 5. Verify the files the engine init reads before declaring readiness.
+    for (final name in _criticalFiles) {
+      if (!File('$dirPath/$name').existsSync()) {
+        throw _PrepException('$name missing after asset copy (not declared '
+            'in pubspec.yaml?)');
+      }
+    }
+    // 6. Written last: its presence means the copy is complete, so a crash
+    //    mid-copy simply re-copies (from a clean wipe) on the next launch.
+    try {
+      await File('$dirPath/.ready').writeAsString(_stamp, flush: true);
+    } catch (e) {
+      throw _PrepException('write the .ready marker: $e');
+    }
+  }
+
+  /// Loads one asset's bytes (production: rootBundle; tests may inject).
+  static Future<ByteData> _loadAsset(String key) {
+    final loader = debugAssetLoaderOverride;
+    if (loader != null) return loader(key);
+    return rootBundle.load(key);
   }
 
   /// The engine's on-device state for the diagnostics screen: whether the
@@ -422,6 +555,15 @@ class KokoroEngine {
   /// roll-call lists (the same source the relabeled audition used).
   static int kokoroSidCount(int voicesBinBytes) =>
       voicesBinBytes ~/ (510 * 256 * 4);
+}
+
+/// A preparation failure carrying its exact asset/step context — the text
+/// the audio diagnostics screen shows (never a bare "asset copy failed").
+class _PrepException implements Exception {
+  final String message;
+  const _PrepException(this.message);
+  @override
+  String toString() => message;
 }
 
 /// The Kokoro engine's on-device state (see [KokoroEngine.diagnosticStatus]).
