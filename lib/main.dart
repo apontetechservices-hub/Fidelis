@@ -8,8 +8,10 @@ import 'package:flutter/services.dart';
 import 'app.dart';
 import 'config/app_strings.dart';
 import 'services/audio_controller.dart';
+import 'services/audio_diagnostics.dart';
 import 'services/audio_service_handler.dart';
 import 'services/bible_address_migration.dart';
+import 'services/kokoro_engine.dart';
 import 'services/notification_service.dart';
 import 'services/tts_service.dart';
 
@@ -41,6 +43,14 @@ Future<void> main() async {
     ),
   );
   _wireAudioFocus();
+  // The diagnostic build's on-screen readout: every pipeline line, engine
+  // failure, and playback state transition lands in the AudioDiagnostics
+  // service, so the truth about what is playing (slot config, engine,
+  // fallbacks, errors, progress) is visible in the app UI — the playback
+  // readout and the diagnostics screen — not just in logs.
+  TtsService.readoutSink = AudioDiagnostics.instance.recordLine;
+  KokoroEngine.failureSink = AudioDiagnostics.instance.recordKokoroError;
+  AudioController.instance.listenable.addListener(_recordAudioState);
   // The app language must be known before the Bible address migration: the
   // stored last-reading position is language-agnostic, and Spanish-saved
   // positions are already in the standard numbering (see
@@ -77,4 +87,14 @@ Future<void> _wireAudioFocus() async {
     session.becomingNoisyEventStream
         .listen((_) => unawaited(AudioController.instance.pause()));
   } catch (_) {}
+}
+
+/// Mirrors the audio controller's state into the diagnostics service — the
+/// on-screen readout's state transitions (playing/paused/stopped with chunk
+/// and sentence), the Pause→Play evidence.
+void _recordAudioState() {
+  final info = AudioController.instance.listenable.value;
+  AudioDiagnostics.instance.recordState(
+      'state=${info.state.name} job=${info.jobId ?? '-'} '
+      'chunk=${info.chunkIndex} sentence=${info.sentenceIndex}');
 }

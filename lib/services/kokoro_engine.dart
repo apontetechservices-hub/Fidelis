@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
@@ -63,6 +64,29 @@ class KokoroEngine {
   static Future<bool>? _prepFuture;
   static String? _modelDirPath;
 
+  /// The last failure text (why Kokoro is unavailable this session) — the
+  /// diagnostic build surfaces it on screen next to every fallback, so the
+  /// ROOT CAUSE is visible, not just the fact of the fallback.
+  static String? lastError;
+
+  /// Sink for engine failures (the diagnostic build's on-screen banner).
+  /// Null in logging-only setups; main.dart wires it to the AudioDiagnostics
+  /// service.
+  static void Function(String error)? failureSink;
+
+  static void _recordFailure(String error) {
+    lastError = error;
+    failureSink?.call(error);
+  }
+
+  /// Test hook: force the sticky failure state (the fallback-surfacing
+  /// tests drive the flutter_tts fallback without the native engine).
+  @visibleForTesting
+  static void forceFailedForTest(String error) {
+    _failed = true;
+    _recordFailure(error);
+  }
+
   static Isolate? _isolate;
   static ReceivePort? _responses;
   static ReceivePort? _exitPort;
@@ -80,8 +104,9 @@ class KokoroEngine {
     try {
       _prepFuture ??= _prepare();
       return _prepFuture!;
-    } catch (_) {
+    } catch (e) {
       _failed = true;
+      _recordFailure('asset preparation failed: $e');
       return false;
     }
   }
@@ -102,15 +127,23 @@ class KokoroEngine {
       if (_loadedLang == lang) return true;
       final ack = await _request('init', {'lang': lang},
           timeout: const Duration(seconds: 90));
-      if (ack == null || ack['ok'] != true) {
+      if (ack == null) {
         _failed = true;
+        _recordFailure('engine init timed out (worker unreachable)');
+        _killWorker();
+        return false;
+      }
+      if (ack['ok'] != true) {
+        _failed = true;
+        _recordFailure('engine init failed: ${ack['error']}');
         _killWorker();
         return false;
       }
       _loadedLang = lang;
       return true;
-    } catch (_) {
+    } catch (e) {
       _failed = true;
+      _recordFailure('engine startup failed: $e');
       _killWorker();
       return false;
     }
@@ -136,10 +169,20 @@ class KokoroEngine {
       'lang': lang,
       'voice': voice,
     }, timeout: const Duration(minutes: 3));
-    if (ack == null || ack['ok'] != true) return null;
+    if (ack == null) {
+      _recordFailure('synthesis request failed (worker unreachable)');
+      return null;
+    }
+    if (ack['ok'] != true) {
+      _recordFailure('synthesis failed: ${ack['error']}');
+      return null;
+    }
     final samples = ack['samples'];
     final rate = ack['rate'];
-    if (samples is! Float32List || rate is! int) return null;
+    if (samples is! Float32List || rate is! int) {
+      _recordFailure('synthesis returned no usable samples');
+      return null;
+    }
     return KokoroAudio(
       samples,
       rate,
@@ -181,7 +224,10 @@ class KokoroEngine {
 
   static Future<bool> _spawnWorker() async {
     final dir = _modelDirPath;
-    if (dir == null) return false;
+    if (dir == null) {
+      _recordFailure('worker spawn failed: model directory not prepared');
+      return false;
+    }
     final mainPort = ReceivePort();
     final exit = ReceivePort();
     try {
@@ -194,7 +240,10 @@ class KokoroEngine {
       _exitPort = exit;
       _responses = mainPort;
       _hello = Completer<void>();
-      exit.listen((_) => _failAll('worker exited'));
+      exit.listen((_) {
+        _recordFailure('worker isolate exited unexpectedly');
+        _failAll('worker exited');
+      });
       mainPort.listen((msg) {
         final m = msg as Map;
         if (m['type'] == 'hello') {
@@ -210,7 +259,8 @@ class KokoroEngine {
       await _hello!.future.timeout(const Duration(seconds: 30));
       _hello = null;
       return true;
-    } catch (_) {
+    } catch (e) {
+      _recordFailure('worker spawn failed: $e');
       mainPort.close();
       exit.close();
       _isolate = null;
@@ -261,7 +311,10 @@ class KokoroEngine {
       // memory and must not jank the UI. rootBundle there needs the binary
       // messenger token of this isolate.
       final token = RootIsolateToken.instance;
-      if (token == null) return false;
+      if (token == null) {
+        _recordFailure('asset copy skipped (no root isolate token)');
+        return false;
+      }
       return await Isolate.run(() async {
         BackgroundIsolateBinaryMessenger.ensureInitialized(token);
         final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
@@ -270,7 +323,10 @@ class KokoroEngine {
             .where((a) => a.startsWith('$_assetRoot/'))
             .toList()
           ..sort();
-        if (assets.isEmpty) return false;
+        if (assets.isEmpty) {
+          _recordFailure('no kokoro assets in the bundle');
+          return false;
+        }
         for (final asset in assets) {
           final rel = asset.substring(_assetRoot.length);
           final file = File('$dirPath$rel');
@@ -292,7 +348,10 @@ class KokoroEngine {
                 .startsWith('model.int8.onnx.part-'))
             .toList()
           ..sort((a, b) => a.path.compareTo(b.path));
-        if (parts.isEmpty) return false;
+        if (parts.isEmpty) {
+          _recordFailure('model parts missing after asset copy');
+          return false;
+        }
         final sink = modelFile.openWrite(mode: FileMode.write);
         for (final part in parts) {
           await sink.addStream(part.openRead());
@@ -309,10 +368,87 @@ class KokoroEngine {
         await File('$dirPath/.ready').writeAsString(_stamp, flush: true);
         return true;
       });
-    } catch (_) {
+    } catch (e) {
+      _recordFailure('asset copy failed: $e');
       return false;
     }
   }
+
+  /// The engine's on-device state for the diagnostics screen: whether the
+  /// model assets are prepared (the .ready marker), the model directory,
+  /// the bundled voices.bin speaker count (the model metadata the sid
+  /// roll-call lists), whether the engine failed this session, and the
+  /// last failure text. Reads the copied files when present, else the
+  /// bundled asset — the same model metadata either way.
+  static Future<KokoroEngineStatus> diagnosticStatus() async {
+    final dir = _modelDirPath;
+    var prepared = false;
+    var sidCount = 0;
+    String? readError;
+    if (dir != null) {
+      try {
+        final marker = File('$dir/.ready');
+        prepared = marker.existsSync() &&
+            marker.readAsStringSync() == _stamp;
+        final voices = File('$dir/voices.bin');
+        if (voices.existsSync()) {
+          sidCount = kokoroSidCount(voices.lengthSync());
+        }
+      } catch (e) {
+        readError = 'model files unreadable: $e';
+      }
+    }
+    if (sidCount == 0) {
+      // Not copied yet (or the copy is incomplete): read the bundled
+      // asset — the same model metadata.
+      try {
+        final bytes = await rootBundle.load('$_assetRoot/voices.bin');
+        sidCount = kokoroSidCount(bytes.lengthInBytes);
+      } catch (e) {
+        readError ??= 'voices.bin unavailable: $e';
+      }
+    }
+    return KokoroEngineStatus(
+      assetsPrepared: prepared,
+      modelDir: dir,
+      sidCount: sidCount,
+      failedThisSession: _failed,
+      lastError: lastError ?? readError,
+    );
+  }
+
+  /// The bundled model's speaker count from the voices.bin size: each
+  /// voice is a 510×256 float32 style tensor — the model metadata the sid
+  /// roll-call lists (the same source the relabeled audition used).
+  static int kokoroSidCount(int voicesBinBytes) =>
+      voicesBinBytes ~/ (510 * 256 * 4);
+}
+
+/// The Kokoro engine's on-device state (see [KokoroEngine.diagnosticStatus]).
+class KokoroEngineStatus {
+  /// The model files are copied and the .ready marker matches the stamp.
+  final bool assetsPrepared;
+
+  /// The app-support directory holding the copied model (null before the
+  /// first prepare attempt).
+  final String? modelDir;
+
+  /// Speakers in the bundled voices.bin (the model metadata).
+  final int sidCount;
+
+  /// The sticky session failure state (Kokoro is disabled until restart).
+  final bool failedThisSession;
+
+  /// The last failure text, when any failure was recorded.
+  final String? lastError;
+
+  const KokoroEngineStatus({
+    required this.assetsPrepared,
+    required this.modelDir,
+    required this.sidCount,
+    required this.failedThisSession,
+    required this.lastError,
+  });
 }
 
 class _WorkerSetup {

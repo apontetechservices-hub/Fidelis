@@ -328,7 +328,8 @@ class TtsService {
         return;
       }
       _emitReadout('FALLBACK engine=flutter_tts (system voice) '
-          'reason=kokoro unavailable for $kokoroLang');
+          'reason=kokoro unavailable for $kokoroLang'
+          '${_kokoroFailureSuffix()}');
     }
     onSentenceStart?.call(0);
     await _speakWithFlutterTts(
@@ -377,6 +378,14 @@ class TtsService {
         _ => 'en-US',
       };
 
+  /// The Kokoro failure text appended to every fallback line (the on-screen
+  /// banner shows the ROOT CAUSE, not just the fact of the fallback). Empty
+  /// when the engine recorded no failure text.
+  static String _kokoroFailureSuffix() {
+    final err = KokoroEngine.lastError;
+    return err == null ? '' : ' — Kokoro failed: $err';
+  }
+
   // ---- Kokoro pipeline (en/es) ----
 
   /// Returns true when the text was delivered (fully by Kokoro, or partially
@@ -424,10 +433,11 @@ class TtsService {
           // Kokoro failed mid-pipeline: hand the remainder to flutter_tts so
           // the audio continues without a content gap. Logged loudly: a
           // fallback speaks in the SYSTEM voice — the owner must be able to
-          // tell that the slot config did not serve this audio.
+          // tell that the slot config did not serve this audio — and the
+          // diagnostic build carries the ROOT CAUSE in the same line.
           _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
               'voice) reason=sentence ${i + 1}/${sentences.length} '
-              'synthesis failed');
+              'synthesis failed${_kokoroFailureSuffix()}');
           final rest = sentences.skip(i).join(' ');
           if (rest.isNotEmpty) {
             onSentenceStart?.call(i);

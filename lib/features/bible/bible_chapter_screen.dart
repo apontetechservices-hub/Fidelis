@@ -9,6 +9,7 @@ import '../../services/bible_service.dart';
 import '../../services/billing_service.dart';
 import '../../services/kokoro_engine.dart';
 import '../../services/tts_service.dart';
+import '../diagnostics/playback_readout.dart';
 import '../premium/paywall_screen.dart';
 
 /// Arguments for the named '/bible/chapter' route.
@@ -461,6 +462,11 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // The diagnostic build's on-screen playback readout: the slot
+            // config, the engine that served the audio, any fallback, and
+            // the live numeric duration/position — visible during playback.
+            const PlaybackReadout(),
+            const SizedBox(height: 4),
             // Centered play/pause toggle for the chapter's read-aloud audio.
             ValueListenableBuilder<AudioPlaybackInfo>(
               valueListenable: AudioController.instance.listenable,

@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/theme.dart';
 import '../../config/app_strings.dart';
 import '../../services/notification_service.dart';
+import '../diagnostics/diagnostics_screen.dart';
 import '../../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -325,6 +326,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: Text(AppStrings.t('no_ads')),
                   subtitle: Text(AppStrings.t('prayer_is_sacred')),
                   leading: const Icon(Icons.block, color: FidelisTheme.deepRed),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.graphic_eq),
+                  title: Text(AppStrings.t('audio_diagnostics')),
+                  subtitle: Text(AppStrings.t('audio_diagnostics_note')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const DiagnosticsScreen()),
+                  ),
                 ),
               ],
             ),

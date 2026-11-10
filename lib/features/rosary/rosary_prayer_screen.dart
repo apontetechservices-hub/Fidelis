@@ -11,6 +11,7 @@ import 'mystery_data.dart';
 import '../../services/audio_controller.dart';
 import '../../services/kokoro_engine.dart';
 import '../../services/tts_service.dart';
+import '../diagnostics/playback_readout.dart';
 import 'litany_of_loreto.dart';
 import 'rosary_state.dart';
 
@@ -250,6 +251,11 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             valueColor: const AlwaysStoppedAnimation<Color>(FidelisTheme.gold),
             minHeight: 3,
           ),
+
+          // The diagnostic build's on-screen playback readout, directly
+          // under the progress bar: the slot config, the engine that served
+          // the audio, any fallback, and the live numeric duration/position.
+          const PlaybackReadout(),
 
           // Main content
           Expanded(

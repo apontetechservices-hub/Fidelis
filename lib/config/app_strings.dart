@@ -291,6 +291,35 @@ class AppStrings {
       'es': 'Aplicación de Oración Católica Tradicional',
     },
 
+    // ---- Audio diagnostics (the diagnostic build) ----
+    'audio_diagnostics': {'en': 'Audio diagnostics', 'es': 'Diagnóstico de audio'},
+    'audio_diagnostics_note': {
+      'en': 'Voice engine evidence for the diagnostic build',
+      'es': 'Evidencia del motor de voz (build de diagnóstico)',
+    },
+    'diagnostics_engine_status': {
+      'en': 'Kokoro engine status',
+      'es': 'Estado del motor Kokoro',
+    },
+    'diagnostics_probe': {'en': 'Probe synthesis', 'es': 'Probar síntesis'},
+    'diagnostics_renders': {
+      'en': 'Reference renders',
+      'es': 'Renderizados de referencia',
+    },
+    'diagnostics_rollcall': {'en': 'Speaker roll-call', 'es': 'Lista de voces'},
+    'diagnostics_rollcall_note': {
+      'en': 'Tap a speaker: it states its number, then the fixed sentence.',
+      'es': 'Toca una voz: dice su número y luego la frase fija.',
+    },
+    'diagnostics_pipeline_log': {
+      'en': 'Pipeline log',
+      'es': 'Registro del pipeline',
+    },
+    'diagnostics_state_log': {
+      'en': 'State transitions',
+      'es': 'Transiciones de estado',
+    },
+
     // ---- Rosary screen ----
     'begin': {'en': 'Begin', 'es': 'Comenzar'},
     'cancel': {'en': 'Cancel', 'es': 'Cancelar'},
