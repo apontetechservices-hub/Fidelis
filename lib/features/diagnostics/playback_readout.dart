@@ -1,8 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../config/theme.dart';
 import '../../services/audio_controller.dart';
 import '../../services/audio_diagnostics.dart';
+
+/// Whether the playback readout ALSO shows on the prayer screens (the
+/// Bible chapter and the rosary prayer screens). Default OFF — the readout
+/// lives behind Settings → About → Audio diagnostics; the toggle is the
+/// owner's opt-in for on-screen debugging during playback.
+class PlaybackReadoutVisibility {
+  PlaybackReadoutVisibility._();
+
+  static const _prefKey = 'playback_readout_on_prayer_screens';
+
+  /// The toggle state (default OFF).
+  static final ValueNotifier<bool> onPrayerScreens = ValueNotifier<bool>(false);
+
+  /// Loads the stored toggle (call once at startup; default OFF).
+  static Future<void> load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      onPrayerScreens.value = prefs.getBool(_prefKey) ?? false;
+    } catch (_) {}
+  }
+
+  /// Sets the toggle and persists it.
+  static Future<void> set(bool value) async {
+    onPrayerScreens.value = value;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_prefKey, value);
+    } catch (_) {}
+  }
+}
 
 /// The diagnostic build's on-screen playback readout: what the pipeline
 /// REQUESTED (the slot config — sids, blend weights, speed, phonemizer
@@ -99,15 +130,23 @@ class PlaybackReadout extends StatelessWidget {
   }
 
   /// The live numeric duration/position — the progress-bar root-cause
-  /// instrument. Null progress is itself the finding: the flutter_tts
-  /// fallback path exposes no timing, so nothing can move any bar.
+  /// instrument, now AGGREGATED across the whole chapter/page (sequence
+  /// jobs). Null progress is itself the finding, and the label says WHICH
+  /// finding: 'no timing — idle' when nothing is loaded, 'no timing —
+  /// fallback path' when the flutter_tts fallback (which exposes no
+  /// timing) served the audio.
   Widget _progressRow(BuildContext context, Color accent) {
     return ValueListenableBuilder<AudioProgress?>(
       valueListenable: AudioController.instance.progressListenable,
       builder: (context, progress, _) {
         final String value;
         if (progress == null) {
-          value = 'no timing (idle, or the flutter_tts path exposes none)';
+          final info = AudioController.instance.listenable.value;
+          final fallback =
+              AudioDiagnostics.instance.engineUsed == 'flutter_tts';
+          value = (info.state == AudioState.stopped || !fallback)
+              ? 'no timing — idle'
+              : 'no timing — fallback path (flutter_tts exposes none)';
         } else {
           final duration = progress.duration;
           value = 'duration ${_seconds(duration)} · '

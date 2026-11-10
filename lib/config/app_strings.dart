@@ -297,6 +297,14 @@ class AppStrings {
       'en': 'Voice engine evidence for the diagnostic build',
       'es': 'Evidencia del motor de voz (build de diagnóstico)',
     },
+    'audio_readout_toggle': {
+      'en': 'Show playback readout on prayer screens',
+      'es': 'Mostrar el panel de audio en las pantallas de oración',
+    },
+    'audio_readout_toggle_note': {
+      'en': 'Off by default — the readout lives in Audio diagnostics',
+      'es': 'Desactivado por defecto; el panel vive en Diagnóstico de audio',
+    },
     'diagnostics_engine_status': {
       'en': 'Kokoro engine status',
       'es': 'Estado del motor Kokoro',

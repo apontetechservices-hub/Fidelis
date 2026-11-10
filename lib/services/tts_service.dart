@@ -6,6 +6,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'audio_controller.dart' show AudioChunk;
 import 'kokoro_engine.dart';
 import 'tts_text.dart' as tts_text;
 
@@ -324,7 +325,9 @@ class TtsService {
         onSentenceStart,
         onSentenceTiming,
       )) {
-        _emitReadout('engine=kokoro (the slot config above executed)');
+        // The engine line ('engine=kokoro') fired inside the stream runner
+        // the moment the FIRST sentence was served — the readout names the
+        // engine during playback, not after the whole chunk.
         return;
       }
       _emitReadout('FALLBACK engine=flutter_tts (system voice) '
@@ -388,10 +391,290 @@ class TtsService {
 
   // ---- Kokoro pipeline (en/es) ----
 
-  /// Returns true when the text was delivered (fully by Kokoro, or partially
-  /// with the remainder handed to flutter_tts after a mid-pipeline failure).
-  /// Returns false only when Kokoro could not start at all, so the caller
-  /// falls back to flutter_tts for the whole text.
+  /// Read-through synthesis cache: sentence audio rendered AHEAD of playback
+  /// (the rosary's next step, pre-fetched while the current one plays) so
+  /// the next page starts without synthesis latency. Keyed by
+  /// (lang, voice identity, sentence); bounded FIFO. Entries are kept after
+  /// consumption — the rosary's decade repeats one Hail Mary ten times, and
+  /// every repeat then starts instantly.
+  static final Map<String, KokoroAudio> _prefetchCache = {};
+  static final Set<String> _prefetchInFlight = {};
+  static const int _prefetchCacheMax = 8;
+
+  static String _prefetchKey(String sentence, String lang, KokoroVoice voice) =>
+      '$lang|${identityHashCode(voice)}|$sentence';
+
+  /// Fire-and-forget: renders [text]'s sentences into the prefetch cache so
+  /// a later playback of the same (lang, voice, text) starts without
+  /// synthesis latency. The worker is FIFO: these renders queue behind the
+  /// playing pipeline's own lookahead syntheses and fill the idle time
+  /// between sentences. Never throws.
+  static Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
+    if ((lang != 'en' && lang != 'es') || text.isEmpty) return;
+    try {
+      if (!await KokoroEngine.ensureReady(lang)) return;
+      final (spoken, _) =
+          tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
+      for (final sentence in tts_text.splitSpeakableSentences(spoken)) {
+        final key = _prefetchKey(sentence, lang, voice);
+        if (_prefetchCache.containsKey(key) ||
+            _prefetchInFlight.contains(key)) {
+          continue;
+        }
+        _prefetchInFlight.add(key);
+        try {
+          final audio =
+              await KokoroEngine.synthesize(sentence, lang, voice: voice);
+          if (audio != null && audio.samples.isNotEmpty) {
+            while (_prefetchCache.length >= _prefetchCacheMax) {
+              _prefetchCache.remove(_prefetchCache.keys.first);
+            }
+            _prefetchCache[key] = audio;
+          }
+        } finally {
+          _prefetchInFlight.remove(key);
+        }
+      }
+    } catch (_) {}
+  }
+
+  /// Plays [chunks] — ALL text chunks in one language ('en'|'es') — as ONE
+  /// continuous Kokoro sentence pipeline with synthesis lookahead that
+  /// SPANS CHUNK BOUNDARIES: while a sentence plays, the following
+  /// sentences — including the next chunk's first — are already rendering
+  /// in the worker, so a verse/page boundary costs no synthesis silence.
+  /// Blend slots budget DOUBLE (every sentence costs two renders in the
+  /// worker). Each chunk's slot readout + equalizer shaping apply at its
+  /// start; the engine line fires when the FIRST sentence is served (the
+  /// readout names the engine during playback, not minutes later).
+  static Future<void> speakSequence(
+    List<AudioChunk> chunks, {
+    required String lang,
+    required void Function(int chunkIndex) onChunkStart,
+    required void Function(int chunkIndex, int sentenceInChunk) onSentenceStart,
+    required void Function(int chunkIndex, int charStart, int charEnd,
+            Duration duration)
+        onSentenceTiming,
+    required void Function(int chunkIndex, int sentenceInChunk,
+            Duration duration)
+        onSentenceSynthesized,
+    required void Function(int chunkIndex, int charStart, int charEnd)
+        onWordRange,
+  }) async {
+    if (!_ready) await init();
+    if (chunks.isEmpty) return;
+    final myEpoch = ++_epoch;
+    _finishPlayDone();
+    try {
+      if (!await KokoroEngine.ensureReady(lang)) {
+        _emitReadout('FALLBACK engine=flutter_tts (system voice) '
+            'reason=kokoro unavailable for $lang${_kokoroFailureSuffix()}');
+        for (var ci = 0; ci < chunks.length; ci++) {
+          if (myEpoch != _epoch) return;
+          onChunkStart(ci);
+          onSentenceStart(ci, 0);
+          await _speakWithFlutterTts(chunks[ci].text ?? '', _localeFor(lang));
+          await _holdWhilePaused(myEpoch);
+          if (myEpoch != _epoch) return;
+        }
+        return;
+      }
+      final stream = _buildStream(chunks, lang);
+      if (stream.isEmpty) return;
+      await _runStream(
+        stream,
+        chunks,
+        lang,
+        myEpoch,
+        _StreamCallbacks(
+          onChunkStart: onChunkStart,
+          onSentenceStart: onSentenceStart,
+          onSentenceTiming: onSentenceTiming,
+          onSentenceSynthesized: onSentenceSynthesized,
+          onWordRange: onWordRange,
+        ),
+      );
+    } catch (_) {
+      // Audio must never break the caller: swallow — the job loop ends the
+      // stream the way a natural completion would.
+    }
+  }
+
+  /// The continuous sentence stream across [chunks]: lexicon-applied,
+  /// split, and aligned to each chunk's ORIGINAL text coordinates (the
+  /// same split the engine speaks — highlight mapping stays exact).
+  static List<_StreamSentence> _buildStream(
+      List<AudioChunk> chunks, String lang) {
+    final stream = <_StreamSentence>[];
+    for (var ci = 0; ci < chunks.length; ci++) {
+      final chunk = chunks[ci];
+      final text = chunk.text ?? '';
+      if (text.isEmpty) continue;
+      final voice = chunk.voice ?? KokoroVoice.standard;
+      final (spoken, align) =
+          tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
+      final sentences = tts_text.splitSpeakableSentences(spoken);
+      final ranges = [
+        for (final (start, end) in tts_text.speakableSentenceRanges(spoken))
+          (align[start], align[end]),
+      ];
+      for (var si = 0; si < sentences.length && si < ranges.length; si++) {
+        stream.add(_StreamSentence(ci, si, sentences[si], ranges[si]));
+      }
+    }
+    return stream;
+  }
+
+  /// Runs the continuous pipeline over [stream]: a rolling lookahead of
+  /// [KokoroVoice]-budgeted syntheses (solo 2, blend 4 — two renders per
+  /// blend sentence) keeps the worker rendering ahead of playback across
+  /// chunk boundaries; each sentence's duration is reported the moment its
+  /// render lands (ahead of playback — the aggregate progress learns the
+  /// page's total as the lookahead renders); a mid-stream synthesis
+  /// failure hands THAT chunk's remainder to flutter_tts and the stream
+  /// continues with the next chunk (Kokoro again).
+  static Future<void> _runStream(
+    List<_StreamSentence> stream,
+    List<AudioChunk> chunks,
+    String lang,
+    int myEpoch,
+    _StreamCallbacks callbacks, {
+    bool emitSlotReadout = true,
+  }) async {
+    var blend = false;
+    for (final s in stream) {
+      if ((chunks[s.chunkIndex].voice ?? KokoroVoice.standard)
+              .blendSidFor(lang) !=
+          null) {
+        blend = true;
+        break;
+      }
+    }
+    final depth = blend ? 4 : 2;
+    final pending = <Future<KokoroAudio?>>[];
+    var issued = 0;
+    void issue() {
+      while (issued < stream.length && pending.length < depth) {
+        pending.add(_streamSynthesize(stream[issued], chunks, lang));
+        issued++;
+      }
+    }
+
+    issue();
+    var engineLineServed = false;
+    var lastChunkIndex = -1;
+    final failedChunks = <int>{};
+    for (var i = 0; i < stream.length; i++) {
+      final s = stream[i];
+      if (failedChunks.contains(s.chunkIndex)) {
+        // The chunk fell back to flutter_tts: drain its already-issued
+        // synthesis futures without playing them, keep the lookahead full.
+        if (pending.isNotEmpty) pending.removeAt(0);
+        issue();
+        continue;
+      }
+      final audio = await pending.removeAt(0);
+      if (myEpoch != _epoch) return; // stop() while generating
+      issue();
+      if (audio == null || audio.samples.isEmpty) {
+        failedChunks.add(s.chunkIndex);
+        _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
+            'voice) reason=sentence ${s.sentenceInChunk + 1} of chunk '
+            '${s.chunkIndex + 1} synthesis failed${_kokoroFailureSuffix()}');
+        if (lastChunkIndex != s.chunkIndex) {
+          lastChunkIndex = s.chunkIndex;
+          callbacks.onChunkStart?.call(s.chunkIndex);
+          // The requested slot config still prints for a fallback chunk —
+          // the FALLBACK line above names what actually served it.
+          _emitReadout('playback ${tts_text.slotReadoutLine(
+              chunks[s.chunkIndex].voice ?? KokoroVoice.standard, lang)}');
+        }
+        final rest = <String>[];
+        for (var j = i;
+            j < stream.length && stream[j].chunkIndex == s.chunkIndex;
+            j++) {
+          rest.add(stream[j].text);
+        }
+        if (rest.isNotEmpty) {
+          callbacks.onSentenceStart?.call(s.chunkIndex, s.sentenceInChunk);
+          await _speakWithFlutterTts(rest.join(' '), _localeFor(lang),
+              onWordRange: (start, end) =>
+                  callbacks.onWordRange?.call(s.chunkIndex, start, end));
+          // A pause during the fallback completes the speak early; hold
+          // until the resume plays the remainder out (the job loop's hold,
+          // moved into the stream).
+          await _holdWhilePaused(myEpoch);
+        }
+        if (myEpoch != _epoch) return;
+        continue;
+      }
+      final duration = Duration(
+          milliseconds:
+              (audio.samples.length * 1000 / audio.sampleRate).round());
+      // The render just landed — AHEAD of its playback (the lookahead):
+      // the aggregate progress learns the page's total from here.
+      callbacks.onSentenceSynthesized?.call(s.chunkIndex, s.sentenceInChunk, duration);
+      if (!engineLineServed) {
+        engineLineServed = true;
+        _emitReadout('engine=kokoro (the slot config above executed)');
+      }
+      if (lastChunkIndex != s.chunkIndex) {
+        lastChunkIndex = s.chunkIndex;
+        callbacks.onChunkStart?.call(s.chunkIndex);
+        // Slot-scoped equalizer shaping per chunk (the English-Bible boom
+        // softening); every other slot clears it. Fire-and-forget.
+        unawaited(applySlotEqualizer(
+            (chunks[s.chunkIndex].voice ?? KokoroVoice.standard)
+                .equalizerFor(lang)));
+        if (emitSlotReadout) {
+          _emitReadout('playback ${tts_text.slotReadoutLine(
+              chunks[s.chunkIndex].voice ?? KokoroVoice.standard, lang)}');
+        }
+      }
+      // Hold between sentences while paused, then report the sentence that
+      // is about to be heard so highlights stay in sync.
+      final gate = _pauseGate;
+      if (gate != null) await gate.future;
+      if (myEpoch != _epoch) return; // stopped while paused
+      callbacks.onSentenceStart?.call(s.chunkIndex, s.sentenceInChunk);
+      callbacks.onSentenceTiming?.call(
+          s.chunkIndex, s.range.$1, s.range.$2, duration);
+      await _playPcm(audio, myEpoch);
+    }
+  }
+
+  /// Synthesizes one stream sentence: the prefetch cache first (a previous
+  /// prefetch already rendered it), else the engine. Cache hits keep the
+  /// worker free for the lookahead.
+  static Future<KokoroAudio?> _streamSynthesize(
+      _StreamSentence s, List<AudioChunk> chunks, String lang) async {
+    final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
+    final cached = _prefetchCache[_prefetchKey(s.text, lang, voice)];
+    if (cached != null) return Future<KokoroAudio?>.value(cached);
+    return KokoroEngine.synthesize(s.text, lang, voice: voice);
+  }
+
+  /// Holds while paused (the flutter_tts fallback's early-completed speak):
+  /// once a resume is in flight, waits for it to play the remainder out;
+  /// otherwise polls until the pause lifts or the playback is replaced.
+  static Future<void> _holdWhilePaused(int myEpoch) async {
+    while (_paused && myEpoch == _epoch) {
+      final inflight = _resumeInFlight;
+      if (inflight != null) {
+        await inflight.future;
+        if (!_paused || myEpoch != _epoch) return;
+        continue; // paused again mid-remainder
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
+  /// Single-chunk Kokoro playback (the mixed-job path): the same continuous
+  /// stream runner, one chunk. Returns true when the text was delivered
+  /// (fully by Kokoro, or partially with the remainder handed to
+  /// flutter_tts after a mid-pipeline failure). Returns false only when
+  /// Kokoro could not start at all, so the caller falls back to flutter_tts
+  /// for the whole text.
   static Future<bool> _speakWithKokoro(
     String text,
     String lang,
@@ -404,70 +687,22 @@ class TtsService {
     try {
       if (!await KokoroEngine.ensureReady(lang)) return false;
       if (myEpoch != _epoch) return true; // stopped while the engine warmed up
-      // Slot-scoped equalizer shaping (the English-Bible boom softening);
-      // every other slot clears it. Fire-and-forget: the band gains apply
-      // once the player's equalizer parameters resolve, never blocking
-      // synthesis.
-      unawaited(applySlotEqualizer(voice.equalizerFor(lang)));
-      // Pronunciation lexicon (per-voice): applied BEFORE sentence splitting
-      // so the engine speaks the verified respellings. Sentence highlight
-      // ranges are mapped back to the original text's coordinates through
-      // the lexicon alignment, so highlights stay on the displayed words.
-      final (spoken, align) =
-          tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
-      final sentences = tts_text.splitSpeakableSentences(spoken);
-      if (sentences.isEmpty) return false;
-      final ranges = [
-        for (final (start, end) in tts_text.speakableSentenceRanges(spoken))
-          (align[start], align[end]),
-      ];
-
-      // Synthesize sentence 1 first so playback starts fast; later sentences
-      // are generated while the current one plays.
-      var prefetch =
-          KokoroEngine.synthesize(sentences[0], lang, voice: voice);
-      for (var i = 0; i < sentences.length; i++) {
-        final audio = await prefetch;
-        if (myEpoch != _epoch) return true; // stop() while generating
-        if (audio == null || audio.samples.isEmpty) {
-          // Kokoro failed mid-pipeline: hand the remainder to flutter_tts so
-          // the audio continues without a content gap. Logged loudly: a
-          // fallback speaks in the SYSTEM voice — the owner must be able to
-          // tell that the slot config did not serve this audio — and the
-          // diagnostic build carries the ROOT CAUSE in the same line.
-          _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
-              'voice) reason=sentence ${i + 1}/${sentences.length} '
-              'synthesis failed${_kokoroFailureSuffix()}');
-          final rest = sentences.skip(i).join(' ');
-          if (rest.isNotEmpty) {
-            onSentenceStart?.call(i);
-            await _speakWithFlutterTts(rest, _localeFor(lang));
-          }
-          return true;
-        }
-        prefetch = i + 1 < sentences.length
-            ? KokoroEngine.synthesize(sentences[i + 1], lang, voice: voice)
-            : Future<KokoroAudio?>.value(null);
-        // Hold between sentences while paused, then report the sentence that
-        // is about to be heard so highlights stay in sync.
-        final gate = _pauseGate;
-        if (gate != null) await gate.future;
-        if (myEpoch != _epoch) return true; // stopped while paused
-        onSentenceStart?.call(i);
-        // Engine-timed sentence boundary + duration (from the WAV length):
-        // the word position within the sentence is then estimated
-        // proportionally by the AudioController (sherpa_onnx 1.13.8 exposes
-        // no token timestamps).
-        final range = ranges[i];
-        onSentenceTiming?.call(
-          range.$1,
-          range.$2,
-          Duration(
-              milliseconds:
-                  (audio.samples.length * 1000 / audio.sampleRate).round()),
-        );
-        await _playPcm(audio, myEpoch);
-      }
+      final chunk = AudioChunk(text: text, lang: lang, voice: voice);
+      final stream = _buildStream([chunk], lang);
+      if (stream.isEmpty) return false;
+      await _runStream(
+        stream,
+        [chunk],
+        lang,
+        myEpoch,
+        _StreamCallbacks(
+          onSentenceStart: (_, si) => onSentenceStart?.call(si),
+          onSentenceTiming: (_, start, end, duration) =>
+              onSentenceTiming?.call(start, end, duration),
+        ),
+        // speakPrayer printed the single chunk's slot line already.
+        emitSlotReadout: false,
+      );
       return true;
     } catch (_) {
       return false;
@@ -475,10 +710,18 @@ class TtsService {
   }
 
   /// Writes one sentence as a WAV file in the cache dir and plays it.
+  ///
+  /// The PCM is RESAMPLED to 48000 Hz first: the owner's phone doubles/
+  /// distorts raw 24000 Hz sentence WAVs while the pre-rendered opus files
+  /// (whose decoder delivers 48000 Hz mono to the same sink) played clean
+  /// for weeks — the 24 kHz raw-PCM path is the one corrupted output path
+  /// (see resamplePcmTo48k). The WAV declares 48000 Hz mono 16-bit.
   static Future<void> _playPcm(KokoroAudio audio, int myEpoch) async {
     final file = await _sentenceWavFile();
+    final rate = audio.sampleRate == 24000 ? 48000 : audio.sampleRate;
+    final samples = resamplePcmTo48k(audio.samples, audio.sampleRate);
     await file.writeAsBytes(
-      encodeWav16(audio.samples, audio.sampleRate),
+      encodeWav16(samples, rate),
       flush: true,
     );
     try {
@@ -642,6 +885,39 @@ class TtsService {
   /// engine speaks.
   static List<(int, int)> sentenceRanges(String text) =>
       tts_text.speakableSentenceRanges(text);
+}
+
+/// One sentence in the continuous pipeline stream: which chunk it belongs
+/// to, its index within that chunk, its spoken text, and its character
+/// range within the chunk's ORIGINAL text (through the lexicon alignment).
+class _StreamSentence {
+  final int chunkIndex;
+  final int sentenceInChunk;
+  final String text;
+  final (int, int) range;
+
+  const _StreamSentence(
+      this.chunkIndex, this.sentenceInChunk, this.text, this.range);
+}
+
+/// The stream runner's callbacks (all optional; the single-chunk path
+/// adapts the legacy per-chunk signatures onto them).
+class _StreamCallbacks {
+  final void Function(int chunkIndex)? onChunkStart;
+  final void Function(int chunkIndex, int sentenceInChunk)? onSentenceStart;
+  final void Function(int chunkIndex, int charStart, int charEnd,
+      Duration duration)? onSentenceTiming;
+  final void Function(int chunkIndex, int sentenceInChunk, Duration duration)?
+      onSentenceSynthesized;
+  final void Function(int chunkIndex, int charStart, int charEnd)? onWordRange;
+
+  const _StreamCallbacks({
+    this.onChunkStart,
+    this.onSentenceStart,
+    this.onSentenceTiming,
+    this.onSentenceSynthesized,
+    this.onWordRange,
+  });
 }
 
 /// Applies slot equalizer [gains] (band index → dB gain) to [equalizer]:

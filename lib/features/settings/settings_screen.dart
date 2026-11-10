@@ -5,6 +5,7 @@ import '../../config/theme.dart';
 import '../../config/app_strings.dart';
 import '../../services/notification_service.dart';
 import '../diagnostics/diagnostics_screen.dart';
+import '../diagnostics/playback_readout.dart';
 import '../../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -337,6 +338,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     context,
                     MaterialPageRoute(
                         builder: (context) => const DiagnosticsScreen()),
+                  ),
+                ),
+                const Divider(height: 1),
+                ValueListenableBuilder<bool>(
+                  valueListenable: PlaybackReadoutVisibility.onPrayerScreens,
+                  builder: (context, value, _) => SwitchListTile(
+                    secondary: const Icon(Icons.read_more),
+                    title: Text(AppStrings.t('audio_readout_toggle')),
+                    subtitle: Text(AppStrings.t('audio_readout_toggle_note')),
+                    value: value,
+                    onChanged: (v) => PlaybackReadoutVisibility.set(v),
                   ),
                 ),
               ],

@@ -462,10 +462,18 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // The diagnostic build's on-screen playback readout: the slot
-            // config, the engine that served the audio, any fallback, and
-            // the live numeric duration/position — visible during playback.
-            const PlaybackReadout(),
+            // The playback readout lives behind Settings → About → Audio
+            // diagnostics; the off-by-default toggle puts it back on this
+            // screen for on-screen debugging during playback.
+            ValueListenableBuilder<bool>(
+              valueListenable: PlaybackReadoutVisibility.onPrayerScreens,
+              builder: (context, show, _) => show
+                  ? const Padding(
+                      padding: EdgeInsets.only(bottom: 4),
+                      child: PlaybackReadout(),
+                    )
+                  : const SizedBox.shrink(),
+            ),
             const SizedBox(height: 4),
             // Centered play/pause toggle for the chapter's read-aloud audio.
             ValueListenableBuilder<AudioPlaybackInfo>(

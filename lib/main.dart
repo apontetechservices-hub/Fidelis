@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 
 import 'app.dart';
 import 'config/app_strings.dart';
+import 'features/diagnostics/playback_readout.dart';
 import 'services/audio_controller.dart';
 import 'services/audio_diagnostics.dart';
 import 'services/audio_service_handler.dart';
@@ -51,6 +52,10 @@ Future<void> main() async {
   TtsService.readoutSink = AudioDiagnostics.instance.recordLine;
   KokoroEngine.failureSink = AudioDiagnostics.instance.recordKokoroError;
   AudioController.instance.listenable.addListener(_recordAudioState);
+  // The playback readout's prayer-screen toggle (default OFF): the readout
+  // lives behind Settings → About → Audio diagnostics; the toggle puts it
+  // back on the Bible/Rosary screens when the owner opts in.
+  unawaited(PlaybackReadoutVisibility.load());
   // The app language must be known before the Bible address migration: the
   // stored last-reading position is language-agnostic, and Spanish-saved
   // positions are already in the standard numbering (see

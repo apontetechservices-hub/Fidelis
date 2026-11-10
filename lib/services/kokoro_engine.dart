@@ -101,6 +101,7 @@ class KokoroEngine {
     lastError = null;
     debugPrepDirOverride = null;
     debugAssetLoaderOverride = null;
+    debugSynthesizeOverride = null;
   }
 
   /// Test seam: overrides the model directory (production: the app support
@@ -114,6 +115,12 @@ class KokoroEngine {
   /// failures to prove the recorded error names the exact asset and step.
   @visibleForTesting
   static Future<ByteData> Function(String key)? debugAssetLoaderOverride;
+
+  /// Test seam: overrides synthesis itself (production: the worker isolate).
+  /// The pipeline tests script per-sentence audio without the native engine.
+  @visibleForTesting
+  static Future<KokoroAudio?> Function(String text, String lang,
+      {KokoroVoice? voice})? debugSynthesizeOverride;
 
   /// The preparation stamp, for tests that assert the .ready marker.
   @visibleForTesting
@@ -146,6 +153,9 @@ class KokoroEngine {
   /// Ensures the worker can synthesize [lang] ('en' | 'es').
   /// Returns false on any failure (caller must fall back to flutter_tts).
   static Future<bool> ensureReady(String lang) async {
+    // Scripted-synthesis mode (the pipeline tests): no worker, no native
+    // lib — the override IS the engine.
+    if (debugSynthesizeOverride != null) return true;
     if (_failed || (lang != 'en' && lang != 'es')) return false;
     try {
       if (!await prepareAssets()) {
@@ -194,6 +204,10 @@ class KokoroEngine {
     String lang, {
     KokoroVoice voice = KokoroVoice.standard,
   }) async {
+    // Test seam: scripted synthesis for the pipeline tests (the real engine
+    // needs the native sherpa lib, which the unit suite must not require).
+    final override = debugSynthesizeOverride;
+    if (override != null) return override(text, lang, voice: voice);
     if (_failed || (lang != 'en' && lang != 'es')) return null;
     if (!await ensureReady(lang)) return null;
     final ack = await _request('gen', {
@@ -726,5 +740,33 @@ Uint8List encodeWav16(Float32List samples, int sampleRate) {
   final out = Uint8List(44 + dataLen);
   out.setAll(0, header.buffer.asUint8List());
   out.setAll(44, pcm.buffer.asUint8List());
+  return out;
+}
+
+/// Upsamples mono float PCM [samples] from [sampleRate] to 48000 Hz — the
+/// exact effective format the platform's opus decoder delivered for the
+/// pre-rendered rosary files that played CLEAN on the owner's phone, while
+/// every raw 24000 Hz sentence WAV doubled/distorted (the Galaxy S25
+/// Ultra's output path mishandles 24 kHz PCM; 48 kHz mono is the proven-
+/// clean path). 2× upsampling with the classic 4-tap polyphase filter
+/// (−1, 9, 9, −1)/16: transparent for Kokoro's band-limited speech, no
+/// zero-order-hold images. Non-24 kHz input passes through unchanged (the
+/// engine emits 24 kHz; the guard keeps the helper honest for other rates).
+Float32List resamplePcmTo48k(Float32List samples, int sampleRate) {
+  if (sampleRate == 48000 || samples.isEmpty) return samples;
+  if (sampleRate != 24000) return samples; // only the 2× case is implemented
+  final n = samples.length;
+  final out = Float32List(n * 2);
+  double tap(int i) {
+    if (i < 0) return samples[0];
+    if (i >= n) return samples[n - 1];
+    return samples[i];
+  }
+
+  for (var i = 0; i < n; i++) {
+    out[2 * i] = samples[i];
+    out[2 * i + 1] =
+        (-tap(i - 1) + 9 * tap(i) + 9 * tap(i + 1) - tap(i + 2)) / 16.0;
+  }
   return out;
 }

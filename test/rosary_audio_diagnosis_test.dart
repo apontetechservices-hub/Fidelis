@@ -43,6 +43,10 @@ import 'package:fidelis/services/tts_service.dart';
 ///    controller's timeline check uses.
 ///  - progress: a playing asset reports a non-null (position, duration).
 class BundledAudioEngine implements AudioEngine {
+
+  /// Set by stop(): the delegate's chunk loop halts (the real
+  /// pipeline's epoch checks, mirrored).
+  bool _sequenceStopped = false;
   final List<String> log = [];
   final List<String?> speakLangs = [];
 
@@ -113,6 +117,44 @@ class BundledAudioEngine implements AudioEngine {
         .map((_) => const Duration(milliseconds: 1500))
         .toList();
   }
+
+  @override
+  Future<void> speakSequence(
+    List<AudioChunk> chunks, {
+    required String lang,
+    required void Function(int chunkIndex) onChunkStart,
+    required void Function(int chunkIndex, int sentenceInChunk)
+        onSentenceStart,
+    required void Function(int chunkIndex, int charStart, int charEnd,
+            Duration duration)
+        onSentenceTiming,
+    required void Function(int chunkIndex, int sentenceInChunk,
+            Duration duration)
+        onSentenceSynthesized,
+    required void Function(int chunkIndex, int charStart, int charEnd)
+        onWordRange,
+  }) async {
+    // The scripted engine plays the chunks through the same speakText path
+    // the pre-sequence controller used — the screen tests' expectations
+    // (log entries, gates, word events) keep their old semantics.
+    _sequenceStopped = false;
+    for (var ci = 0; ci < chunks.length; ci++) {
+      if (ci > 0 && _sequenceStopped) return; // stopped mid-sequence
+      onChunkStart(ci);
+      await speakText(
+        chunks[ci].text ?? '',
+        lang: lang,
+        voice: chunks[ci].voice,
+        onSentenceStart: (_) => onSentenceStart(ci, 0),
+        onSentenceTiming: (start, end, duration) =>
+            onSentenceTiming(ci, start, end, duration ?? Duration.zero),
+        onWordRange: (start, end) => onWordRange(ci, start, end),
+      );
+    }
+  }
+
+  @override
+  Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}
 }
 
 void main() {

@@ -170,6 +170,35 @@ abstract class AudioEngine {
     String lang, {
     bool Function()? shouldAbort,
   });
+
+  /// Plays [chunks] — ALL text chunks in one language ('en'|'es') — as ONE
+  /// continuous sentence pipeline with synthesis lookahead that SPANS
+  /// CHUNK BOUNDARIES: while a chunk plays, the next chunks are already
+  /// synthesizing (blend slots budget double — two renders per sentence),
+  /// so a verse/page boundary costs no synthesis silence. The callbacks
+  /// drive the controller's per-chunk state and the aggregate progress:
+  /// [onSentenceSynthesized] fires when a sentence's render LANDS (ahead
+  /// of its playback) so the whole-page duration is learned early.
+  Future<void> speakSequence(
+    List<AudioChunk> chunks, {
+    required String lang,
+    required void Function(int chunkIndex) onChunkStart,
+    required void Function(int chunkIndex, int sentenceInChunk) onSentenceStart,
+    required void Function(int chunkIndex, int charStart, int charEnd,
+            Duration duration)
+        onSentenceTiming,
+    required void Function(int chunkIndex, int sentenceInChunk,
+            Duration duration)
+        onSentenceSynthesized,
+    required void Function(int chunkIndex, int charStart, int charEnd)
+        onWordRange,
+  });
+
+  /// Fire-and-forget lookahead prefetch: renders [text]'s sentences into
+  /// the engine's cache so a later playback of the same content (the
+  /// rosary's next step) starts without synthesis latency. Queues behind
+  /// the playing pipeline's own syntheses; never blocks the caller.
+  Future<void> prefetch(String text, String lang, KokoroVoice voice);
 }
 
 /// Real engine: delegates to [TtsService] (Kokoro + flutter_tts + bundled
@@ -223,6 +252,37 @@ class TtsAudioEngine implements AudioEngine {
   }) {
     return TtsService.synthesizeSentenceDurations(text, lang,
         shouldAbort: shouldAbort);
+  }
+
+  @override
+  Future<void> speakSequence(
+    List<AudioChunk> chunks, {
+    required String lang,
+    required void Function(int chunkIndex) onChunkStart,
+    required void Function(int chunkIndex, int sentenceInChunk) onSentenceStart,
+    required void Function(int chunkIndex, int charStart, int charEnd,
+            Duration duration)
+        onSentenceTiming,
+    required void Function(int chunkIndex, int sentenceInChunk,
+            Duration duration)
+        onSentenceSynthesized,
+    required void Function(int chunkIndex, int charStart, int charEnd)
+        onWordRange,
+  }) {
+    return TtsService.speakSequence(
+      chunks,
+      lang: lang,
+      onChunkStart: onChunkStart,
+      onSentenceStart: onSentenceStart,
+      onSentenceTiming: onSentenceTiming,
+      onSentenceSynthesized: onSentenceSynthesized,
+      onWordRange: onWordRange,
+    );
+  }
+
+  @override
+  Future<void> prefetch(String text, String lang, KokoroVoice voice) {
+    return TtsService.prefetch(text, lang, voice);
   }
 }
 
@@ -288,6 +348,20 @@ class AudioController with WidgetsBindingObserver {
   /// (Kokoro pipeline). Null on the flutter_tts path (whose word events
   /// supersede estimates) and for asset chunks.
   (int, int, Duration?)? _sentenceTiming;
+
+  /// Aggregate-progress state for sequence jobs (all-text): the per-sentence
+  /// durations in stream order (learned from the lookahead's synthesis,
+  /// AHEAD of playback), how many sentences have been served, the expected
+  /// total sentence count (the job's texts through the same split), and the
+  /// cumulative seconds of the served sentences. The published progress
+  /// spans the WHOLE job: position = completed sentences + the live
+  /// position within the current sentence; duration = the learned total +
+  /// the remaining sentences at the running average — converging on the
+  /// true total as renders land.
+  List<double>? _sequenceSentenceSeconds;
+  int _sequenceServedCount = 0;
+  int _sequenceExpectedCount = 0;
+  double _sequenceCompletedSeconds = 0;
 
   /// Whether the active chunk is a bundled asset: its live position spans
   /// the whole source, unlike the Kokoro pipeline whose position resets
@@ -378,6 +452,79 @@ class AudioController with WidgetsBindingObserver {
     _requestAudioFocus();
     _emit(job.id, AudioState.playing, 0, 0);
     _startWordTimer();
+    _beginAggregateProgress(job);
+    // All-text en/es jobs run as ONE continuous sentence pipeline with
+    // synthesis lookahead across chunk boundaries (no inter-chunk silence);
+    // everything else keeps the per-chunk loop (asset chunks, Latin, mixed
+    // jobs).
+    if (_isSequenceJob(job)) {
+      await _runSequenceJob(job, myEpoch);
+    } else {
+      await _runChunkLoop(job, myEpoch);
+    }
+    if (myEpoch != _epoch) return;
+    _finish(myEpoch, job);
+  }
+
+  /// True when every chunk of [job] is non-empty 'en'/'es' text — the
+  /// continuous sequence pipeline's domain.
+  static bool _isSequenceJob(AudioJob job) {
+    return job.chunks.isNotEmpty &&
+        job.chunks.every((c) =>
+            c.asset == null &&
+            (c.lang == 'en' || c.lang == 'es') &&
+            (c.text?.isNotEmpty ?? false));
+  }
+
+  /// The sequence path: one continuous sentence pipeline across all the
+  /// job's text chunks (the lookahead spans chunk boundaries — no
+  /// inter-chunk synthesis silence). Per-chunk state (highlight text,
+  /// timeline reset) and the aggregate progress advance through the
+  /// pipeline's callbacks.
+  Future<void> _runSequenceJob(AudioJob job, int myEpoch) async {
+    final chunks = job.chunks;
+    try {
+      await _engine.speakSequence(
+        chunks,
+        lang: chunks.first.lang!,
+        onChunkStart: (ci) {
+          if (myEpoch != _epoch) return;
+          final chunk = chunks[ci];
+          _emit(job.id, AudioState.playing, ci, 0);
+          _activeChunkText = chunk.text;
+          _sentenceTiming = null;
+          _sentenceTimeline = null;
+          _timelineChunkIndex = null;
+          _activeChunkIsAsset = false;
+          _wordRange.value = null;
+        },
+        onSentenceStart: (ci, si) {
+          if (myEpoch != _epoch) return;
+          _emit(job.id, AudioState.playing, ci, si);
+          chunks[ci].onSentenceStart?.call(si);
+          _noteSequenceSentenceServed();
+        },
+        onSentenceTiming: (ci, charStart, charEnd, duration) {
+          if (myEpoch != _epoch) return;
+          _sentenceTiming = (charStart, charEnd, duration);
+        },
+        onSentenceSynthesized: (ci, si, duration) {
+          if (myEpoch != _epoch) return;
+          _noteSequenceSentenceDuration(duration);
+        },
+        onWordRange: (ci, charStart, charEnd) {
+          if (myEpoch != _epoch) return;
+          // Engine word events supersede proportional estimates.
+          _sentenceTiming = null;
+          _publishWordRange(charStart, charEnd, estimated: false);
+        },
+      );
+    } catch (_) {}
+  }
+
+  /// The per-chunk loop for jobs the sequence pipeline does not cover
+  /// (asset chunks, Latin, mixed jobs) — the historical behavior.
+  Future<void> _runChunkLoop(AudioJob job, int myEpoch) async {
     for (var i = 0; i < job.chunks.length; i++) {
       if (myEpoch != _epoch) return;
       final chunk = job.chunks[i];
@@ -436,7 +583,18 @@ class AudioController with WidgetsBindingObserver {
       }
       if (myEpoch != _epoch) return;
     }
-    _finish(myEpoch, job);
+  }
+
+  /// Fire-and-forget lookahead prefetch (the rosary's next step): renders
+  /// [chunk]'s text into the engine's cache so the next page starts
+  /// without synthesis latency. No-op for non-text or non-en/es chunks.
+  void prefetch(AudioChunk chunk) {
+    final text = chunk.text;
+    final lang = chunk.lang;
+    if (text == null || text.isEmpty || lang == null) return;
+    if (lang != 'en' && lang != 'es') return;
+    unawaited(
+        _engine.prefetch(text, lang, chunk.voice ?? KokoroVoice.standard));
   }
 
   /// Takes audio focus for the new job so other apps' audio pauses while
@@ -475,6 +633,72 @@ class AudioController with WidgetsBindingObserver {
     _sentenceTimeline = List.generate(
         durations.length, (i) => (ranges[i].$1, ranges[i].$2, durations![i]));
     _timelineChunkIndex = chunkIndex;
+  }
+
+  /// Initializes the aggregate-progress state for a new job: sequence jobs
+  /// (all-text en/es) learn their whole-page duration from the lookahead's
+  /// synthesis; every other job keeps the raw per-source timing.
+  void _beginAggregateProgress(AudioJob job) {
+    _sequenceServedCount = 0;
+    _sequenceExpectedCount = 0;
+    _sequenceCompletedSeconds = 0;
+    if (!_isSequenceJob(job)) {
+      _sequenceSentenceSeconds = null;
+      return;
+    }
+    _sequenceSentenceSeconds = <double>[];
+    for (final c in job.chunks) {
+      _sequenceExpectedCount += TtsService.splitSentences(c.text ?? '').length;
+    }
+  }
+
+  /// Records a stream sentence's render duration (the lookahead lands it
+  /// AHEAD of its playback — the whole-page duration is learned early).
+  void _noteSequenceSentenceDuration(Duration duration) {
+    _sequenceSentenceSeconds?.add(duration.inMilliseconds / 1000.0);
+  }
+
+  /// Advances the aggregate position to the sentence about to be heard:
+  /// every sentence before it is complete (its render duration is known —
+  /// the lookahead guarantees it).
+  void _noteSequenceSentenceServed() {
+    final list = _sequenceSentenceSeconds;
+    if (list != null) {
+      var completed = 0.0;
+      for (var i = 0; i < _sequenceServedCount && i < list.length; i++) {
+        completed += list[i];
+      }
+      _sequenceCompletedSeconds = completed;
+    }
+    _sequenceServedCount++;
+  }
+
+  /// The published progress for the whole job: sequence jobs aggregate
+  /// (cumulative position across completed sentences + the live position,
+  /// against the whole-page duration — the learned renders plus the
+  /// remaining sentences at the running average, converging on the true
+  /// total); every other job keeps the raw per-source timing.
+  AudioProgress _aggregateProgress(Duration position, Duration? totalDuration) {
+    final list = _sequenceSentenceSeconds;
+    // No render has landed yet (or a non-sequence job): the raw per-source
+    // timing is all there is — publish it unchanged.
+    if (list == null || list.isEmpty) {
+      return AudioProgress(position: position, duration: totalDuration);
+    }
+    var learned = 0.0;
+    for (final s in list) {
+      learned += s;
+    }
+    final average = list.isEmpty ? 0.0 : learned / list.length;
+    final remaining =
+        (_sequenceExpectedCount - list.length).clamp(0, _sequenceExpectedCount);
+    final totalSeconds = learned + remaining * average;
+    final positionSeconds =
+        _sequenceCompletedSeconds + position.inMilliseconds / 1000.0;
+    return AudioProgress(
+      position: Duration(milliseconds: (positionSeconds * 1000).round()),
+      duration: Duration(milliseconds: (totalSeconds * 1000).round()),
+    );
   }
 
   Future<void> pause() async {
@@ -615,7 +839,9 @@ class AudioController with WidgetsBindingObserver {
     final prog = _engine.progress;
     if (prog == null) return;
     final (position, totalDuration) = prog;
-    _progress.value = AudioProgress(position: position, duration: totalDuration);
+    // The WHOLE-JOB progress (sequence jobs aggregate; the rest keep the
+    // raw per-source timing) — the progress bar spans the chapter/page.
+    _progress.value = _aggregateProgress(position, totalDuration);
     final timeline = _sentenceTimeline;
     if (timeline != null && _timelineChunkIndex == _info.chunkIndex) {
       _publishTimelineRange(timeline, position, totalDuration);

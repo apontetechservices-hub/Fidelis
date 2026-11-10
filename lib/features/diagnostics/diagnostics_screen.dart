@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../services/audio_controller.dart';
 import '../../services/audio_diagnostics.dart';
 import '../../services/kokoro_engine.dart';
+import 'playback_readout.dart';
 import 'sid_rollcall_screen.dart';
 
 /// The diagnostic build's audio-diagnostics screen: the Kokoro engine's
@@ -120,6 +121,11 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
+          // The live playback readout (moved OFF the prayer screens): the
+          // slot config, the engine that served the audio, any fallback,
+          // and the aggregated whole-page duration/position.
+          const PlaybackReadout(),
+          const SizedBox(height: 16),
           _engineStatusCard(context, theme, accent),
           const SizedBox(height: 16),
           _rendersCard(context, theme, accent),

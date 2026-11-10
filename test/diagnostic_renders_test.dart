@@ -179,7 +179,9 @@ void main() {
         expect(audio.blended, expectBlend,
             reason: '${r.file}: blend execution record must match the '
                 'directed slot');
-        final wav = encodeWav16(audio.samples, audio.sampleRate);
+        final wav = encodeWav16(
+            resamplePcmTo48k(audio.samples, audio.sampleRate),
+            audio.sampleRate == 24000 ? 48000 : audio.sampleRate);
         File('assets/diagnostics_renders/${r.file}').writeAsBytesSync(wav);
         // ignore: avoid_print
         print('RENDER ${r.file}: ${audio.samples.length} samples at '

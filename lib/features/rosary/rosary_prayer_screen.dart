@@ -252,10 +252,15 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             minHeight: 3,
           ),
 
-          // The diagnostic build's on-screen playback readout, directly
-          // under the progress bar: the slot config, the engine that served
-          // the audio, any fallback, and the live numeric duration/position.
-          const PlaybackReadout(),
+          // The playback readout lives behind Settings → About → Audio
+          // diagnostics; the off-by-default toggle puts it back on this
+          // screen for on-screen debugging during playback.
+          ValueListenableBuilder<bool>(
+            valueListenable: PlaybackReadoutVisibility.onPrayerScreens,
+            builder: (context, show, _) => show
+                ? const PlaybackReadout()
+                : const SizedBox.shrink(),
+          ),
 
           // Main content
           Expanded(
@@ -435,6 +440,23 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
       ),
       owner: this,
     );
+    // Lookahead: while this step plays, the NEXT step's sentences are
+    // already rendering into the prefetch cache (queued behind the playing
+    // pipeline's own syntheses), so pressing Next starts without synthesis
+    // latency. The decade's repeated Hail Marys hit the cache instantly.
+    _prefetchNextStep();
+  }
+
+  /// Renders the next step's sentences into the prefetch cache (en/es
+  /// only; Latin keeps the flutter_tts path, which needs no prefetch).
+  void _prefetchNextStep() {
+    final next = _currentStep + 1;
+    if (next >= _steps.length) return;
+    if (_language != 'en' && _language != 'es') return;
+    final text = _fallbackSpeechText(_steps[next]);
+    if (text.isEmpty) return;
+    AudioController.instance.prefetch(
+        AudioChunk(text: text, lang: _language, voice: KokoroVoice.rosary));
   }
 
   /// Centered play/pause toggle: pauses/resumes this screen's stream, or
