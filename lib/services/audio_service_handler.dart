@@ -31,14 +31,20 @@ import 'audio_controller.dart';
 ///  - stopped: the session idles — the service stops and the notification
 ///    is dismissed. No audio, no player.
 ///
-/// Controls are exactly play/pause + stop: no skip buttons (the app's pages
-/// never auto-advance; Next is always user-pressed). The play control
-/// covers every state: paused → resume (including the parked-after-end
-/// resume); stopped → RESTART the last-played content (a media-button play
-/// after a stop must not be a dead button); playing → no-op. The progress
-/// bar is driven by the LIVE position/duration the controller publishes
-/// (updatePosition + updateTime so the system projects the position between
-/// broadcasts).
+/// Controls: play/pause + Next/Previous + stop. Next/Previous move by the
+/// job's playback unit — the BIBLE by VERSE, the ROSARY by PRAYER — routed
+/// through the controller's [AudioController.skipUnit] into the loaded
+/// job's own unit move (the screen owns the verse/step mapping): playing,
+/// the newly selected verse/prayer starts playing; paused, the position
+/// just moves. The compact notification shows Previous | Play/Pause |
+/// Next (the standard player layout); Stop lives in the expanded
+/// notification (it keeps halting-and-staying exactly as shipped). The
+/// play control covers every state: paused → resume (including the
+/// parked-after-end resume); stopped → RESTART the last-played content (a
+/// media-button play after a stop must not be a dead button); playing →
+/// no-op. The progress bar is driven by the LIVE position/duration the
+/// controller publishes (updatePosition + updateTime so the system
+/// projects the position between broadcasts).
 class FidelisAudioHandler extends BaseAudioHandler {
   FidelisAudioHandler() {
     AudioController.instance.listenable.addListener(_onControllerChanged);
@@ -126,10 +132,14 @@ class FidelisAudioHandler extends BaseAudioHandler {
       processingState: AudioProcessingState.ready,
       playing: playing,
       controls: [
+        MediaControl.skipToPrevious,
         playing ? MediaControl.pause : MediaControl.play,
+        MediaControl.skipToNext,
         MediaControl.stop,
       ],
-      androidCompactActionIndices: const [0, 1],
+      // The compact notification: Previous | Play/Pause | Next (the
+      // standard player layout); Stop is the expanded view's action.
+      androidCompactActionIndices: const [0, 1, 2],
       systemActions: const <MediaAction>{},
       // The live position: the system projects it forward from
       // (updatePosition, updateTime, playing) between broadcasts, so the
@@ -159,6 +169,16 @@ class FidelisAudioHandler extends BaseAudioHandler {
 
   @override
   Future<void> pause() => AudioController.instance.pause();
+
+  /// The notification's Next: the loaded job's unit move (the Bible: the
+  /// next verse; the rosary: the next prayer/step).
+  @override
+  Future<void> skipToNext() => AudioController.instance.skipUnit(1);
+
+  /// The notification's Previous: the loaded job's unit move (the Bible:
+  /// the previous verse; the rosary: the previous prayer/step).
+  @override
+  Future<void> skipToPrevious() => AudioController.instance.skipUnit(-1);
 
   @override
   Future<void> stop() => AudioController.instance.haltAndStay();

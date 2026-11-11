@@ -731,6 +731,18 @@ Uint8List encodeWav16(Float32List samples, int sampleRate) {
 /// (−1, 9, 9, −1)/16: transparent for Kokoro's band-limited speech, no
 /// zero-order-hold images. Non-24 kHz input passes through unchanged (the
 /// engine emits 24 kHz; the guard keeps the helper honest for other rates).
+///
+/// GAIN CHARACTERIZATION (measured, round 3): the even phase is an exact
+/// copy (unity at every frequency); the odd phase's DC gain is exactly
+/// 16/16 = 1.0 and its response to any pure tone never exceeds 1.0
+/// (|H(ω)| = cos(ω/2)·(3−cos²(ω/2))/2 ≤ 1, equality only at DC). The
+/// worst case is the adversarial near-Nyquist pattern that matches the
+/// tap signs (−1, +9, +9, −1): 20/16 = 1.25× the input peak — the
+/// mechanism behind the round-3 crackle lead. [pcmHeadroomScale] bounds
+/// the CHAIN to true unity: synthesis peaks are staged to ≤ 0.8 = 1/1.25
+/// before this filter, so the post-conversion peak can never pass full
+/// scale (0.8 × 1.25 = 1.0) — no clipping, no crackle, and sentences
+/// peaking below 0.8 (the vast majority) are untouched.
 Float32List resamplePcmTo48k(Float32List samples, int sampleRate) {
   if (sampleRate == 48000 || samples.isEmpty) return samples;
   if (sampleRate != 24000) return samples; // only the 2× case is implemented
@@ -748,4 +760,50 @@ Float32List resamplePcmTo48k(Float32List samples, int sampleRate) {
         (-tap(i - 1) + 9 * tap(i) + 9 * tap(i + 1) - tap(i + 2)) / 16.0;
   }
   return out;
+}
+
+/// The headroom target the playback path stages synthesis peaks to: 0.8 =
+/// exactly 1 / 1.25, the resampler's worst-case intermediate gain (the
+/// adversarial tap-sign pattern; see [resamplePcmTo48k]). A sentence whose
+/// synthesis peak exceeds this is scaled DOWN to it (never up), so the
+/// post-conversion peak stays at or below full scale for ANY input — real
+/// headroom below 0 dBFS with the vast majority of sentences untouched.
+const double pcmHeadroomScale = 0.8;
+
+/// Peak (absolute maximum) of [samples]. 0.0 for empty input.
+double pcmPeak(Float32List samples) {
+  var peak = 0.0;
+  for (var i = 0; i < samples.length; i++) {
+    final v = samples[i];
+    if (v > peak) peak = v;
+    if (-v > peak) peak = -v;
+  }
+  return peak;
+}
+
+/// Stages [samples] for the playback path: when the peak exceeds
+/// [pcmHeadroomScale], returns a scaled-down copy whose peak is exactly
+/// [pcmHeadroomScale] (gain staging — never boosts). Returns the input
+/// unchanged when the peak already sits inside the headroom. The second
+/// element reports whether a scale was applied.
+(Float32List, bool) stagePcmHeadroom(Float32List samples) {
+  final peak = pcmPeak(samples);
+  if (peak <= pcmHeadroomScale || peak == 0.0) return (samples, false);
+  final scale = pcmHeadroomScale / peak;
+  final out = Float32List(samples.length);
+  for (var i = 0; i < samples.length; i++) {
+    out[i] = samples[i] * scale;
+  }
+  return (out, true);
+}
+
+/// Count of samples PAST full scale (|v| > 1.0) — the samples the WAV
+/// encode clamps (the crackle mechanism). Samples at exactly ±1.0 encode
+/// exactly (no distortion); the peak measurement surfaces them.
+int pcmClippedCount(Float32List samples) {
+  var count = 0;
+  for (var i = 0; i < samples.length; i++) {
+    if (samples[i] > 1.0 || samples[i] < -1.0) count++;
+  }
+  return count;
 }

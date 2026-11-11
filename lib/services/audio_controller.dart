@@ -119,11 +119,24 @@ class AudioJob {
   /// (e.g. 'James 1', 'The Holy Rosary'). Null keeps the app name.
   final String? title;
 
+  /// The media notification's Next/Previous routing (the playback-unit
+  /// move: the Bible = one verse, the rosary = one prayer/step). The
+  /// screen owns the units — verse offsets, the step list — so the
+  /// controller routes the notification's controls here. The callback
+  /// returns the TARGET STREAM SENTENCE INDEX to move to (the controller
+  /// seeks the live pipeline to it: playing continues into it, paused
+  /// moves the position), or null when the move is blocked (a boundary)
+  /// or the screen handled it itself (the rosary's step advance, a
+  /// restart beyond the synthesized frontier, an armed paused resume).
+  /// Null on jobs without unit moves (the controls then no-op).
+  final Future<int?> Function(int direction)? onUnitMove;
+
   const AudioJob({
     required this.id,
     required this.chunks,
     this.onCompleted,
     this.title,
+    this.onUnitMove,
   });
 }
 
@@ -199,6 +212,17 @@ abstract class AudioEngine {
   /// rosary's next step) starts without synthesis latency. Queues behind
   /// the playing pipeline's own syntheses; never blocks the caller.
   Future<void> prefetch(String text, String lang, KokoroVoice voice);
+
+  /// Moves the live pipeline to [streamIndex] (the notification's
+  /// Next/Previous unit move): seeks the playlist to that sentence when
+  /// its item is already appended — playing continues into it, paused
+  /// moves the position. Returns false when the target lies outside the
+  /// appended window (the caller restarts from that sentence instead).
+  Future<bool> seekToSentence(int streamIndex);
+
+  /// The number of the running stream's sentences whose audio is loaded
+  /// or queued (the seek window's end). 0 when nothing is loaded.
+  int get appendedSentenceCount;
 }
 
 /// Real engine: delegates to [TtsService] (Kokoro + flutter_tts + bundled
@@ -284,6 +308,13 @@ class TtsAudioEngine implements AudioEngine {
   Future<void> prefetch(String text, String lang, KokoroVoice voice) {
     return TtsService.prefetch(text, lang, voice);
   }
+
+  @override
+  Future<bool> seekToSentence(int streamIndex) =>
+      TtsService.seekToSentence(streamIndex);
+
+  @override
+  int get appendedSentenceCount => TtsService.appendedSentenceCount;
 }
 
 /// Central audio coordinator — the ONLY way screens play audio.
@@ -329,6 +360,19 @@ class AudioController with WidgetsBindingObserver {
   /// parked playback (which resume() handles) — the full job from its
   /// first chunk.
   _LastJob? _lastJob;
+
+  /// The currently loaded job (the notification's Next/Previous routes
+  /// through its [AudioJob.onUnitMove]). Null when stopped or finished.
+  AudioJob? _loadedJob;
+
+  /// A pending resume replacement, armed while paused (the notification's
+  /// Next/Previous moved the position to a unit whose audio is not the
+  /// loaded stream — the rosary's next step): the next resume starts THIS
+  /// job instead of unpausing the loaded one, so the position moves
+  /// without starting audio and the notification keeps showing Play.
+  /// Cleared by stop()/start().
+  AudioJob? _pendingResumeJob;
+  Object? _pendingResumeOwner;
 
   /// A job that finished naturally while the app was backgrounded: parked
   /// so the media notification stays in a paused state and a resume replays
@@ -448,6 +492,7 @@ class AudioController with WidgetsBindingObserver {
     final myEpoch = ++_epoch;
     _owner = owner;
     _lastJob = _LastJob(job: job, owner: owner);
+    _loadedJob = job;
     _currentJobTitle = job.title;
     _requestAudioFocus();
     _emit(job.id, AudioState.playing, 0, 0);
@@ -490,7 +535,10 @@ class AudioController with WidgetsBindingObserver {
         onChunkStart: (ci) {
           if (myEpoch != _epoch) return;
           final chunk = chunks[ci];
-          _emit(job.id, AudioState.playing, ci, 0);
+          // The CURRENT state, not a forced playing: a paused unit-move
+          // seek advances the chunk while paused — the state must stay
+          // paused (the notification keeps showing Play).
+          _emit(job.id, _info.state, ci, 0);
           _activeChunkText = chunk.text;
           _sentenceTiming = null;
           _sentenceTimeline = null;
@@ -500,7 +548,7 @@ class AudioController with WidgetsBindingObserver {
         },
         onSentenceStart: (ci, si) {
           if (myEpoch != _epoch) return;
-          _emit(job.id, AudioState.playing, ci, si);
+          _emit(job.id, _info.state, ci, si);
           chunks[ci].onSentenceStart?.call(si);
           _noteSequenceSentenceServed();
         },
@@ -595,6 +643,63 @@ class AudioController with WidgetsBindingObserver {
     if (lang != 'en' && lang != 'es') return;
     unawaited(
         _engine.prefetch(text, lang, chunk.voice ?? KokoroVoice.standard));
+  }
+
+  /// The number of the loaded job's stream sentences whose audio is
+  /// loaded or queued (the unit-move seek window's end). 0 when nothing
+  /// is loaded.
+  int get loadedSentenceCount => _engine.appendedSentenceCount;
+
+  /// The media notification's Next/Previous: moves by the loaded job's
+  /// playback unit (the Bible = one verse, the rosary = one prayer/step)
+  /// through the job's [AudioJob.onUnitMove]. The callback returns the
+  /// target stream sentence index to seek within the live pipeline
+  /// (playing continues into it, paused moves the position), or null when
+  /// the move is blocked (a boundary) or the screen handled it itself
+  /// (the rosary's step advance, a restart beyond the synthesized
+  /// frontier, an armed paused resume). No-op without a loaded job or
+  /// without unit moves.
+  Future<void> skipUnit(int direction) async {
+    final job = _loadedJob;
+    final move = job?.onUnitMove;
+    if (move == null) return;
+    final int? target;
+    try {
+      target = await move(direction);
+    } catch (_) {
+      return;
+    }
+    if (target == null || _loadedJob != job) return;
+    final seeked = await _engine.seekToSentence(target);
+    if (seeked) _resyncAggregateAfterSeek(target);
+  }
+
+  /// Re-syncs the aggregate progress after a unit-move seek to stream
+  /// sentence [target]: the skipped sentences are complete (their renders
+  /// landed — the seek window guarantees it), so the served count and the
+  /// completed seconds jump to the target instead of recounting from zero
+  /// (the progress bar would jump backward after every Next/Previous).
+  void _resyncAggregateAfterSeek(int target) {
+    final list = _sequenceSentenceSeconds;
+    if (list == null || target <= 0 || target > list.length) return;
+    var completed = 0.0;
+    for (var i = 0; i < target; i++) {
+      completed += list[i];
+    }
+    _sequenceCompletedSeconds = completed;
+    _sequenceServedCount = target;
+  }
+
+  /// Arms a pending resume replacement while paused (the notification's
+  /// Next/Previous moved the position to a unit whose audio is not the
+  /// loaded stream — the rosary's next step): the next resume starts THIS
+  /// job instead of unpausing the loaded one. The stream stays paused —
+  /// the position moved, nothing started, the notification keeps showing
+  /// Play. No-op when not paused.
+  void armResume(AudioJob job, {Object? owner}) {
+    if (_info.state != AudioState.paused) return;
+    _pendingResumeJob = job;
+    _pendingResumeOwner = owner;
   }
 
   /// Takes audio focus for the new job so other apps' audio pauses while
@@ -713,6 +818,17 @@ class AudioController with WidgetsBindingObserver {
 
   Future<void> resume() async {
     if (_info.state != AudioState.paused) return;
+    final pendingJob = _pendingResumeJob;
+    if (pendingJob != null) {
+      // The notification's Next/Previous moved the position while paused
+      // (the armed replacement job): resume starts THAT unit — the loaded
+      // stream is replaced, the position the user moved to is honored.
+      _pendingResumeJob = null;
+      final owner = _pendingResumeOwner;
+      _pendingResumeOwner = null;
+      await start(pendingJob, owner: owner);
+      return;
+    }
     final parked = _parked;
     if (parked != null) {
       // The job finished naturally while the app was backgrounded (the
@@ -771,6 +887,9 @@ class AudioController with WidgetsBindingObserver {
     _epoch++;
     _owner = null;
     _parked = null;
+    _loadedJob = null;
+    _pendingResumeJob = null;
+    _pendingResumeOwner = null;
     _currentJobTitle = null;
     _info = const AudioPlaybackInfo.stopped();
     _notifier.value = _info;
@@ -791,6 +910,9 @@ class AudioController with WidgetsBindingObserver {
   void _finish(int myEpoch, AudioJob job) {
     if (myEpoch != _epoch) return;
     _epoch++;
+    // The pipeline finished: nothing is loaded anymore (the parked state
+    // keeps the job for its resume via _parked).
+    _loadedJob = null;
     if (_inForeground) {
       // Foreground end (the historical behavior): the stream goes idle and
       // the screen's own controls take over from here.

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' show ln10, log;
 
 import 'package:flutter/foundation.dart'
     show debugPrint, visibleForTesting;
@@ -73,11 +74,59 @@ class TtsService {
     }
   }
 
+  /// Timing/level measurement sink — the playback pipeline's real
+  /// timestamps and PCM peaks, one line per event (the round-3 measurement
+  /// path: logcat on the device via debugPrint, captured line-by-line by
+  /// the host measurement runs). Null = the lines print via debugPrint.
+  static void Function(String line)? measurementSink;
+
+  /// Emits one measurement line (greppable prefix; the capture path stamps
+  /// each line's arrival time — the deltas ARE the measured numbers).
+  static void _measure(String line) {
+    final full = '[Fidelis timing] $line';
+    final sink = measurementSink;
+    if (sink != null) {
+      sink(full);
+    } else {
+      debugPrint(full);
+    }
+  }
+
   /// Incremented by every new playback request and by stop(); an in-flight
   /// Kokoro pipeline aborts as soon as its epoch no longer matches.
   static int _epoch = 0;
   static Completer<void>? _playDone;
   static Directory? _sentenceDir;
+
+  /// The live sentence playlist's stream-sentence window: playlist item 0
+  /// is stream sentence [_playlistBase]; [_appendedCount] items are loaded
+  /// or queued. The notification's Next/Previous unit-move seeks within
+  /// this window (see [seekToSentence]); reset by [stop] and at every
+  /// playlist (re)start.
+  static int _playlistBase = 0;
+  static int _appendedCount = 0;
+
+  /// The number of the running stream's sentences whose audio is loaded or
+  /// queued (the seek window's end). 0 when nothing is loaded.
+  static int get appendedSentenceCount => _playlistBase + _appendedCount;
+
+  /// Moves the live pipeline to [streamIndex] (the notification's
+  /// Next/Previous unit move): seeks the playlist to that sentence when
+  /// its item is already appended — playing continues into it, paused
+  /// moves the position. Returns false when the target lies outside the
+  /// appended window or the flutter_tts path is active (the caller
+  /// restarts from that sentence instead).
+  static Future<bool> seekToSentence(int streamIndex) async {
+    if (_lastViaFlutterTts) return false;
+    final rel = streamIndex - _playlistBase;
+    if (rel < 0 || rel >= _appendedCount) return false;
+    try {
+      await _player.seek(Duration.zero, index: rel);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
 
   // ---- pause/resume plumbing (driven by AudioController) ----
 
@@ -364,6 +413,8 @@ class TtsService {
     _lastSpokenText = null;
     _resumeInFlight = null;
     _wordRangeSink = null;
+    _playlistBase = 0;
+    _appendedCount = 0;
     _completePauseGate();
     // Job transitions and screen exits clear any slot equalizer shaping;
     // the next slot re-applies its own (or stays flat).
@@ -418,6 +469,9 @@ class TtsService {
   static void debugResetPrefetchState() {
     _prefetchCache.clear();
     _prefetchInFlight.clear();
+    _playlistBase = 0;
+    _appendedCount = 0;
+    _sentenceDirSwept = false;
   }
 
   /// Fire-and-forget: renders [text]'s OPENING sentences into the prefetch
@@ -433,6 +487,7 @@ class TtsService {
   /// would otherwise push them out in favor of later ones. Never throws.
   static Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
     if ((lang != 'en' && lang != 'es') || text.isEmpty) return;
+    _measure('prefetch-start lang=$lang cap=$_prefetchCacheMax');
     try {
       if (!await KokoroEngine.ensureReady(lang)) return;
       final (spoken, _) =
@@ -446,6 +501,7 @@ class TtsService {
           continue;
         }
         rendered++;
+        final issuedAt = DateTime.now().microsecondsSinceEpoch;
         final future = KokoroEngine.synthesize(sentence, lang, voice: voice);
         _prefetchInFlight[key] = future;
         try {
@@ -455,6 +511,9 @@ class TtsService {
               _prefetchCache.remove(_prefetchCache.keys.first);
             }
             _prefetchCache[key] = audio;
+            _measure('prefetch-land n=$rendered '
+                'synthMs=${((DateTime.now().microsecondsSinceEpoch - issuedAt) / 1000).toStringAsFixed(0)} '
+                'audioMs=${(audio.samples.length * 1000 / audio.sampleRate).round()}');
           }
         } finally {
           if (identical(_prefetchInFlight[key], future)) {
@@ -493,8 +552,14 @@ class TtsService {
     if (chunks.isEmpty) return;
     final myEpoch = ++_epoch;
     _finishPlayDone();
+    _playlistBase = 0;
+    _appendedCount = 0;
+    _measure('play-request lang=$lang chunks=${chunks.length} '
+        'epoch=$myEpoch');
+    final ensureSw = Stopwatch()..start();
     try {
       if (!await KokoroEngine.ensureReady(lang)) {
+        _measure('ensure-ready ms=${ensureSw.elapsedMilliseconds} ok=false');
         _emitReadout('FALLBACK engine=flutter_tts (system voice) '
             'reason=kokoro unavailable for $lang${_kokoroFailureSuffix()}');
         for (var ci = 0; ci < chunks.length; ci++) {
@@ -507,8 +572,10 @@ class TtsService {
         }
         return;
       }
+      _measure('ensure-ready ms=${ensureSw.elapsedMilliseconds} ok=true');
       final stream = _buildStream(chunks, lang);
       if (stream.isEmpty) return;
+      _measure('stream-built sentences=${stream.length}');
       await _runStream(
         stream,
         chunks,
@@ -522,6 +589,7 @@ class TtsService {
           onWordRange: onWordRange,
         ),
       );
+      _measure('stream-done sentences=${stream.length}');
     } catch (_) {
       // Audio must never break the caller: swallow — the job loop ends the
       // stream the way a natural completion would.
@@ -561,12 +629,18 @@ class TtsService {
 
   /// Runs the continuous pipeline over [stream]: a rolling lookahead of
   /// [_streamLookaheadDepth] syntheses keeps the worker rendering ahead of
-  /// playback across chunk boundaries; each sentence's duration is
-  /// reported the moment its render lands (ahead of playback — the
-  /// aggregate progress learns the page's total as the lookahead
-  /// renders); a mid-stream synthesis failure hands THAT chunk's
-  /// remainder to flutter_tts and the stream continues with the next
-  /// chunk (Kokoro again).
+  /// playback across chunk boundaries, and the sentences play as ONE
+  /// playlist — the first render loads it, every later render APPENDS as
+  /// it lands — so ExoPlayer prebuffers the next sentence while the
+  /// current one plays and a verse/prayer boundary costs no source-load
+  /// latency (the round-2 per-sentence setAudioSource was the measured
+  /// fixed gap). The completion guard holds the playlist's end when the
+  /// player catches up with synthesis (the frontier exposed) and the late
+  /// append resumes via seek. The sentence-start callbacks fire from the
+  /// player's currentIndex — the playback-side truth, so highlights sync
+  /// to what is actually heard. A mid-stream synthesis failure drains the
+  /// playlist and hands THAT chunk's remainder to flutter_tts, then the
+  /// stream continues with the next chunk (Kokoro again).
   static Future<void> _runStream(
     List<_StreamSentence> stream,
     List<AudioChunk> chunks,
@@ -576,11 +650,17 @@ class TtsService {
     bool emitSlotReadout = true,
   }) async {
     final depth = _streamLookaheadDepth;
-    final pending = <Future<KokoroAudio?>>[];
+    final pending = <_PendingSynth>[];
     var issued = 0;
     void issue() {
       while (issued < stream.length && pending.length < depth) {
-        pending.add(_streamSynthesize(stream[issued], chunks, lang));
+        final s = stream[issued];
+        final (future, source) = _streamSynthesize(s, chunks, lang);
+        pending.add(_PendingSynth(
+          future: future,
+          source: source,
+          issuedAt: DateTime.now().microsecondsSinceEpoch,
+        ));
         issued++;
       }
     }
@@ -589,82 +669,258 @@ class TtsService {
     var engineLineServed = false;
     var lastChunkIndex = -1;
     final failedChunks = <int>{};
-    for (var i = 0; i < stream.length; i++) {
-      final s = stream[i];
-      if (failedChunks.contains(s.chunkIndex)) {
-        // The chunk fell back to flutter_tts: drain its already-issued
-        // synthesis futures without playing them, keep the lookahead full.
-        if (pending.isNotEmpty) pending.removeAt(0);
+    final sentenceFiles = <File>[];
+    final itemMeta = <_PlaylistItemMeta>[];
+    StreamSubscription<int?>? indexSub;
+    StreamSubscription<PlayerState>? stateSub;
+    Completer<void>? segmentDone;
+    var segmentEnding = false;
+    var frontierExposed = false;
+    try {
+      // The playback-side callbacks: the player's currentIndex advances
+      // through the playlist items; each CHANGE fires the sentence-start
+      // callbacks for the stream sentence it maps to — highlights sync to
+      // what is actually heard, and the measurement records the real
+      // sentence-to-sentence gaps. Repeated events for the same item (the
+      // position broadcasts) fire once.
+      var lastFiredIndex = -1;
+      indexSub = _player.currentIndexStream.listen((index) {
+        if (index == null || index < 0 || index >= itemMeta.length) return;
+        if (index == lastFiredIndex) return;
+        lastFiredIndex = index;
+        final meta = itemMeta[index];
+        if (lastChunkIndex != meta.chunkIndex) {
+          lastChunkIndex = meta.chunkIndex;
+          callbacks.onChunkStart?.call(meta.chunkIndex);
+          // Slot-scoped equalizer shaping per chunk (the English-Bible
+          // boom softening); every other slot clears it. Fire-and-forget.
+          unawaited(applySlotEqualizer(
+              (chunks[meta.chunkIndex].voice ?? KokoroVoice.standard)
+                  .equalizerFor(lang)));
+          if (emitSlotReadout) {
+            _emitReadout('playback ${tts_text.slotReadoutLine(
+                chunks[meta.chunkIndex].voice ?? KokoroVoice.standard,
+                lang)}');
+          }
+        }
+        callbacks.onSentenceStart?.call(meta.chunkIndex, meta.sentenceInChunk);
+        callbacks.onSentenceTiming
+            ?.call(meta.chunkIndex, meta.range.$1, meta.range.$2, meta.duration);
+        _measure('sentence-start i=${_playlistBase + index}');
+      });
+      // The completion guard: the playlist's natural end completes the
+      // playback ONLY when nothing more is coming (the stream fully
+      // appended, or a fallback takes over). The player catching up with
+      // synthesis (the frontier exposed) holds the completion — the late
+      // append resumes playback via seek. The guard is inert while no
+      // playlist is loaded (a stale completed state from a previous
+      // playback must not fire it — the state stream replays on
+      // subscribe).
+      stateSub = _player.playerStateStream.listen((s) {
+        if (segmentDone == null) return;
+        if (s.processingState != ProcessingState.completed) return;
+        final allAppended = _playlistBase + _appendedCount >= stream.length;
+        if (segmentEnding || allAppended) {
+          frontierExposed = false;
+          _finishPlayDone();
+          // Clear the stale playing flag (the Android quirk leaves
+          // playWhenReady true after a natural end) so the media
+          // notification shows PAUSED — acoustically a no-op.
+          unawaited(() async {
+            try {
+              await _player.pause();
+            } catch (_) {}
+          }());
+        } else {
+          frontierExposed = true;
+          _measure('frontier-exposed '
+              'appended=${_playlistBase + _appendedCount}');
+        }
+      });
+      for (var i = 0; i < stream.length; i++) {
+        final s = stream[i];
+        if (failedChunks.contains(s.chunkIndex)) {
+          // The chunk fell back to flutter_tts: drain its already-issued
+          // synthesis futures without playing them, keep the lookahead full.
+          if (pending.isNotEmpty) pending.removeAt(0);
+          issue();
+          continue;
+        }
+        final ps = pending.removeAt(0);
+        final audio = await ps.future;
+        if (myEpoch != _epoch) return; // stop() while generating
         issue();
-        continue;
-      }
-      final audio = await pending.removeAt(0);
-      if (myEpoch != _epoch) return; // stop() while generating
-      issue();
-      if (audio == null || audio.samples.isEmpty) {
-        failedChunks.add(s.chunkIndex);
-        _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
-            'voice) reason=sentence ${s.sentenceInChunk + 1} of chunk '
-            '${s.chunkIndex + 1} synthesis failed${_kokoroFailureSuffix()}');
-        if (lastChunkIndex != s.chunkIndex) {
-          lastChunkIndex = s.chunkIndex;
-          callbacks.onChunkStart?.call(s.chunkIndex);
-          // The requested slot config still prints for a fallback chunk —
-          // the FALLBACK line above names what actually served it.
-          _emitReadout('playback ${tts_text.slotReadoutLine(
-              chunks[s.chunkIndex].voice ?? KokoroVoice.standard, lang)}');
+        final landedAt = DateTime.now().microsecondsSinceEpoch;
+        final synthMs = (landedAt - ps.issuedAt) / 1000.0;
+        if (audio == null || audio.samples.isEmpty) {
+          failedChunks.add(s.chunkIndex);
+          _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
+              'voice) reason=sentence ${s.sentenceInChunk + 1} of chunk '
+              '${s.chunkIndex + 1} synthesis failed${_kokoroFailureSuffix()}');
+          // The playlist (if loaded) drains to its frontier first: the
+          // fallback speaks AFTER the loaded audio, never over it.
+          if (segmentDone != null) {
+            segmentEnding = true;
+            if (frontierExposed) {
+              frontierExposed = false;
+              _finishPlayDone();
+            }
+            await segmentDone.future;
+            segmentDone = null;
+            segmentEnding = false;
+            _playlistBase = 0;
+            _appendedCount = 0;
+            itemMeta.clear();
+            if (myEpoch != _epoch) return;
+          }
+          if (lastChunkIndex != s.chunkIndex) {
+            lastChunkIndex = s.chunkIndex;
+            callbacks.onChunkStart?.call(s.chunkIndex);
+            // The requested slot config still prints for a fallback chunk —
+            // the FALLBACK line above names what actually served it.
+            _emitReadout('playback ${tts_text.slotReadoutLine(
+                chunks[s.chunkIndex].voice ?? KokoroVoice.standard, lang)}');
+          }
+          final rest = <String>[];
+          for (var j = i;
+              j < stream.length && stream[j].chunkIndex == s.chunkIndex;
+              j++) {
+            rest.add(stream[j].text);
+          }
+          if (rest.isNotEmpty) {
+            callbacks.onSentenceStart?.call(s.chunkIndex, s.sentenceInChunk);
+            await _speakWithFlutterTts(rest.join(' '), _localeFor(lang),
+                onWordRange: (start, end) =>
+                    callbacks.onWordRange?.call(s.chunkIndex, start, end));
+            // A pause during the fallback completes the speak early; hold
+            // until the resume plays the remainder out (the job loop's
+            // hold, moved into the stream).
+            await _holdWhilePaused(myEpoch);
+          }
+          if (myEpoch != _epoch) return;
+          continue;
         }
-        final rest = <String>[];
-        for (var j = i;
-            j < stream.length && stream[j].chunkIndex == s.chunkIndex;
-            j++) {
-          rest.add(stream[j].text);
+        final duration = Duration(
+            milliseconds:
+                (audio.samples.length * 1000 / audio.sampleRate).round());
+        // The render just landed — AHEAD of its playback (the lookahead):
+        // the aggregate progress learns the page's total from here.
+        callbacks.onSentenceSynthesized
+            ?.call(s.chunkIndex, s.sentenceInChunk, duration);
+        if (!engineLineServed) {
+          engineLineServed = true;
+          _emitReadout('engine=kokoro (the slot config above executed)');
         }
-        if (rest.isNotEmpty) {
-          callbacks.onSentenceStart?.call(s.chunkIndex, s.sentenceInChunk);
-          await _speakWithFlutterTts(rest.join(' '), _localeFor(lang),
-              onWordRange: (start, end) =>
-                  callbacks.onWordRange?.call(s.chunkIndex, start, end));
-          // A pause during the fallback completes the speak early; hold
-          // until the resume plays the remainder out (the job loop's hold,
-          // moved into the stream).
-          await _holdWhilePaused(myEpoch);
+        final prepared = await _prepareSentenceWav(audio);
+        if (myEpoch != _epoch) return; // stopped while preparing
+        sentenceFiles.add(prepared.file);
+        _measure('wav-ready i=$i synthMs=${synthMs.toStringAsFixed(0)} '
+            'audioMs=${duration.inMilliseconds} src=${ps.source} '
+            'peakIn=${prepared.peakInDb}dB peakOut=${prepared.peakOutDb}dB '
+            'clipIn=${prepared.clipIn} clipOut=${prepared.clipOut} '
+            'scaled=${prepared.scaled} writeMs=${prepared.writeMs}');
+        if (segmentDone == null) {
+          // ---- the playlist's first item: load, shape, play ----
+          final gate = _pauseGate;
+          if (gate != null) await gate.future;
+          if (myEpoch != _epoch) return; // stopped while paused
+          segmentDone = Completer<void>();
+          _playDone = segmentDone;
+          segmentEnding = false;
+          frontierExposed = false;
+          _playlistBase = i;
+          _appendedCount = 1;
+          // The playlist was replaced: the item-index space restarts, so
+          // the sentence-start dedupe must too (the new segment's item 0
+          // must fire even though the old segment also fired index 0).
+          lastFiredIndex = -1;
+          itemMeta.clear();
+          itemMeta.add(_PlaylistItemMeta(
+            chunkIndex: s.chunkIndex,
+            sentenceInChunk: s.sentenceInChunk,
+            range: s.range,
+            duration: duration,
+          ));
+          _lastViaFlutterTts = false;
+          final loadSw = Stopwatch()..start();
+          if (_player.playing) {
+            try {
+              await _player.pause();
+            } catch (_) {}
+          }
+          await _player
+              .setAudioSources([AudioSource.file(prepared.file.path)]);
+          if (myEpoch != _epoch) return;
+          final loadMs = loadSw.elapsedMilliseconds;
+          // The platform is active now (the load activated it): the slot
+          // shaping actually applies HERE. A pre-load application times
+          // out unseen on a cold player — just_audio's equalizer
+          // parameters resolve only on this first activation.
+          await _applyPendingSlotEqualizer();
+          final eqMs = loadSw.elapsedMilliseconds - loadMs;
+          _measure('segment-start i=$i loadMs=$loadMs eqMs=$eqMs');
+          if (_paused) {
+            // A pause landed during the load: the item stays loaded; the
+            // controller's resume() starts it (the notification shows
+            // paused, the position kept).
+            _measure('play-held i=$i paused-during-load');
+          } else {
+            // Fire-and-forget: the play result stays pending until the
+            // playback stops (the real Java semantics) — awaiting it here
+            // would stall the append loop until the whole playlist ends.
+            // The completion is the state guard's job.
+            unawaited(_player.play().catchError((_) {}));
+            _measure('play-called i=$i');
+          }
+        } else {
+          // ---- append: the render lands ahead of its playback ----
+          itemMeta.add(_PlaylistItemMeta(
+            chunkIndex: s.chunkIndex,
+            sentenceInChunk: s.sentenceInChunk,
+            range: s.range,
+            duration: duration,
+          ));
+          _appendedCount++;
+          await _player.addAudioSource(AudioSource.file(prepared.file.path));
+          if (myEpoch != _epoch) return;
+          if (frontierExposed) {
+            // The player drained the appended items while this render was
+            // synthesizing: resume into the new item (the seek restarts
+            // ExoPlayer from STATE_ENDED — the documented quirk). The play
+            // is fire-and-forget (its result pends until the playback
+            // stops — awaiting it would stall the append loop).
+            frontierExposed = false;
+            try {
+              await _player.seek(Duration.zero, index: _appendedCount - 1);
+            } catch (_) {}
+            if (!_paused) {
+              unawaited(_player.play().catchError((_) {}));
+            }
+            _measure('frontier-resume i=$i');
+          }
         }
-        if (myEpoch != _epoch) return;
-        continue;
       }
-      final duration = Duration(
-          milliseconds:
-              (audio.samples.length * 1000 / audio.sampleRate).round());
-      // The render just landed — AHEAD of its playback (the lookahead):
-      // the aggregate progress learns the page's total from here.
-      callbacks.onSentenceSynthesized?.call(s.chunkIndex, s.sentenceInChunk, duration);
-      if (!engineLineServed) {
-        engineLineServed = true;
-        _emitReadout('engine=kokoro (the slot config above executed)');
-      }
-      if (lastChunkIndex != s.chunkIndex) {
-        lastChunkIndex = s.chunkIndex;
-        callbacks.onChunkStart?.call(s.chunkIndex);
-        // Slot-scoped equalizer shaping per chunk (the English-Bible boom
-        // softening); every other slot clears it. Fire-and-forget.
-        unawaited(applySlotEqualizer(
-            (chunks[s.chunkIndex].voice ?? KokoroVoice.standard)
-                .equalizerFor(lang)));
-        if (emitSlotReadout) {
-          _emitReadout('playback ${tts_text.slotReadoutLine(
-              chunks[s.chunkIndex].voice ?? KokoroVoice.standard, lang)}');
+      // The stream is fully appended: the playlist plays out to its end
+      // (the completion guard fires when the last item finishes).
+      if (segmentDone != null) {
+        segmentEnding = true;
+        if (frontierExposed) {
+          frontierExposed = false;
+          _finishPlayDone();
         }
+        await segmentDone.future;
       }
-      // Hold between sentences while paused, then report the sentence that
-      // is about to be heard so highlights stay in sync.
-      final gate = _pauseGate;
-      if (gate != null) await gate.future;
-      if (myEpoch != _epoch) return; // stopped while paused
-      callbacks.onSentenceStart?.call(s.chunkIndex, s.sentenceInChunk);
-      callbacks.onSentenceTiming?.call(
-          s.chunkIndex, s.range.$1, s.range.$2, duration);
-      await _playPcm(audio, myEpoch);
+    } finally {
+      await indexSub?.cancel();
+      await stateSub?.cancel();
+      if (segmentDone != null && identical(_playDone, segmentDone)) {
+        _playDone = null;
+      }
+      for (final f in sentenceFiles) {
+        try {
+          await f.delete();
+        } catch (_) {}
+      }
     }
   }
 
@@ -673,16 +929,23 @@ class TtsService {
   /// prefetch render of the same sentence (awaited, not duplicated), else
   /// the engine. Cache hits keep the worker free for the lookahead; the
   /// in-flight reuse is what makes Play instant even when it lands
-  /// mid-prefetch.
-  static Future<KokoroAudio?> _streamSynthesize(
-      _StreamSentence s, List<AudioChunk> chunks, String lang) async {
+  /// mid-prefetch. Returns the future plus WHERE the audio comes from
+  /// ('cache' | 'inflight' | 'engine') — the measurement's prefetch-
+  /// engagement marker.
+  static (Future<KokoroAudio?>, String) _streamSynthesize(
+      _StreamSentence s, List<AudioChunk> chunks, String lang) {
     final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
     final key = _prefetchKey(s.text, lang, voice);
     final cached = _prefetchCache[key];
-    if (cached != null) return Future<KokoroAudio?>.value(cached);
+    if (cached != null) {
+      return (Future<KokoroAudio?>.value(cached), 'cache');
+    }
     final inflight = _prefetchInFlight[key];
-    if (inflight != null) return inflight;
-    return KokoroEngine.synthesize(s.text, lang, voice: voice);
+    if (inflight != null) return (inflight, 'inflight');
+    return (
+      KokoroEngine.synthesize(s.text, lang, voice: voice),
+      'engine'
+    );
   }
 
   /// Holds while paused (the flutter_tts fallback's early-completed speak):
@@ -740,38 +1003,73 @@ class TtsService {
     }
   }
 
-  /// Writes one sentence as a WAV file in the cache dir and plays it.
-  ///
-  /// The PCM is RESAMPLED to 48000 Hz first: the owner's phone doubles/
-  /// distorts raw 24000 Hz sentence WAVs while the pre-rendered opus files
-  /// (whose decoder delivers 48000 Hz mono to the same sink) played clean
-  /// for weeks — the 24 kHz raw-PCM path is the one corrupted output path
-  /// (see resamplePcmTo48k). The WAV declares 48000 Hz mono 16-bit.
-  static Future<void> _playPcm(KokoroAudio audio, int myEpoch) async {
-    final file = await _sentenceWavFile();
+  /// Prepares one sentence's playback WAV (no playback — the playlist
+  /// loads/appends it): the synthesis PCM is gain-staged to the headroom
+  /// target first (peaks ≤ [pcmHeadroomScale] — the resampler's exact
+  /// worst-case bound, so the post-conversion peak can never pass full
+  /// scale; see stagePcmHeadroom), then RESAMPLED to 48000 Hz: the owner's
+  /// phone doubles/distorts raw 24000 Hz sentence WAVs while the
+  /// pre-rendered opus files (whose decoder delivers 48000 Hz mono to the
+  /// same sink) played clean for weeks — the 24 kHz raw-PCM path is the
+  /// one corrupted output path (see resamplePcmTo48k). The WAV declares
+  /// 48000 Hz mono 16-bit. The measured peaks and clip counts ride the
+  /// wav-ready timing line (the gain-staging evidence).
+  static Future<_PreparedWav> _prepareSentenceWav(KokoroAudio audio) async {
+    final sw = Stopwatch()..start();
+    final (staged, scaled) = stagePcmHeadroom(audio.samples);
+    final peakInDb = _dbfs(pcmPeak(audio.samples));
+    final clipIn = pcmClippedCount(audio.samples);
     final rate = audio.sampleRate == 24000 ? 48000 : audio.sampleRate;
-    final samples = resamplePcmTo48k(audio.samples, audio.sampleRate);
+    final resampled = resamplePcmTo48k(staged, audio.sampleRate);
+    final peakOutDb = _dbfs(pcmPeak(resampled));
+    final clipOut = pcmClippedCount(resampled);
+    final file = await _sentenceWavFile();
     await file.writeAsBytes(
-      encodeWav16(samples, rate),
-      flush: true,
+      encodeWav16(resampled, rate),
+      flush: false,
     );
-    try {
-      await _playSource(AudioSource.file(file.path), myEpoch);
-    } finally {
-      // Safe even while the player still holds it open (POSIX unlink).
-      try {
-        await file.delete();
-      } catch (_) {}
-    }
+    return _PreparedWav(
+      file: file,
+      peakInDb: peakInDb,
+      peakOutDb: peakOutDb,
+      clipIn: clipIn,
+      clipOut: clipOut,
+      scaled: scaled,
+      writeMs: sw.elapsedMilliseconds,
+    );
   }
+
+  /// A peak in dBFS ('-inf' for silence) — the gain-staging measurement's
+  /// unit.
+  static String _dbfs(double peak) =>
+      peak <= 0 ? '-inf' : (20 * log(peak) / ln10).toStringAsFixed(1);
 
   static Future<File> _sentenceWavFile() async {
     final dir = _sentenceDir ??=
         Directory('${(await getTemporaryDirectory()).path}/kokoro_sentences');
     if (!dir.existsSync()) dir.createSync(recursive: true);
+    if (!_sentenceDirSwept) {
+      _sentenceDirSwept = true;
+      // A previous session's orphaned sentence WAVs (a crash mid-playlist
+      // leaves them behind): sweep once per process, before the first
+      // playlist loads anything.
+      try {
+        for (final entity in dir.listSync()) {
+          if (entity is File && entity.path.endsWith('.wav')) {
+            try {
+              entity.deleteSync();
+            } catch (_) {}
+          }
+        }
+      } catch (_) {}
+    }
     return File(
         '${dir.path}/s_${DateTime.now().microsecondsSinceEpoch}.wav');
   }
+
+  /// Whether this process already swept the sentence-WAV dir (see
+  /// [_sentenceWavFile]).
+  static bool _sentenceDirSwept = false;
 
   /// Splits text into speakable sentences (see [tts_text.splitSpeakableSentences]).
   /// Public so screens can map sentence positions back to displayed text
@@ -929,6 +1227,60 @@ class _StreamSentence {
 
   const _StreamSentence(
       this.chunkIndex, this.sentenceInChunk, this.text, this.range);
+}
+
+/// One lookahead synthesis in flight: its future, where its audio comes
+/// from ('cache' | 'inflight' | 'engine' — the measurement's prefetch-
+/// engagement marker), and the issue timestamp (the synthesis wall time).
+class _PendingSynth {
+  final Future<KokoroAudio?> future;
+  final String source;
+  final int issuedAt;
+
+  const _PendingSynth({
+    required this.future,
+    required this.source,
+    required this.issuedAt,
+  });
+}
+
+/// One playlist item's playback metadata: which chunk/sentence it maps to
+/// (the sentence-start callbacks) and its character range + duration (the
+/// highlight timing).
+class _PlaylistItemMeta {
+  final int chunkIndex;
+  final int sentenceInChunk;
+  final (int, int) range;
+  final Duration duration;
+
+  const _PlaylistItemMeta({
+    required this.chunkIndex,
+    required this.sentenceInChunk,
+    required this.range,
+    required this.duration,
+  });
+}
+
+/// One sentence's prepared playback WAV plus its measured gain staging
+/// (the peaks and clip counts ride the wav-ready timing line).
+class _PreparedWav {
+  final File file;
+  final String peakInDb;
+  final String peakOutDb;
+  final int clipIn;
+  final int clipOut;
+  final bool scaled;
+  final int writeMs;
+
+  const _PreparedWav({
+    required this.file,
+    required this.peakInDb,
+    required this.peakOutDb,
+    required this.clipIn,
+    required this.clipOut,
+    required this.scaled,
+    required this.writeMs,
+  });
 }
 
 /// The stream runner's callbacks (all optional; the single-chunk path

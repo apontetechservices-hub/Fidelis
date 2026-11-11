@@ -40,13 +40,19 @@ void main() {
   /// Waits until the pipeline has a player with a PENDING play.
   Future<GatedPlayer> waitPendingPlay() => waitPendingPlayOn(platform);
 
-  /// Plays the gated player through [count] sentence playbacks, waiting
-  /// for each play to be PENDING before completing it (a premature
-  /// completion would be lost — the pipeline's WAV writes are real I/O).
+  /// Plays the gated player through [count] sentence playbacks: the
+  /// playlist model plays the stream as ONE playlist — wait for the
+  /// segment's pending play once, then complete each item in turn (the
+  /// index advances; the last item completes the whole playback). Each
+  /// completion waits for the NEXT item to be APPENDED first: the
+  /// playlist auto-advance only happens within the loaded playlist
+  /// (completing the last loaded item ends the whole playlist — the
+  /// appends are real async I/O, microtask settling never crosses them).
   Future<void> playThrough(int count) async {
+    final player = await waitPendingPlay();
     for (var i = 0; i < count; i++) {
-      final player = await waitPendingPlay();
-      player.completePlayback();
+      if (i < count - 1) await waitFor(() => player.itemCount >= i + 2);
+      player.completeItem();
     }
     await settle();
   }

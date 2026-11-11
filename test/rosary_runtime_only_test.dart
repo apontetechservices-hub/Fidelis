@@ -123,6 +123,12 @@ class RecordingEngine implements AudioEngine {
   }
 
   @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
+
+  @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
     prefetchTexts.add(text);
     prefetchLangs.add(lang);

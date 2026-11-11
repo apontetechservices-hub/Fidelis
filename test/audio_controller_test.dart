@@ -96,6 +96,12 @@ class FakeAudioEngine implements AudioEngine {
   }
 
   @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
+
+  @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
     log.add('prefetch:$text');
     prefetchLangs.add(lang);
@@ -713,6 +719,12 @@ class TimingFakeEngine implements AudioEngine {
   }
 
   @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
+
+  @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}
 
   @override
@@ -818,6 +830,12 @@ class WordEventFakeEngine implements AudioEngine {
       );
     }
   }
+
+  @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
 
   @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}

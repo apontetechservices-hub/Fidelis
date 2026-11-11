@@ -79,10 +79,11 @@ void main() {
       onWordRange: (_, _, _) {},
     ).then((_) => done.complete()));
 
-    // THE DEPTH-4 LOOKAHEAD: while sentence 1 PLAYS (the play result is
-    // pending), sentences 2-4 are already rendering — the whole rest of
-    // chunk 1 AND chunk 2's first sentence.
-    var player = await waitPendingPlay();
+    // THE DEPTH-4 LOOKAHEAD: while sentence 1 PLAYS (the playlist's first
+    // item loaded and playing), all five sentences are already rendering —
+    // the whole rest of chunk 1 AND chunk 2.
+    final player = await waitPendingPlay();
+    await waitFor(() => requests.length >= 5);
     expect(requests, [
       'Alpha one.',
       'Alpha two.',
@@ -94,22 +95,18 @@ void main() {
     // names the engine DURING playback, not after the whole chunk.
     expect(lines.where((l) => l.contains('engine=kokoro')), isNotEmpty);
 
-    player.completePlayback(); // sentence 1 done
-    player = await waitPendingPlay();
-    // CROSS-CHUNK LOOKAHEAD: chunk 1 is still playing (sentence 2 now),
-    // and chunk 2's FIRST sentence is already requested.
-    expect(requests, contains('Bravo one.'));
-
-    player.completePlayback(); // sentence 2 done
-    player = await waitPendingPlay();
-    // Chunk 1's LAST sentence plays; chunk 2's second is already rendering.
-    expect(requests, contains('Bravo two.'));
-
-    player.completePlayback(); // sentence 3 (chunk 1's last) done
-    player = await waitPendingPlay();
-    player.completePlayback(); // bravo one done
-    player = await waitPendingPlay();
-    player.completePlayback(); // bravo two done
+    // The playlist plays the stream as ONE playlist: complete each item in
+    // turn — the index advances and the sentence-start callbacks fire in
+    // stream order across the chunk boundary; the last item completes the
+    // whole playback. Each completion waits for the NEXT item to be
+    // APPENDED first: the playlist auto-advance only happens within the
+    // loaded playlist (completing the last loaded item ends the whole
+    // playlist — the appends are real async I/O, microtask settling never
+    // crosses them).
+    for (var i = 0; i < 5; i++) {
+      if (i < 4) await waitFor(() => player.itemCount >= i + 2);
+      player.completeItem();
+    }
     await done.future.timeout(const Duration(seconds: 5));
 
     // The chunk callbacks fired in stream order across the boundary.
@@ -163,6 +160,7 @@ void main() {
     // The cross-chunk lookahead is the point: chunk 2 renders while chunk
     // 1 plays, so the boundary costs no synthesis silence.
     final player = await waitPendingPlay();
+    await waitFor(() => requests.length >= 5);
     expect(requests, [
       'Alpha one.',
       'Alpha two.',
@@ -175,11 +173,10 @@ void main() {
     expect(requests.length, requests.toSet().length,
         reason: 'each sentence renders exactly once (the fused voice)');
 
-    for (var i = 0; i < 4; i++) {
-      player.completePlayback();
-      await waitPendingPlay();
+    for (var i = 0; i < 5; i++) {
+      if (i < 4) await waitFor(() => player.itemCount >= i + 2);
+      player.completeItem();
     }
-    player.completePlayback();
     await done.future.timeout(const Duration(seconds: 5));
   });
 
@@ -212,17 +209,21 @@ void main() {
       onWordRange: (_, _, _) {},
     ).then((_) => done.complete()));
 
-    var player = await waitPendingPlay();
-    player.completePlayback(); // sentence 1 done
+    final player = await waitPendingPlay();
+    player.completeItem(); // sentence 1 done → the playlist drains (the
+    // failure follows: nothing more appends for that chunk)
     // The failure fired: the FALLBACK line names the system voice, the
     // chunk's remainder went to flutter_tts, and the stream CONTINUED —
-    // chunk 2's sentence is requested through Kokoro again.
+    // chunk 2's sentence is requested through Kokoro again. The speak
+    // lands AFTER the playlist drains (the fallback never speaks over the
+    // loaded audio) — wait for it, not just for the line.
     await waitFor(() => lines.any((l) => l.contains('FALLBACK mid-pipeline')));
+    await waitFor(() => ttsCalls.any((c) => c == 'speak'));
     expect(ttsCalls.where((c) => c == 'speak'), isNotEmpty);
-    expect(requests, contains('Bravo one.'));
 
-    player = await waitPendingPlay();
-    player.completePlayback(); // bravo one done
+    final bravoPlayer = await waitPendingPlay(); // Bravo one's new segment
+    await waitFor(() => requests.contains('Bravo one.'));
+    bravoPlayer.completeItem(); // bravo one done → completes
     await done.future.timeout(const Duration(seconds: 5));
     // The fallback's remainder started at the failed sentence; chunk 2
     // played through the pipeline.
@@ -262,13 +263,15 @@ void main() {
     // THE INSTANT START: the FIRST sentence's play begins with ZERO new
     // synthesis requests — the prefetched audio is already in the cache,
     // so Play does not wait on synthesis.
-    var player = await waitPendingPlay();
+    final player = await waitPendingPlay();
     expect(requests.length, before,
         reason: 'the play started from the prefetched audio — no synthesis '
             'waited before the first sentence played');
-    player.completePlayback();
-    player = await waitPendingPlay();
-    player.completePlayback();
+    // The next item must be appended before sentence 1 completes (the
+    // playlist auto-advance only happens within the loaded playlist).
+    await waitFor(() => player.itemCount >= 2);
+    player.completeItem(); // sentence 1 done → the index advances
+    player.completeItem(); // sentence 2 → the playlist completes
     await done.future.timeout(const Duration(seconds: 5));
     expect(requests.length, before,
         reason: 'the prefetch cache served the playback — no new synthesis');
@@ -316,10 +319,12 @@ void main() {
     expect(
         requests.where((r) => r == 'Hail Mary, full of grace.').length, 1);
 
+    // The next item must be appended before sentence 1 completes (the
+    // playlist auto-advance only happens within the loaded playlist).
     var player = await waitPendingPlay();
-    player.completePlayback();
-    player = await waitPendingPlay();
-    player.completePlayback();
+    await waitFor(() => player.itemCount >= 2);
+    player.completeItem(); // sentence 1 done → the index advances
+    player.completeItem(); // sentence 2 → the playlist completes
     await done.future.timeout(const Duration(seconds: 5));
   });
 }

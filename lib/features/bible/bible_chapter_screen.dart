@@ -78,6 +78,21 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   final Map<int, List<int>> _chunkVerseStarts = {};
   final Map<int, int> _chunkFirstVerse = {};
 
+  /// Per chunk: the sentence count of the chunk's joined text — the
+  /// notification's verse-level Next/Previous maps the controller's
+  /// chunk/sentence position to a global stream sentence index through
+  /// these counts.
+  final Map<int, int> _chunkSentenceCounts = {};
+
+  /// Per verse (global index): the stream sentence index that starts it —
+  /// the notification's verse-level Next/Previous seeks the live pipeline
+  /// to this sentence. Built with the job (see [_buildJob]); null before.
+  List<int>? _verseFirstStreamSentence;
+
+  /// The first verse of the currently loaded job (a unit-move restart
+  /// starts mid-chapter; the verse maps are keyed to that job's layout).
+  int _jobFromVerse = 0;
+
   final Map<int, GlobalKey> _verseKeys = {};
 
   @override
@@ -282,7 +297,9 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     }
   }
 
-  /// Plays the whole chapter as ~10-verse chunks. Each chunk reports its
+  /// Plays the chapter from [fromVerse] onward as ~10-verse chunks (the
+  /// sequence pipeline speaks them as ONE continuous stream — the
+  /// chunking only shapes the highlight mapping). Each chunk reports its
   /// sentences as they start being recited; sentences are mapped back to
   /// verse indices so the spoken verse highlights in sync. Word-level
   /// advancement within the verse comes from the controller's word-range
@@ -295,13 +312,33 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// slot ([KokoroVoice.bible] — EN am_michael / ES em_alex at 0.81, with
   /// the per-voice pronunciation lexicon applied in the synthesis path and
   /// the English slot's equalizer shaping applied at playback).
-  Future<void> _startAudio() async {
+  Future<void> _startAudio({int fromVerse = 0}) async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
     _listening = true; // starting playback: listening mode ON
+    await AudioController.instance.start(
+      _buildJob(fromVerse: fromVerse),
+      owner: this,
+    );
+  }
+
+  /// Builds the chapter's playback job from [fromVerse] onward: the
+  /// ~10-verse chunks with their highlight closures, the per-chunk
+  /// sentence counts and each verse's first stream-sentence index (the
+  /// notification's verse-level Next/Previous maps a verse to the stream
+  /// sentence that starts it), and the verse-level unit move.
+  AudioJob _buildJob({int fromVerse = 0}) {
+    final verses = _verses!;
     final lang = AppStrings.isSpanish ? 'es' : 'en';
     final chunks = <AudioChunk>[];
-    for (var start = 0; start < verses.length; start += _versesPerChunk) {
+    final firsts = List<int>.filled(verses.length, -1);
+    _chunkVerseStarts.clear();
+    _chunkFirstVerse.clear();
+    _chunkSentenceCounts.clear();
+    var streamIndex = 0;
+    for (var start = fromVerse;
+        start < verses.length;
+        start += _versesPerChunk) {
       final end = (start + _versesPerChunk < verses.length)
           ? start + _versesPerChunk
           : verses.length;
@@ -311,6 +348,17 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       final chunkIndex = chunks.length;
       _chunkVerseStarts[chunkIndex] = _verseOffsets(group);
       _chunkFirstVerse[chunkIndex] = start;
+      final sentenceCount = TtsService.splitSentences(text).length;
+      _chunkSentenceCounts[chunkIndex] = sentenceCount;
+      for (var si = 0;
+          si < verseForSentence.length && si < sentenceCount;
+          si++) {
+        final v = verseForSentence[si];
+        if (v >= 0 && v < firsts.length && firsts[v] < 0) {
+          firsts[v] = streamIndex + si;
+        }
+      }
+      streamIndex += sentenceCount;
       chunks.add(AudioChunk(
         text: text,
         lang: lang,
@@ -327,15 +375,66 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         },
       ));
     }
-    await AudioController.instance.start(
-      AudioJob(
-        id: _jobId,
-        chunks: chunks,
-        // The media notification's title: the chapter being recited.
-        title: '${BibleService.bookName(widget.book)} ${widget.chapter}',
-      ),
-      owner: this,
+    // A verse with no sentence starting in it (a continuation) belongs to
+    // the previous verse's sentence span.
+    for (var v = 1; v < firsts.length; v++) {
+      if (firsts[v] < 0) firsts[v] = firsts[v - 1];
+    }
+    _verseFirstStreamSentence = firsts;
+    _jobFromVerse = fromVerse;
+    return AudioJob(
+      id: _jobId,
+      chunks: chunks,
+      // The media notification's title: the chapter being recited.
+      title: '${BibleService.bookName(widget.book)} ${widget.chapter}',
+      onUnitMove: _moveVerse,
     );
+  }
+
+  /// The media notification's verse-level Next/Previous (the job's unit
+  /// move): returns the stream sentence index that starts the target
+  /// verse when the controller can seek the live pipeline to it (playing
+  /// continues into the verse, paused moves the position); null when the
+  /// move is blocked (a chapter-edge boundary) or handled here — beyond
+  /// the synthesized frontier or the loaded job's range, the position
+  /// moves by restarting from the target verse while playing, or by
+  /// arming a paused resume (the next Play starts that verse; nothing
+  /// sounds until then).
+  Future<int?> _moveVerse(int direction) async {
+    final verses = _verses;
+    final firsts = _verseFirstStreamSentence;
+    if (verses == null || firsts == null || firsts.length != verses.length) {
+      return null;
+    }
+    final controller = AudioController.instance;
+    final info = controller.listenable.value;
+    if (info.jobId != _jobId) return null;
+    final counts = _chunkSentenceCounts;
+    var global = 0;
+    for (var c = 0; c < info.chunkIndex && c < counts.length; c++) {
+      global += counts[c] ?? 0;
+    }
+    global += info.sentenceIndex;
+    var current = _jobFromVerse;
+    for (var v = _jobFromVerse; v < firsts.length; v++) {
+      if (firsts[v] >= 0 && firsts[v] <= global) current = v;
+    }
+    final target = current + direction;
+    if (target < 0 || target >= verses.length) return null;
+    final targetSentence = target < firsts.length ? firsts[target] : -1;
+    if (target >= _jobFromVerse &&
+        targetSentence >= 0 &&
+        targetSentence < controller.loadedSentenceCount) {
+      return targetSentence; // the controller seeks the live pipeline
+    }
+    if (info.state == AudioState.playing) {
+      unawaited(_startAudio(fromVerse: target));
+    } else {
+      setState(() => _speakingVerse = target);
+      _scrollToVerse(target);
+      controller.armResume(_buildJob(fromVerse: target), owner: this);
+    }
+    return null;
   }
 
   /// Verse start offsets within a chunk's joined text (verses joined by a

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,6 +9,7 @@ import 'config/app_strings.dart';
 import 'features/diagnostics/playback_readout.dart';
 import 'services/audio_controller.dart';
 import 'services/audio_diagnostics.dart';
+import 'services/audio_focus.dart';
 import 'services/audio_service_handler.dart';
 import 'services/bible_address_migration.dart';
 import 'services/kokoro_engine.dart';
@@ -43,7 +43,14 @@ Future<void> main() async {
       notificationColor: Color(0xFFC5A55A),
     ),
   );
-  _wireAudioFocus();
+  // Audio focus + unplug reactions (see services/audio_focus.dart): when
+  // another app takes focus or the headphones are unplugged, Fidelis
+  // pauses and STAYS paused. The reactions log through the diagnostics
+  // path so the device shows the event arrived and the pause executed.
+  unawaited(configureAudioFocus(
+    controller: AudioController.instance,
+    onEvent: AudioDiagnostics.instance.recordLine,
+  ));
   // The diagnostic build's on-screen readout: every pipeline line, engine
   // failure, and playback state transition lands in the AudioDiagnostics
   // service, so the truth about what is playing (slot config, engine,
@@ -75,23 +82,6 @@ Future<void> main() async {
   // marker check). Synthesis itself stays lazy.
   unawaited(TtsService.warmAssets());
   runApp(const FidelisApp());
-}
-
-/// Audio focus + unplug reactions: when another app takes focus (music, a
-/// call, an alarm) or the headphones are unplugged, Fidelis pauses — and
-/// STAYS paused after the interruption ends (no auto-resume; the user
-/// resumes manually). Spoken-audio attributes: the system asks us to pause
-/// rather than duck. Best-effort: never blocks startup.
-Future<void> _wireAudioFocus() async {
-  try {
-    final session = await AudioSession.instance;
-    await session.configure(AudioSessionConfiguration.speech());
-    session.interruptionEventStream
-        .where((event) => event.begin)
-        .listen((_) => unawaited(AudioController.instance.pause()));
-    session.becomingNoisyEventStream
-        .listen((_) => unawaited(AudioController.instance.pause()));
-  } catch (_) {}
 }
 
 /// Mirrors the audio controller's state into the diagnostics service — the

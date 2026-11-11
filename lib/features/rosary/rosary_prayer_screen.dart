@@ -409,12 +409,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     );
   }
 
-  /// Plays the current step through the central controller via RUNTIME
-  /// SYNTHESIS ONLY: the rosary's directed slot ([KokoroVoice.rosary] — EN
-  /// af_aoede; ES af_aoede under Spanish phonemization — one voice in both
-  /// languages, speed 0.9, the rosary-scoped bless-ed correction), with
-  /// the highlight schedule derived from the SAME synthesis that produces
-  /// the audio (the Kokoro pipeline's per-sentence timing — ONE source).
+  /// Builds the current step's playback job: RUNTIME SYNTHESIS ONLY (the
+  /// rosary's directed slot — [KokoroVoice.rosary] — EN af_aoede; ES
+  /// af_aoede under Spanish phonemization — one voice in both languages,
+  /// speed 0.9, the rosary-scoped bless-ed correction), with the highlight
+  /// schedule derived from the SAME synthesis that produces the audio
+  /// (the Kokoro pipeline's per-sentence timing — ONE source).
   ///
   /// The pre-rendered assets under assets/rosary_audio/ are NO LONGER in
   /// the playback path: they were rendered with the standard voices
@@ -423,29 +423,35 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   /// drifted from the audio they played. The files stay dormant on disk,
   /// unused.
   ///
+  /// The job carries the prayer-level unit move (the media notification's
+  /// Next/Previous: one prayer/step per press — see [_movePrayer]).
+  AudioJob _stepJob() {
+    final step = _steps[_currentStep];
+    return AudioJob(
+      id: _jobId,
+      chunks: [
+        AudioChunk(
+            text: _fallbackSpeechText(step),
+            lang: _language,
+            voice: KokoroVoice.rosary),
+      ],
+      // The media notification's title: the prayer being recited.
+      title: widget.isForDead
+          ? AppStrings.t('rosary_for_the_dead')
+          : AppStrings.t('title_holy_rosary'),
+      onUnitMove: _movePrayer,
+    );
+  }
+
+  /// Starts the current step's audio through the central controller.
   /// Starting playback turns listening mode ON (the governing rule): it
   /// persists across the step's natural completion until an explicit pause
   /// or leaving the screen.
   Future<void> _startCurrentStepAudio() async {
-    final step = _steps[_currentStep];
     _listening = true;
-    final chunk = AudioChunk(
-        text: _fallbackSpeechText(step),
-        lang: _language,
-        voice: KokoroVoice.rosary);
     _speakingLine = null;
     _speakingWord = null;
-    await AudioController.instance.start(
-      AudioJob(
-        id: _jobId,
-        chunks: [chunk],
-        // The media notification's title: the prayer being recited.
-        title: widget.isForDead
-            ? AppStrings.t('rosary_for_the_dead')
-            : AppStrings.t('title_holy_rosary'),
-      ),
-      owner: this,
-    );
+    await AudioController.instance.start(_stepJob(), owner: this);
     // Lookahead: while this step plays, the NEXT step's sentences are
     // already rendering into the prefetch cache (queued behind the playing
     // pipeline's own syntheses), so pressing Next starts without synthesis
@@ -1006,9 +1012,36 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     _advanceStep(-1);
   }
 
+  /// The media notification's prayer-level Next/Previous (the job's unit
+  /// move): the same step navigation as the in-app buttons. Playing
+  /// (listening): the newly selected prayer starts playing — start()
+  /// replaces the stream. Paused: the step advances silently and the
+  /// resume is re-armed to the new step — the position moves without
+  /// starting audio and the notification keeps showing Play. The litany's
+  /// in-step invocation advance (one invocation per press, the step's
+  /// audio continues) mirrors the in-app Next exactly.
+  Future<int?> _movePrayer(int direction) async {
+    final controller = AudioController.instance;
+    if (controller.currentJobId != _jobId) return null;
+    if (direction > 0 && _step.type == RosaryStepType.litany) {
+      final invocations = LitanyOfLoreto.getInvocations(_language);
+      if (_litanyIndex < invocations.length) {
+        setState(() => _litanyIndex++);
+        _scrollToLitanyItem();
+        return null; // the same step — its audio keeps playing
+      }
+    }
+    _advanceStep(direction, keepPausedStream: true);
+    return null;
+  }
+
   /// Shared Next/Previous step navigation: exactly one step per press,
   /// auto-playing the new step's audio only while listening.
-  void _advanceStep(int direction) {
+  /// [keepPausedStream] (the notification's move while paused): the
+  /// abandoned step's paused stream is KEPT (the notification stays,
+  /// showing Play) and the resume is re-armed to the new step — the
+  /// position moved without starting audio.
+  void _advanceStep(int direction, {bool keepPausedStream = false}) {
     final target = _currentStep + direction;
     if (target < 0 || target > _steps.length - 1) return;
     final listening = _listening;
@@ -1025,6 +1058,10 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     if (listening) {
       // start() replaces the current stream (playing or paused).
       unawaited(_startCurrentStepAudio());
+    } else if (keepPausedStream &&
+        controller.state == AudioState.paused &&
+        controller.currentJobId == _jobId) {
+      controller.armResume(_stepJob(), owner: this);
     } else if (controller.currentJobId == _jobId) {
       // Silent navigation: the abandoned step's paused stream is stale —
       // stop it so a later play starts the shown step fresh.

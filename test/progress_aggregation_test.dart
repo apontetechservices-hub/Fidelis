@@ -100,6 +100,12 @@ class _SequenceFakeEngine implements AudioEngine {
       null;
 
   @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
+
+  @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}
 }
 
@@ -190,6 +196,12 @@ class _LateRenderFakeEngine implements AudioEngine {
   Future<List<Duration>?> sentenceDurations(String text, String lang,
       {bool Function()? shouldAbort}) async =>
       null;
+
+  @override
+  Future<bool> seekToSentence(int streamIndex) async => false;
+
+  @override
+  int get appendedSentenceCount => 0;
 
   @override
   Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}

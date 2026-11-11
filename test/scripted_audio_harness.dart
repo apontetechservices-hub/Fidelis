@@ -11,17 +11,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-/// Scripted single-source player: load -> ready, play -> the play result
-/// PENDING until [completePlayback] (real Java semantics, gated). The
-/// audio-effect surface (the shared player's AudioPipeline) is answered
-/// so the load/play sequence never breaks.
+/// Scripted single-source/playlist player: load -> ready, play -> the play
+/// result PENDING until [completePlayback] (real Java semantics, gated).
+/// Playlist-aware: [concatenatingInsertAll] records the appended items
+/// (the pipeline appends each sentence's render as it lands),
+/// [completeItem] advances the currentIndex to the next appended item
+/// (ExoPlayer's seamless auto-advance), and the playlist's LAST item
+/// completes the whole playback (STATE_ENDED semantics). The audio-effect
+/// surface (the shared player's AudioPipeline) is answered so the
+/// load/play sequence never breaks.
 class GatedPlayer extends AudioPlayerPlatform {
   final eventController = StreamController<PlaybackEventMessage>.broadcast();
   ProcessingStateMessage _state = ProcessingStateMessage.idle;
   Duration _pos = Duration.zero;
   Completer<void>? _pendingPlay;
   int playCount = 0;
+  int loadCount = 0;
   final Duration duration;
+
+  /// The playlist's item count: 1 after the initial load, +1 per appended
+  /// source (the pipeline's sentence appends).
+  int itemCount = 0;
+
+  /// The current playlist item index (the sentence-start callbacks fire
+  /// from the currentIndex stream).
+  int _currentIndex = 0;
+
+  /// The seek requests received (index+position) — the unit-move and
+  /// frontier-resume seeks are asserted in the tests.
+  final seeks = <(int?, Duration?)>[];
 
   GatedPlayer(InitRequest request, {this.duration = const Duration(seconds: 3)})
       : super(request.id);
@@ -43,7 +61,7 @@ class GatedPlayer extends AudioPlayerPlatform {
       bufferedPosition: _pos,
       icyMetadata: null,
       duration: duration,
-      currentIndex: 0,
+      currentIndex: _currentIndex,
       androidAudioSessionId: null,
       errorCode: null,
       errorMessage: null,
@@ -53,15 +71,32 @@ class GatedPlayer extends AudioPlayerPlatform {
   void _completePlay() {
     final c = _pendingPlay;
     _pendingPlay = null;
-    if (c != null && !c.isCompleted) c.complete();
+    if (c != null && !isCompleted(c)) c.complete();
   }
+
+  static bool isCompleted(Completer<void> c) => c.isCompleted;
 
   @override
   Future<LoadResponse> load(LoadRequest request) async {
+    loadCount++;
+    // The playlist arrives as ONE concatenated source message (the
+    // platform interface's shape): its children are the playlist items.
+    final source = request.audioSourceMessage;
+    itemCount = source is ConcatenatingAudioSourceMessage
+        ? source.children.length
+        : 1;
+    _currentIndex = request.initialIndex ?? 0;
     _state = ProcessingStateMessage.ready;
     _pos = request.initialPosition ?? Duration.zero;
     _broadcast();
     return LoadResponse(duration: duration);
+  }
+
+  @override
+  Future<ConcatenatingInsertAllResponse> concatenatingInsertAll(
+      ConcatenatingInsertAllRequest request) async {
+    itemCount += request.children.length;
+    return ConcatenatingInsertAllResponse();
   }
 
   @override
@@ -106,9 +141,27 @@ class GatedPlayer extends AudioPlayerPlatform {
       SetShuffleOrderResponse();
   @override
   Future<SeekResponse> seek(SeekRequest request) async {
+    seeks.add((request.index, request.position));
+    if (request.index != null) _currentIndex = request.index!;
     _pos = request.position ?? Duration.zero;
     _broadcast();
     return SeekResponse();
+  }
+
+  /// Completes the CURRENT item: the player advances to the next appended
+  /// item (ExoPlayer's seamless playlist auto-advance — the currentIndex
+  /// changes, the play stays pending) or, at the playlist's end, completes
+  /// the whole playback (STATE_ENDED semantics: processingState=completed,
+  /// the pending play result completes).
+  void completeItem() {
+    if (_currentIndex + 1 < itemCount) {
+      _currentIndex++;
+      _state = ProcessingStateMessage.ready;
+      _pos = Duration.zero;
+      _broadcast();
+    } else {
+      completePlayback();
+    }
   }
 
   @override
