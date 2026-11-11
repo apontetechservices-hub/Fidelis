@@ -33,7 +33,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
   static const _renders = <(String, String)>[
     (
       'assets/diagnostics_renders/psalm23_en.wav',
-      'Psalm 23:1-3 EN — Bible slot (Michael+Echo blend, 0.81)',
+      'Psalm 23:1-3 EN — Bible slot (Michael, 0.81)',
     ),
     (
       'assets/diagnostics_renders/psalm23_es.wav',
@@ -45,7 +45,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     ),
     (
       'assets/diagnostics_renders/our_father_es.wav',
-      'Our Father ES — Rosary slot (Aoede+Dora blend, 0.9)',
+      'Our Father ES — Rosary slot (Aoede, 0.9)',
     ),
     (
       'assets/diagnostics_renders/hail_mary_en.wav',
@@ -53,7 +53,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     ),
     (
       'assets/diagnostics_renders/hail_mary_es.wav',
-      'Hail Mary ES — Rosary slot (Aoede+Dora blend, 0.9)',
+      'Hail Mary ES — Rosary slot (Aoede, 0.9)',
     ),
   ];
 
@@ -92,8 +92,7 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
       _probing = false;
       _probeResult = audio == null
           ? 'FAILED — ${KokoroEngine.lastError ?? 'no error recorded'}'
-          : 'OK — ${audio.samples.length} samples at ${audio.sampleRate} Hz '
-              '(blended=${audio.blended})';
+          : 'OK — ${audio.samples.length} samples at ${audio.sampleRate} Hz';
     });
   }
 

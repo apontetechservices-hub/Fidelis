@@ -113,8 +113,7 @@ void main() {
         'failed: boom');
     // The next playback starts (Kokoro recovered after a restart).
     d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-        'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 eq=flat '
-        'lexicon=2');
+        'voice=am_michael(16) speed=0.81 eq=flat lexicon=2');
     d.recordLine('[Fidelis audio] engine=kokoro (the slot config above '
         'executed)');
     expect(d.engineUsed, 'kokoro');

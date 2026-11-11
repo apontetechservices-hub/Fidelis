@@ -12,53 +12,44 @@ import 'tts_text.dart';
 
 export 'tts_text.dart' show KokoroVoice;
 
-/// One synthesized sentence: raw PCM samples + sample rate, plus the
-/// slot-blend execution record (the owner's proof that the directed blend
-/// actually rendered: blended=true and the mixed length is the LONGER of
-/// the two renders).
+/// One synthesized sentence: raw PCM samples + sample rate. Every slot is
+/// a single voice — one render per sentence, no blends, no mix record.
 class KokoroAudio {
   final Float32List samples;
   final int sampleRate;
 
-  /// True when the slot's blend partner rendered and the PCM mix executed.
-  final bool blended;
-
-  /// The primary render's sample count (the solo extent).
-  final int primarySamples;
-
-  /// The blend partner render's sample count; null without a blend.
-  final int? partnerSamples;
-
-  const KokoroAudio(this.samples, this.sampleRate,
-      {this.blended = false, this.primarySamples = 0, this.partnerSamples});
+  const KokoroAudio(this.samples, this.sampleRate);
 }
 
 /// On-device Kokoro TTS engine (sherpa-onnx 1.13.8, Kokoro v1.0 INT8).
 ///
 /// Voices are per-slot profiles ([KokoroVoice]): the Bible speaks the
-/// owner's voice-grid configuration — EN am_michael blended 70/30 with
-/// am_echo (both sids render, PCM-mixed) at speed 0.81 / ES em_alex solo —
-/// the rosary's runtime slot speaks EN af_aoede / ES af_aoede blended
-/// 70/30 with ef_dora under Spanish phonemization, and readings plus the
+/// owner's voice-grid configuration — EN am_michael (sid 16) SOLO at
+/// speed 0.81, softened by the slot's equalizer / ES em_alex solo — the
+/// rosary's runtime slot speaks EN af_aoede / ES af_aoede under Spanish
+/// phonemization (one voice in both languages), and readings plus the
 /// rosary's timing-only synthesis keep the standard voices (EN bm_george
 /// sid 26 / ES em_alex sid 29, speed 0.9). Kokoro has no Latin voice —
 /// 'la' callers must use the flutter_tts path.
 ///
 /// Model files ship as Flutter assets under assets/kokoro/ (~155 MB) and are
 /// copied once to the app support directory, because onnxruntime needs real
-/// file paths. Synthesis runs on a long-lived worker isolate: model loading
-/// and generate() are heavy synchronous FFI calls that must never block the
-/// UI. Kokoro's phonemization language is an engine-level setting, so the
-/// worker recreates the engine when the requested language changes.
+/// file paths. Synthesis runs on a long-lived worker
+/// isolate: model loading and generate() are heavy synchronous FFI calls
+/// that must never block the UI. Kokoro's phonemization language is an
+/// engine-level setting, so the worker recreates the engine when the
+/// requested language changes.
 class KokoroEngine {
   KokoroEngine._();
 
   static const _assetRoot = 'assets/kokoro';
 
-  /// Bump when the bundled model files change to force a re-copy on devices.
-  /// 2026-11-10: bumped with the asset-preparation fix so every device wipes
-  /// whatever partial state earlier builds left and re-copies cleanly.
-  static const _stamp = 'kokoro-int8-v1.0-2026-11-10';
+  /// Bump when the bundled model files or the preparation steps change to
+  /// force a re-copy on devices. 2026-11-11: bumped past the abandoned
+  /// fused-voice preparation so any device that ran it wipes its working
+  /// copy (which carried injected extra speakers) and re-copies the
+  /// pristine bundle cleanly.
+  static const _stamp = 'kokoro-int8-v1.0-2026-11-11';
 
   /// Sticky: any hard failure disables Kokoro for the rest of the session and
   /// callers fall back to flutter_tts (audio must never break).
@@ -192,13 +183,11 @@ class KokoroEngine {
   }
 
   /// Synthesizes [text] with [voice]'s slot config for [lang]: the slot's
-  /// sid/speed, and when the slot carries a blend partner for [lang], the
-  /// text is rendered by BOTH sids under the same engine phonemization and
-  /// the renders are PCM-mixed at the slot's ratio (the mixed length is the
-  /// schedule's timing source). The render itself runs in the worker
-  /// through the shared [synthesizeSlotSentence] — the one slot-synthesis
-  /// path the word-timing verifier also drives. Returns null on failure
-  /// (caller falls back to flutter_tts — audio must never break).
+  /// sid/speed, ONE render per sentence — every slot is a single voice.
+  /// The render runs in the worker through the shared
+  /// [synthesizeSlotSentence] — the one slot-synthesis path the
+  /// word-timing verifier also drives. Returns null on failure (caller
+  /// falls back to flutter_tts — audio must never break).
   static Future<KokoroAudio?> synthesize(
     String text,
     String lang, {
@@ -229,13 +218,7 @@ class KokoroEngine {
       _recordFailure('synthesis returned no usable samples');
       return null;
     }
-    return KokoroAudio(
-      samples,
-      rate,
-      blended: ack['blended'] == true,
-      primarySamples: (ack['primarySamples'] as int?) ?? 0,
-      partnerSamples: ack['partnerSamples'] as int?,
-    );
+    return KokoroAudio(samples, rate);
   }
 
   /// Releases the worker isolate and native engine (e.g. on hard failure).
@@ -671,12 +654,11 @@ void _workerMain(_WorkerSetup setup) {
           final text = m['text'] as String;
           final voice = m['voice'] as KokoroVoice;
           final lang = m['lang'] as String;
-          // The ONE slot-synthesis path (tts_text.dart): the primary render
-          // plus the blend partner render PCM-mixed at the slot's ratio.
-          // The word-timing verifier drives this same function; the blend
-          // record is the owner's proof that the directed blend rendered.
-          final (samples, rate, blended, primarySamples, partnerSamples) =
-              synthesizeSlotSentenceDetailed(
+          // The ONE slot-synthesis path (tts_text.dart): the slot's sid at
+          // the slot's speed, ONE render per sentence — every slot is a
+          // single voice. The word-timing verifier drives this same
+          // function.
+          final (samples, rate) = synthesizeSlotSentence(
             (t, sid, speed) {
               final audio = tts!.generate(text: t, sid: sid, speed: speed);
               return (audio.samples, audio.sampleRate);
@@ -691,9 +673,6 @@ void _workerMain(_WorkerSetup setup) {
             'ok': true,
             'samples': samples,
             'rate': rate,
-            'blended': blended,
-            'primarySamples': primarySamples,
-            'partnerSamples': partnerSamples,
           });
         } catch (e) {
           setup.toMain.send({

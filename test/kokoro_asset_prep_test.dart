@@ -81,14 +81,13 @@ void main() {
         .toSet();
     final expectedDisk = manifestAssets
         .difference(parts)
-        .union({'assets/kokoro/model.int8.onnx', '.ready'});
+        .union({'assets/kokoro/model.int8.onnx'});
     final disk = await _diskFiles(dir);
     final diskKeys = disk
         .where((f) => f != '.ready')
         .map((f) => 'assets/kokoro/$f')
         .toSet();
-    expect(diskKeys,
-        manifestAssets.difference(parts).union({'assets/kokoro/model.int8.onnx'}),
+    expect(diskKeys, expectedDisk,
         reason: 'the copied tree matches the bundle exactly');
 
     // The reassembled model is the CONCATENATION of all parts, in order —
@@ -109,12 +108,25 @@ void main() {
     // The marker matches THIS build's stamp (an old stamp forces a re-copy).
     expect(File('$dir/.ready').readAsStringSync(), KokoroEngine.debugStamp);
 
-    // The files the engine init reads carry the bundle's exact byte counts.
+    // The files the engine init reads carry the bundle's exact byte counts
+    // — voices.bin included: the preparation appends NOTHING (blends are
+    // cancelled; the working copy is the pristine bundle).
     for (final name in ['tokens.txt', 'voices.bin', 'espeak-ng-data/phontab']) {
       final bundled = await rootBundle.load('assets/kokoro/$name');
       expect(File('$dir/$name').lengthSync(), bundled.lengthInBytes,
           reason: '$name copied byte-exact');
     }
+    // THE BLEND-PATH REMOVAL: the working voices.bin is byte-identical to
+    // the bundled 54-speaker bundle — no fused voices were appended.
+    final bundledVoices = await rootBundle.load('assets/kokoro/voices.bin');
+    final bundledBytes = bundledVoices.buffer.asUint8List(
+        bundledVoices.offsetInBytes, bundledVoices.lengthInBytes);
+    final working = File('$dir/voices.bin').readAsBytesSync();
+    expect(working, bundledBytes,
+        reason: 'the working voices.bin is the pristine bundle — no '
+            'fused-voice injection, no appends');
+    // The model metadata counts the bundled 54 only.
+    expect(KokoroEngine.kokoroSidCount(working.length), 54);
 
     await root.delete(recursive: true);
   }, timeout: const Timeout(Duration(minutes: 6)));

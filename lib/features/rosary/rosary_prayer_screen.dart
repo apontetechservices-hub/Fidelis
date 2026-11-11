@@ -141,6 +141,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     }
     // Save state on first load
     _saveState();
+    // Screen-open prefetch (playback latency): the CURRENT step's
+    // synthesis starts the moment the prayer screen opens — engine
+    // warm-up plus the first sentences rendered into the prefetch cache —
+    // so pressing Play finds the opening audio READY and starts
+    // instantly. Fire-and-forget; never blocks the open.
+    _prefetchCurrentStep();
   }
 
   @override
@@ -405,8 +411,8 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
 
   /// Plays the current step through the central controller via RUNTIME
   /// SYNTHESIS ONLY: the rosary's directed slot ([KokoroVoice.rosary] — EN
-  /// af_aoede; ES af_aoede blended 70/30 with ef_dora under Spanish
-  /// phonemization, speed 0.9, the rosary-scoped bless-ed correction), with
+  /// af_aoede; ES af_aoede under Spanish phonemization — one voice in both
+  /// languages, speed 0.9, the rosary-scoped bless-ed correction), with
   /// the highlight schedule derived from the SAME synthesis that produces
   /// the audio (the Kokoro pipeline's per-sentence timing — ONE source).
   ///
@@ -445,6 +451,18 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     // pipeline's own syntheses), so pressing Next starts without synthesis
     // latency. The decade's repeated Hail Marys hit the cache instantly.
     _prefetchNextStep();
+  }
+
+  /// Renders the CURRENT step's sentences into the prefetch cache (en/es
+  /// only; Latin keeps the flutter_tts path, which needs no prefetch) —
+  /// the screen-open prefetch, composed exactly as [_startCurrentStepAudio]
+  /// composes its chunk, so a Play press finds the opening audio ready.
+  void _prefetchCurrentStep() {
+    if (_language != 'en' && _language != 'es') return;
+    final text = _fallbackSpeechText(_steps[_currentStep]);
+    if (text.isEmpty) return;
+    AudioController.instance.prefetch(
+        AudioChunk(text: text, lang: _language, voice: KokoroVoice.rosary));
   }
 
   /// Renders the next step's sentences into the prefetch cache (en/es

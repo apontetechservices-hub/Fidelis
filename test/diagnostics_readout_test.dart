@@ -27,11 +27,11 @@ void main() {
           'voice) reason=kokoro unavailable for en — Kokoro failed: x');
       expect(d.fallbackLine, isNotNull);
       d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-          'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 '
+          'voice=am_michael(16) speed=0.81 '
           'eq=bands{0:-4.0dB,1:-2.0dB} lexicon=2');
       expect(d.slotReadout,
-          'playback slot=bible lang=en voice=am_michael(16)+am_echo(12) '
-          'blend=0.70 speed=0.81 eq=bands{0:-4.0dB,1:-2.0dB} lexicon=2');
+          'playback slot=bible lang=en voice=am_michael(16) '
+          'speed=0.81 eq=bands{0:-4.0dB,1:-2.0dB} lexicon=2');
       expect(d.fallbackLine, isNull,
           reason: 'a new playback start resets the banner');
       expect(d.engineUsed, isNull, reason: 'the engine outcome is pending');
@@ -48,8 +48,7 @@ void main() {
     test('a fallback line records the system-voice outcome', () {
       final d = AudioDiagnostics.instance;
       d.recordLine('[Fidelis audio] playback slot=rosary lang=es '
-          'voice=af_aoede(1)+ef_dora(28) blend=0.70 speed=0.90 eq=flat '
-          'lexicon=0');
+          'voice=af_aoede(1) speed=0.90 eq=flat lexicon=0');
       d.recordLine('[Fidelis audio] FALLBACK engine=flutter_tts (system '
           'voice) reason=kokoro unavailable for es — Kokoro failed: engine '
           'init failed: boom');
@@ -104,7 +103,7 @@ void main() {
       final d = AudioDiagnostics.instance;
       d.recordKokoroError('engine init failed: boom');
       d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-          'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 '
+          'voice=am_michael(16) speed=0.81 '
           'eq=bands{0:-4.0dB,1:-2.0dB} lexicon=2');
       d.recordLine('[Fidelis audio] FALLBACK engine=flutter_tts (system '
           'voice) reason=kokoro unavailable for en — Kokoro failed: engine '
@@ -116,7 +115,7 @@ void main() {
 
       // The requested slot config.
       expect(find.textContaining('slot: playback slot=bible'), findsOneWidget);
-      expect(find.textContaining('am_michael(16)+am_echo(12)'), findsOneWidget);
+      expect(find.textContaining('am_michael(16)'), findsOneWidget);
       // The engine outcome: the SYSTEM voice served this playback.
       expect(find.textContaining('engine: flutter_tts'), findsOneWidget);
       // The prominent fallback banner with the root cause inline.

@@ -18,8 +18,14 @@ class FakeAudioEngine implements AudioEngine {
   final List<String?> langs = [];
 
   /// Voice profile passed to each speakText call, in order — lets tests
-  /// verify the per-chunk voice routing (the Bible's Daniel/Alex profile).
+  /// verify the per-chunk voice routing (the Bible's Michael profile).
   final List<KokoroVoice?> voices = [];
+
+  /// Prefetch calls: the language and voice of each screen-open prefetch —
+  /// lets tests verify the opening chunk's synthesis starts before Play
+  /// is pressed.
+  final List<String?> prefetchLangs = [];
+  final List<KokoroVoice?> prefetchVoices = [];
 
   /// Gate of the chunk currently "playing"; completes when it finishes.
   Completer<void>? _gate;
@@ -90,7 +96,11 @@ class FakeAudioEngine implements AudioEngine {
   }
 
   @override
-  Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}
+  Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
+    log.add('prefetch:$text');
+    prefetchLangs.add(lang);
+    prefetchVoices.add(voice);
+  }
 
   @override
   Future<void> playAsset(String asset) async {

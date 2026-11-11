@@ -13,13 +13,16 @@ import 'package:fidelis/services/kokoro_engine.dart';
 /// The rosary's RUNTIME-ONLY playback contract: every step of the rosary —
 /// both languages, dead-variant personalization included — recites through
 /// RUNTIME SYNTHESIS with the directed rosary slot (KokoroVoice.rosary: EN
-/// af_aoede; ES af_aoede blended 70/30 with ef_dora), and NO pre-rendered
+/// af_aoede; ES af_aoede speaking Spanish — one voice in both languages,
+/// blends cancelled), and NO pre-rendered
 /// asset ever plays. The bundled files under assets/rosary_audio/ stay
 /// dormant on disk, unused: they were rendered with the standard voices
 /// (the wrong voices for the directed grid) and their bundled timing
 /// predates the current texts, so their timeline drifted from the audio.
 /// Recording engine: captures every chunk's language + voice identity and
 /// stays pending until stop() (in-flight playback, like the real player).
+/// The screen-open prefetch is recorded too (the current step's synthesis
+/// starts before Play is pressed).
 class RecordingEngine implements AudioEngine {
 
   /// Set by stop(): the delegate's chunk loop halts (the real
@@ -28,6 +31,12 @@ class RecordingEngine implements AudioEngine {
   final List<String?> langs = [];
   final List<KokoroVoice?> voices = [];
   final List<String> texts = [];
+
+  /// The screen-open prefetch: the current step's text, language, and
+  /// voice, recorded when the prayer screen opens (before any Play).
+  final List<String> prefetchTexts = [];
+  final List<String?> prefetchLangs = [];
+  final List<KokoroVoice?> prefetchVoices = [];
   Completer<void>? _pending;
 
   @override
@@ -114,7 +123,11 @@ class RecordingEngine implements AudioEngine {
   }
 
   @override
-  Future<void> prefetch(String text, String lang, KokoroVoice voice) async {}
+  Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
+    prefetchTexts.add(text);
+    prefetchLangs.add(lang);
+    prefetchVoices.add(voice);
+  }
 }
 
 void main() {
@@ -161,6 +174,18 @@ void main() {
     ));
     await tester.pumpAndSettle();
 
+    // THE SCREEN-OPEN PREFETCH: the CURRENT step's synthesis started
+    // before Play — the engine recorded the prefetch with the rosary slot
+    // and the screen language, and nothing is playing yet.
+    expect(engine.prefetchTexts, isNotEmpty,
+        reason: 'the prayer screen prefetches the current step on open');
+    expect(engine.prefetchLangs.every((l) => l == language), isTrue);
+    for (final v in engine.prefetchVoices) {
+      expect(identical(v, KokoroVoice.rosary), isTrue,
+          reason: 'the screen-open prefetch uses the rosary slot');
+    }
+    expect(engine.prefetchTexts.every((t) => t.isNotEmpty), isTrue);
+
     final steps = RosaryController.buildRosarySteps(
       mysteryTypes: const ['joyful', 'joyful', 'joyful', 'joyful', 'joyful'],
       includeLuminous: false,
@@ -198,8 +223,8 @@ void main() {
     await assertRuntimeOnly(tester, 'en');
   });
 
-  testWidgets('ES: every step recites through the rosary slot (the Aoede '
-      '+ Dora blend config) — no asset ever plays', (tester) async {
+  testWidgets('ES: every step recites through the rosary slot (Aoede '
+      'speaking Spanish) — no asset ever plays', (tester) async {
     await assertRuntimeOnly(tester, 'es');
   });
 

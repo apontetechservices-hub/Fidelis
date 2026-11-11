@@ -2,8 +2,8 @@
 // shipped pronunciations on the record with Whisper transcripts.
 //
 //   1. "A psalm for David." — the Douay-Rheims Psalm 22 superscription —
-//      rendered with the ENGLISH-BIBLE slot (am_michael blended 70/30 with
-//      am_echo, speed 0.81, en-us phonemization). Proves 'psalm' phonemizes
+//      rendered with the ENGLISH-BIBLE slot (am_michael, speed 0.81, en-us
+//      phonemization). Proves 'psalm' phonemizes
 //      natively with no audible L (the round-2 'Salm' respelling is
 //      REMOVED; the Bible-EN lexicon carries no psalm entry).
 //   2. The Hail Mary opening — rendered with the ENGLISH-ROSARY slot
@@ -49,8 +49,8 @@ nat.OfflineTts _engineFor(String lang) {
   });
 }
 
-/// The Bible slot's synthesis: the primary sid plus the blend partner
-/// render PCM-mixed at the slot's ratio (the engine worker's blend).
+/// The Bible slot's synthesis: the slot's sid at the slot's speed, ONE
+/// render per sentence — every slot is a single voice.
 (Float32List, int) synthesizeSlotSentence(
     nat.OfflineTts engine, String text, KokoroVoice voice, String lang) {
   final audio =
@@ -58,17 +58,7 @@ nat.OfflineTts _engineFor(String lang) {
   if (audio.samples.isEmpty) {
     throw StateError('empty synthesis (sid ${voice.sidFor(lang)}): $text');
   }
-  var samples = Float32List.fromList(audio.samples);
-  final blendSid = voice.blendSidFor(lang);
-  if (blendSid != null && blendSid != voice.sidFor(lang)) {
-    final partner =
-        engine.generate(text: text, sid: blendSid, speed: voice.speed);
-    if (partner.samples.isNotEmpty && partner.sampleRate == audio.sampleRate) {
-      samples = mixKokoroBlend(
-          samples, Float32List.fromList(partner.samples), voice.blendRatio);
-    }
-  }
-  return (samples, audio.sampleRate);
+  return (Float32List.fromList(audio.samples), audio.sampleRate);
 }
 
 /// The proven WAV encoder from tool/word_timing_verify.dart (verbatim).
@@ -154,8 +144,6 @@ void main(List<String> args) {
         'spokenText': psalmSpoken,
         'voice': {
           'primary': 'am_michael (sid 16)',
-          'blend': 'am_echo (sid 12) at 30%',
-          'blendRatio': KokoroVoice.bible.blendRatio,
           'speed': KokoroVoice.bible.speed,
           'lexicon': KokoroVoice.bible.lexiconFor('en'),
           'phonemization': 'en-us',
@@ -169,7 +157,6 @@ void main(List<String> args) {
         'spokenText': hmSpoken,
         'voice': {
           'primary': 'af_aoede (sid 1)',
-          'blend': null,
           'speed': KokoroVoice.rosary.speed,
           'lexicon': KokoroVoice.rosary.lexiconFor('en'),
           'phonemization': 'en-us',
@@ -183,7 +170,6 @@ void main(List<String> args) {
         'spokenText': hailMary,
         'voice': {
           'primary': 'af_aoede (sid 1)',
-          'blend': null,
           'speed': KokoroVoice.rosary.speed,
           'lexicon': const <String, String>{},
           'phonemization': 'en-us',

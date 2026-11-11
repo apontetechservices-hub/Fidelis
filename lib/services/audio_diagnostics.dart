@@ -21,7 +21,7 @@ class AudioDiagnostics extends ChangeNotifier {
   final List<String> lines = [];
 
   /// The playback-start slot readout of the current/last playback — the
-  /// REQUESTED config (slot, sids, blend, speed, phonemizer language, EQ).
+  /// REQUESTED config (slot, sids, speed, phonemizer language, EQ).
   String? slotReadout;
 
   /// The engine that served the current/last playback:

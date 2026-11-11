@@ -168,8 +168,39 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         _verses = verses;
         _loadedLang = lang;
       });
+      // Screen-open prefetch (playback latency): the opening chunk's
+      // synthesis STARTS the moment the chapter's text is on screen —
+      // engine warm-up plus the first sentences rendered into the
+      // prefetch cache — so pressing Play finds the opening audio READY
+      // and starts instantly. Fire-and-forget; never blocks the load.
+      _prefetchOpeningChunk();
       if (widget.autoPlay) unawaited(_startAudio());
     }
+  }
+
+  /// The opening chunk's text (the first ~10 verses joined), composed the
+  /// same way [_startAudio] composes its first chunk — the screen-open
+  /// prefetch renders exactly the audio Play will ask for first.
+  String _openingChunkText(List<BibleVerse> verses) {
+    final end = _versesPerChunk < verses.length
+        ? _versesPerChunk
+        : verses.length;
+    return verses.sublist(0, end).map((v) => v.text).join(' ');
+  }
+
+  /// Screen-open prefetch: renders the opening chunk's sentences into the
+  /// engine's prefetch cache (en/es only) with the Bible slot's voice —
+  /// the same (lang, voice) identity a Play press synthesizes through, so
+  /// the cache serves it. No-op before the verses arrive.
+  void _prefetchOpeningChunk() {
+    final verses = _verses;
+    if (verses == null || verses.isEmpty) return;
+    final lang = AppStrings.isSpanish ? 'es' : 'en';
+    AudioController.instance.prefetch(AudioChunk(
+      text: _openingChunkText(verses),
+      lang: lang,
+      voice: KokoroVoice.bible,
+    ));
   }
 
   /// Language switch while this chapter is open (the toggle lives in
@@ -261,10 +292,9 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// timestamps). Lang follows the displayed text: 'es' recites the
   /// Spanish (Torres Amat) text through the existing Spanish voice path,
   /// 'en' the Douay-Rheims as before. Voice: the owner's voice-grid Bible
-  /// slot ([KokoroVoice.bible] — EN am_michael blended 70/30 with am_echo
-  /// / ES em_alex at 0.81, with the per-voice pronunciation lexicon applied
-  /// in the synthesis path and the English slot's equalizer shaping applied
-  /// at playback).
+  /// slot ([KokoroVoice.bible] — EN am_michael / ES em_alex at 0.81, with
+  /// the per-voice pronunciation lexicon applied in the synthesis path and
+  /// the English slot's equalizer shaping applied at playback).
   Future<void> _startAudio() async {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;

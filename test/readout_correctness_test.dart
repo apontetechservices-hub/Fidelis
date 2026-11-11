@@ -39,7 +39,7 @@ void main() {
         'immediately', () {
       final d = AudioDiagnostics.instance;
       d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-          'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 '
+          'voice=am_michael(16) speed=0.81 '
           'eq=bands{0:-4.0dB,1:-2.0dB} lexicon=2');
       expect(d.slotReadout, isNotNull);
       expect(d.engineUsed, isNull, reason: 'nothing served yet');
@@ -53,8 +53,7 @@ void main() {
     test('a later mid-pipeline fallback overrides the engine field', () {
       final d = AudioDiagnostics.instance;
       d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-          'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 eq=flat '
-          'lexicon=2');
+          'voice=am_michael(16) speed=0.81 eq=flat lexicon=2');
       d.recordLine('[Fidelis audio] engine=kokoro (the slot config above '
           'executed)');
       d.recordLine('[Fidelis audio] FALLBACK mid-pipeline engine=flutter_tts '
@@ -91,8 +90,7 @@ void main() {
         'audio (which exposes no timing)', (tester) async {
       final d = AudioDiagnostics.instance;
       d.recordLine('[Fidelis audio] playback slot=bible lang=en '
-          'voice=am_michael(16)+am_echo(12) blend=0.70 speed=0.81 eq=flat '
-          'lexicon=2');
+          'voice=am_michael(16) speed=0.81 eq=flat lexicon=2');
       d.recordLine('[Fidelis audio] FALLBACK engine=flutter_tts (system '
           'voice) reason=kokoro unavailable for en');
       // Drive the controller into the playing state with a gated fake.

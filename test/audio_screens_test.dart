@@ -560,7 +560,13 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      expect(engine.log, isEmpty);
+      // The screen-open prefetch is silent preparation, not playback:
+      // the log may carry prefetch entries, but nothing may PLAY.
+      expect(
+        engine.log.where((e) => !e.startsWith('prefetch:')),
+        isEmpty,
+        reason: 'Next while never started must not autoplay',
+      );
       expect(AudioController.instance.state, AudioState.stopped);
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
     });

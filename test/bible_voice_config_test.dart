@@ -12,12 +12,12 @@ import 'package:fidelis/services/tts_text.dart';
 
 import 'audio_controller_test.dart';
 
-/// The owner's voice-grid Bible slot: EN am_michael (sid 16) blended
-/// 70/30 with am_echo (sid 12) at the synthesis level, speed 0.81, with
-/// the English slot's boom-softening equalizer; ES em_alex (sid 29, voice
-/// unchanged) solo. Michael's round-2 pronunciation list is the Bible's
-/// standing per-voice lexicon. The readings/rosary-timing voices keep the
-/// long-standing standard configuration.
+/// The owner's voice-grid Bible slot: EN am_michael (sid 16) SOLO at
+/// speed 0.81 — the softening is the English slot's boom-softening
+/// equalizer, nothing else; ES em_alex (sid 29, voice unchanged) solo.
+/// Michael's round-2 pronunciation list is the Bible's standing per-voice
+/// lexicon. The readings/rosary-timing voices keep the long-standing
+/// standard configuration.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -35,13 +35,8 @@ void main() {
       expect(v.esName, 'em_alex');
       expect(v.sidFor('en'), 16);
       expect(v.sidFor('es'), 29);
-      // EN blend: am_echo (sid 12) at 70/30; ES speaks solo.
-      expect(v.enBlendSid, 12);
-      expect(v.enBlendName, 'am_echo');
-      expect(v.blendRatio, 0.7);
-      expect(v.esBlendSid, isNull);
-      expect(v.blendSidFor('en'), 12);
-      expect(v.blendSidFor('es'), isNull);
+      // EN speaks Michael SOLO — the softening is the equalizer, not a
+      // blend; ES solo.
       // EQ: the gentle boom softening on the ENGLISH slot only.
       expect(v.enEqualizer, {0: -4.0, 1: -2.0});
       expect(v.esEqualizer, isNull);
@@ -242,13 +237,58 @@ void main() {
       await tester.pump();
 
       // Every chunk the Bible screen starts carries the Bible profile —
-      // Daniel EN / Alex ES at 0.81 (the readings/rosary paths stay on the
-      // standard profile by not passing a voice).
+      // Michael EN / Alex ES at 0.81 (the readings/rosary paths stay on
+      // the standard profile by not passing a voice).
       expect(engine.voices, isNotEmpty);
       for (final voice in engine.voices) {
         expect(voice, same(KokoroVoice.bible));
       }
       expect(AudioController.instance.isPlayingFor('bible'), isTrue);
+    });
+
+    testWidgets('the chapter screen prefetches the opening chunk on open',
+        (tester) async {
+      BillingService.premium.value = true;
+      const book = BibleBook(
+        key: 'Genesis',
+        name: 'Genesis',
+        testament: 'OT',
+        order: 1,
+        chapters: 50,
+      );
+      await tester.runAsync(() async {
+        await AppStrings.setLanguage('en');
+        await BibleService.books();
+        await BibleService.chapter(book, 1);
+      });
+      final engine = FakeAudioEngine();
+      AudioController.instance.engineForTest = engine;
+      await tester.pumpWidget(const MaterialApp(
+        home: BibleChapterScreen(book: book, chapter: 1),
+      ));
+      await tester.pumpAndSettle();
+
+      // THE SCREEN-OPEN PREFETCH: the opening chunk's synthesis started
+      // before Play — the engine recorded the prefetch of the first ~10
+      // verses with the Bible voice, and nothing is playing yet.
+      final prefetched = engine.log
+          .where((l) => l.startsWith('prefetch:'))
+          .map((l) => l.substring('prefetch:'.length))
+          .toList();
+      expect(prefetched, isNotEmpty,
+          reason: 'the chapter screen prefetches the opening chunk on open');
+      final verses = await BibleService.chapter(book, 1);
+      final expectedOpening = verses
+          .take(10)
+          .map((v) => v.text)
+          .join(' ');
+      expect(prefetched.first, expectedOpening,
+          reason: 'the prefetched text is the opening chunk, composed the '
+              'same way _startAudio composes its first chunk');
+      expect(engine.prefetchLangs.first, 'en');
+      expect(engine.prefetchVoices.first, same(KokoroVoice.bible));
+      // Silent preparation: nothing is playing until the user presses Play.
+      expect(AudioController.instance.state, AudioState.stopped);
     });
 
     test('TtsService sentence helpers delegate to the shared pipeline', () {

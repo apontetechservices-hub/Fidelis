@@ -134,18 +134,15 @@ void main() {
     });
 
     test('the render slots are the directed grid', () {
-      // The Bible renders go through the Bible slot (Michael+Echo EN blend
-      // / Alex ES at 0.81); the rosary renders through the rosary slot
-      // (Aoede EN / Aoede+Dora ES blend at 0.9).
+      // The Bible renders go through the Bible slot (Michael EN / Alex ES
+      // at 0.81); the rosary renders through the rosary slot (Aoede EN /
+      // Aoede ES at 0.9) — every slot ONE voice, no blends.
       expect(renders[0].voice.enSid, 16);
-      expect(renders[0].voice.enBlendSid, 12);
       expect(renders[1].voice.esSid, 29);
-      expect(renders[1].voice.esBlendSid, isNull);
       expect(renders[2].voice.enSid, 1);
       expect(renders[3].voice.esSid, 1);
-      expect(renders[3].voice.esBlendSid, 28);
       expect(renders[4].voice.enSid, 1);
-      expect(renders[5].voice.esBlendSid, 28);
+      expect(renders[5].voice.esSid, 1);
     });
   });
 
@@ -174,20 +171,15 @@ void main() {
             'synthesis must deliver (KokoroEngine.lastError='
             '${KokoroEngine.lastError})');
         expect(audio!.samples, isNotEmpty);
-        // The blend proof: the directed blends EXECUTE in the render.
-        final expectBlend = r.voice.blendSidFor(r.lang) != null;
-        expect(audio.blended, expectBlend,
-            reason: '${r.file}: blend execution record must match the '
-                'directed slot');
+        // Every slot renders ONE voice per sentence: the delivered
+        // samples are the single render (no mix record exists).
         final wav = encodeWav16(
             resamplePcmTo48k(audio.samples, audio.sampleRate),
             audio.sampleRate == 24000 ? 48000 : audio.sampleRate);
         File('assets/diagnostics_renders/${r.file}').writeAsBytesSync(wav);
         // ignore: avoid_print
         print('RENDER ${r.file}: ${audio.samples.length} samples at '
-            '${audio.sampleRate} Hz, blended=${audio.blended} '
-            '(primary=${audio.primarySamples}, '
-            'partner=${audio.partnerSamples}), ${wav.length} bytes');
+            '${audio.sampleRate} Hz, ${wav.length} bytes');
       }
     }, timeout: const Timeout(Duration(minutes: 10)));
   });

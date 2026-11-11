@@ -13,10 +13,9 @@ import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 /// playback path — TtsService.speakPrayer → KokoroEngine (the worker
 /// isolate, the real bundled model) → the sentence WAV → the player —
 /// executing each of the four voice-grid slots, with the playback-start
-/// readout captured verbatim. The blend proof: the slot's delivered render
-/// is at least as long as the primary voice's SOLO render of the same text
-/// (the mix is the LONGER of the two renders), so a blend that silently
-/// skipped would show up as a shorter-than-solo delivery.
+/// readout captured verbatim. The solo proof: every slot speaks ONE voice
+/// (blends are cancelled), so every sentence is ONE render; the readout
+/// names the single voice.
 ///
 /// Run with the host's sherpa native lib on the loader path (the same env
 /// tool/word_timing_verify.dart documents):
@@ -73,8 +72,7 @@ void main() {
     return lines;
   }
 
-  Future<void> assertSlot(String lang, KokoroVoice voice, String text,
-      {bool expectBlend = false}) async {
+  Future<void> assertSlot(String lang, KokoroVoice voice, String text) async {
     if (!await engineAvailable(lang)) {
       markTestSkipped('the host sherpa native lib is not on the loader '
           'path — run with LD_LIBRARY_PATH (see the file header)');
@@ -89,16 +87,12 @@ void main() {
     print('READOUT $playback');
     expect(playback, contains('slot=${slotNameFor(voice)}'));
     expect(playback, contains('lang=$lang'));
-    expect(playback, contains('voice=${voice.nameFor(lang)}'
-        '(${voice.sidFor(lang)})'));
-    final blendSid = voice.blendSidFor(lang);
-    if (blendSid == null) {
-      expect(playback, isNot(contains('blend=')));
-      expect(playback, contains('eq=flat'));
-    } else {
-      expect(playback, contains('+${voice.blendNameFor(lang)}($blendSid)'));
-      expect(playback, contains('blend=${voice.blendRatio.toStringAsFixed(2)}'));
-    }
+    // THE SOLO GRID: the readout names the slot's ONE voice — no blend
+    // partner, no fused composition.
+    expect(playback,
+        contains('voice=${voice.nameFor(lang)}(${voice.sidFor(lang)})'));
+    expect(playback, isNot(contains('blend=')));
+    expect(playback, isNot(contains('fused(')));
     expect(playback, contains('speed=${voice.speed.toStringAsFixed(2)}'));
     final eq = voice.equalizerFor(lang);
     if (eq == null || eq.isEmpty) {
@@ -128,42 +122,17 @@ void main() {
               'fix');
     }
 
-    // THE BLEND PROOF: the engine's gen record reports the blend execution
-    // (the partner rendered and the PCM mix executed) and the render
-    // lengths — the mixed length is the LONGER of the two renders. A
-    // silently skipped blend would report blended=false.
-    if (expectBlend && blendSid != null) {
-      final audio = await KokoroEngine.synthesize(text, lang, voice: voice);
-      expect(audio, isNotNull);
-      // ignore: avoid_print
-      print('READOUT blend proof: blended=${audio!.blended} '
-          'mixed=${audio.samples.length} samples, '
-          'primary=${audio.primarySamples}, '
-          'partner=${audio.partnerSamples}');
-      expect(audio.blended, isTrue,
-          reason: 'the directed blend must EXECUTE — the engine record '
-              'reports the partner render and the PCM mix');
-      expect(audio.samples.length,
-          greaterThanOrEqualTo(audio.primarySamples));
-      expect(audio.samples.length,
-          greaterThanOrEqualTo(audio.partnerSamples!),
-          reason: 'the mixed length is the LONGER of the two renders');
-      expect(audio.partnerSamples, isNotNull);
-      expect(audio.partnerSamples, greaterThan(0));
-    } else if (blendSid == null) {
-      final audio = await KokoroEngine.synthesize(text, lang, voice: voice);
-      expect(audio!.blended, isFalse,
-          reason: 'a solo slot must not report a blend');
-    }
+    // THE SOLO PROOF: every slot synthesizes ONE render per sentence —
+    // the delivered audio is the single render (the engine exposes no mix
+    // record; the removed two-render path would have doubled every gen).
+    final audio = await KokoroEngine.synthesize(text, lang, voice: voice);
+    expect(audio, isNotNull);
+    expect(audio!.samples, isNotEmpty);
   }
 
-  test('Bible EN: the Michael+Echo blend config executes at playback',
-      () async {
-    await assertSlot(
-        'en',
-        KokoroVoice.bible,
-        'The Lord is my shepherd; I shall not want.',
-        expectBlend: true);
+  test('Bible EN: the Michael solo config executes at playback', () async {
+    await assertSlot('en', KokoroVoice.bible,
+        'The Lord is my shepherd; I shall not want.');
   }, timeout: const Timeout(Duration(minutes: 6)));
 
   test('Bible ES: the Alex solo config executes at playback', () async {
@@ -176,13 +145,9 @@ void main() {
         'Hail Mary, full of grace, the Lord is with thee.');
   }, timeout: const Timeout(Duration(minutes: 6)));
 
-  test('Rosary ES: the Aoede+Dora blend config executes at playback',
-      () async {
-    await assertSlot(
-        'es',
-        KokoroVoice.rosary,
-        'Dios te salve María, llena eres de gracia.',
-        expectBlend: true);
+  test('Rosary ES: the Aoede solo config executes at playback', () async {
+    await assertSlot('es', KokoroVoice.rosary,
+        'Dios te salve María, llena eres de gracia.');
   }, timeout: const Timeout(Duration(minutes: 6)));
 }
 

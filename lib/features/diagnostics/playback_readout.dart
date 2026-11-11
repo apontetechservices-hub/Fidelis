@@ -36,7 +36,7 @@ class PlaybackReadoutVisibility {
 }
 
 /// The diagnostic build's on-screen playback readout: what the pipeline
-/// REQUESTED (the slot config — sids, blend weights, speed, phonemizer
+/// REQUESTED (the slot config — sids, speed, phonemizer
 /// language, EQ), what actually SERVED the audio (Kokoro or the
 /// flutter_tts fallback — with the failure text), and the live numeric
 /// duration/position. Embedded on the Bible and Rosary screens, visible

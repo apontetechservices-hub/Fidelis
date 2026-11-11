@@ -43,22 +43,32 @@ void main() {
       expect(kokoroSidNames.containsKey(54), isFalse);
     });
 
+    test('every bundled sid (54 speakers) has a roster name', () {
+      // The bundled model ships 54 speakers; the roll-call names each.
+      for (var sid = 0; sid < 54; sid++) {
+        expect(rollCallNameFor(sid), isNot(startsWith('sid_')),
+            reason: 'sid $sid must carry its roster name');
+      }
+      // An out-of-range sid still falls back to a sid_N label.
+      expect(rollCallNameFor(999), 'sid_999');
+    });
+
     test('the directed grid sids carry their known names', () {
       // The owner's directed voice grid, verifiable against the model
       // metadata table (the same source the relabeled audition used).
-      expect(kokoroSidNames[16], 'am_michael'); // Bible EN primary
-      expect(kokoroSidNames[12], 'am_echo'); // Bible EN blend
+      expect(kokoroSidNames[16], 'am_michael'); // Bible EN (Michael)
       expect(kokoroSidNames[29], 'em_alex'); // Bible ES
-      expect(kokoroSidNames[1], 'af_aoede'); // Rosary EN + ES primary
-      expect(kokoroSidNames[28], 'ef_dora'); // Rosary ES blend
+      expect(kokoroSidNames[1], 'af_aoede'); // Rosary EN + ES (Aoede)
       expect(kokoroSidNames[26], 'bm_george'); // Readings EN (standard)
     });
 
     test('the directed sids are labeled for the ear test', () {
-      expect(directedSidLabels.keys.toSet(),
-          {16, 12, 29, 1, 28, 26});
+      expect(directedSidLabels.keys.toSet(), {16, 29, 1, 26});
       expect(directedSidLabels[16], contains('Bible EN'));
-      expect(directedSidLabels[28], contains('Rosary ES blend'));
+      expect(directedSidLabels[29], contains('Bible ES'));
+      expect(directedSidLabels[1], contains('Rosary EN'));
+      expect(directedSidLabels[1], contains('Rosary ES'));
+      expect(directedSidLabels[26], contains('Readings EN'));
     });
   });
 
@@ -82,8 +92,6 @@ void main() {
       expect(v.enSid, 16);
       expect(v.esSid, 16);
       expect(v.enName, 'am_michael');
-      expect(v.blendSidFor('en'), isNull, reason: 'solo — no blend partner');
-      expect(v.blendSidFor('es'), isNull);
       expect(v.speed, 1.0, reason: 'neutral speed for the ear test');
       expect(v.enEqualizer, isNull, reason: 'no slot shaping');
       expect(v.esEqualizer, isNull);
@@ -119,7 +127,5 @@ void main() {
         reason: 'the roll-call synthesis must deliver through the same '
             'KokoroEngine.synthesize a playback calls');
     expect(audio!.samples, isNotEmpty);
-    expect(audio.blended, isFalse,
-        reason: 'the roll-call voice is solo — no blend record');
   }, timeout: const Timeout(Duration(minutes: 6)));
 }

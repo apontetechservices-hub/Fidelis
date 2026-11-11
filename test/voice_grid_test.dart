@@ -9,26 +9,27 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_platform_interface/just_audio_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
-/// The owner's voice grid: the four per-slot Kokoro configurations (Bible
-/// EN blend + EQ, Bible ES solo, Rosary EN solo, Rosary ES blend), the
-/// synthesis-level PCM blend math, and the slot-scoped Android-equalizer
-/// wiring driven against a scripted just_audio platform.
+/// The owner's voice grid — BLENDS CANCELLED, every slot ONE voice: the
+/// four per-slot Kokoro configurations (Bible EN Michael solo + EQ, Bible
+/// ES Alex solo, Rosary EN Aoede solo, Rosary ES Aoede solo speaking
+/// Spanish), the blend-path removal (one render per sentence, no fused
+/// voices, no voices.bin appends, no mix path), and the slot-scoped
+/// Android-equalizer wiring driven against a scripted just_audio platform.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('voice grid slots', () {
-    test('slot 1 — English Bible: Michael blended 70/30 with Echo, EQ on '
+    test('slot 1 — English Bible: Michael SOLO, softened by the EQ on '
         'the English slot only', () {
       const v = KokoroVoice.bible;
       expect(v.enSid, 16); // am_michael
       expect(v.enName, 'am_michael');
-      expect(v.enBlendSid, 12); // am_echo
-      expect(v.enBlendName, 'am_echo');
-      expect(v.blendRatio, 0.7);
       expect(v.speed, 0.81);
       expect(v.enEqualizer, {0: -4.0, 1: -2.0});
-      expect(v.blendSidFor('en'), 12);
       expect(v.equalizerFor('en'), {0: -4.0, 1: -2.0});
+      // THE SOFTENING IS THE EQ: the slot speaks ONE voice (Michael) and
+      // the gentle low-band shaping is the only softening — no blend
+      // partner, no second voice.
       // Michael's addendum pronunciation list is the Bible's standing EN
       // lexicon: ruleth + pasture; the round-2 'Salm' respelling is
       // REMOVED ('psalm' phonemizes natively under en-us — no audible L).
@@ -43,7 +44,6 @@ void main() {
       const v = KokoroVoice.bible;
       expect(v.esSid, 29); // em_alex
       expect(v.esName, 'em_alex');
-      expect(v.esBlendSid, isNull); // no blend
       expect(v.esEqualizer, isNull); // no EQ
       expect(v.lexiconFor('es'), isEmpty); // no corrections
       expect(v.speed, 0.81);
@@ -53,7 +53,6 @@ void main() {
       const v = KokoroVoice.rosary;
       expect(v.enSid, 1); // af_aoede
       expect(v.enName, 'af_aoede');
-      expect(v.enBlendSid, isNull); // no blend
       expect(v.enEqualizer, isNull); // no EQ
       expect(v.speed, 0.9);
       // The rosary-scoped bless-ed correction (the owner's addendum): the
@@ -63,24 +62,20 @@ void main() {
       expect(v.lexiconFor('en'), {'blessed': 'bless-ed'});
     });
 
-    test('slot 4 — Spanish Rosary: Aoede blended 70/30 with Dora', () {
+    test('slot 4 — Spanish Rosary: Aoede SOLO speaking Spanish (no Dora '
+        'anywhere)', () {
       const v = KokoroVoice.rosary;
-      expect(v.esSid, 1); // af_aoede primary
+      expect(v.esSid, 1); // af_aoede — the SAME voice as the EN slot
       expect(v.esName, 'af_aoede');
-      expect(v.esBlendSid, 28); // ef_dora partner
-      expect(v.esBlendName, 'ef_dora');
-      expect(v.blendRatio, 0.7);
-      expect(v.blendSidFor('es'), 28);
       expect(v.speed, 0.9);
       expect(v.esEqualizer, isNull); // no EQ
+      // ONE rosary voice in both languages: the ES slot speaks Aoede
+      // under the Spanish phonemization; her non-native accent is the
+      // owner's accepted trade-off — NOT improved by blending or swapping.
       // The Spanish rosary is unaffected by the bless-ed correction: no
       // ES slot lexicon, and the voice-name lexicon for af_aoede is empty.
       expect(v.esSlotLexicon, isNull);
       expect(v.lexiconFor('es'), isEmpty);
-      // Both blend voices render under the SAME engine phonemization: the
-      // blend is one gen command on one engine instance, whose lang is the
-      // slot's 'es' — the existing Spanish espeak path (verified end-to-end
-      // by tool/word_timing_verify.dart's rosary suite).
     });
 
     test('the bless-ed correction is ROSARY-SCOPED — it never leaks into '
@@ -113,7 +108,7 @@ void main() {
       expect(again, spoken);
     });
 
-    test('ef_dora never ships solo as the voice in ANY slot', () {
+    test('ef_dora appears NOWHERE in the voice grid', () {
       for (final v in const [
         KokoroVoice.standard,
         KokoroVoice.bible,
@@ -124,11 +119,9 @@ void main() {
         expect(v.enName, isNot('ef_dora'));
         expect(v.esName, isNot('ef_dora'));
       }
-      // She appears exactly once: the Spanish rosary's 30% blend partner.
-      expect(KokoroVoice.rosary.esBlendSid, 28);
-      expect(KokoroVoice.bible.enBlendSid, isNot(28));
-      expect(KokoroVoice.bible.esBlendSid, isNull);
-      expect(KokoroVoice.rosary.enBlendSid, isNull);
+      // BLENDS CANCELLED: she appears NOWHERE — no slot speaks her, no
+      // fused voice carries her, nothing references her sid.
+      expect(KokoroVoice.rosary.esSid, isNot(28));
     });
 
     test('standard profile unchanged (readings + rosary asset timing)', () {
@@ -138,103 +131,57 @@ void main() {
       expect(v.speed, 0.9);
       expect(v.enName, 'bm_george');
       expect(v.esName, 'em_alex');
-      expect(v.enBlendSid, isNull);
-      expect(v.esBlendSid, isNull);
       expect(v.enEqualizer, isNull);
       expect(v.esEqualizer, isNull);
     });
   });
 
-  group('mixKokoroBlend (the PCM mix ratios)', () {
-    test('primary-only samples carry the primary share', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([1.0, 1.0, 1.0, 1.0]),
-        Float32List.fromList([0.0, 0.0, 0.0, 0.0]),
-        0.7,
-      );
-      for (final v in mix) {
-        expect(v, closeTo(0.7, 1e-6));
+  group('the blend-path removal (no fused voices, no appends, no mix)', () {
+    test("every slot synthesizes ONE render per sentence — the slot's own "
+        'sid, no partner render', () {
+      final cases = [
+        (KokoroVoice.bible, 'en', 16),
+        (KokoroVoice.bible, 'es', 29),
+        (KokoroVoice.rosary, 'en', 1),
+        (KokoroVoice.rosary, 'es', 1),
+        (KokoroVoice.standard, 'en', 26),
+        (KokoroVoice.standard, 'es', 29),
+      ];
+      for (final (voice, lang, expectedSid) in cases) {
+        var generateCalls = 0;
+        final sids = <int>[];
+        (Float32List, int) generate(String text, int sid, double speed) {
+          generateCalls++;
+          sids.add(sid);
+          expect(speed, voice.speed);
+          return (Float32List(16), 24000);
+        }
+
+        synthesizeSlotSentence(
+            generate, 'The Lord is my shepherd.', voice, lang);
+        expect(generateCalls, 1,
+            reason: '$lang ${voice.enName}: ONE render — the removed '
+                'two-render blend path would have generated twice');
+        expect(sids, [expectedSid],
+            reason: 'the slot speaks its OWN voice — no fused sid, no '
+                'partner sid');
       }
     });
 
-    test('partner-only samples carry the partner share (1 - ratio)', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([0.0, 0.0]),
-        Float32List.fromList([1.0, 1.0]),
-        0.7,
-      );
-      for (final v in mix) {
-        expect(v, closeTo(0.3, 1e-6));
-      }
-    });
-
-    test('both voices at full scale sum to the original amplitude', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([1.0, 1.0]),
-        Float32List.fromList([1.0, 1.0]),
-        0.7,
-      );
-      // 0.7 + 0.3 = 1.0 — weights summing to 1 never clip full-scale input.
-      for (final v in mix) {
-        expect(v, closeTo(1.0, 1e-6));
-      }
-    });
-
-    test('opposite phases combine proportionally to the weights', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([1.0]),
-        Float32List.fromList([-1.0]),
-        0.7,
-      );
-      expect(mix[0], closeTo(0.4, 1e-6)); // 0.7 - 0.3
-    });
-
-    test('mixed length is the LONGER render; each tail keeps its own weight',
+    test('the slot readout names the single voice — no blend/fused markers',
         () {
-      final primaryLonger = mixKokoroBlend(
-        Float32List.fromList([1.0, 1.0, 1.0]),
-        Float32List.fromList([1.0]),
-        0.7,
-      );
-      expect(primaryLonger.length, 3);
-      expect(primaryLonger[0], closeTo(1.0, 1e-6)); // 0.7 + 0.3
-      expect(primaryLonger[2], closeTo(0.7, 1e-6)); // primary tail alone
-
-      final partnerLonger = mixKokoroBlend(
-        Float32List.fromList([1.0]),
-        Float32List.fromList([1.0, 1.0, 1.0]),
-        0.7,
-      );
-      expect(partnerLonger.length, 3);
-      expect(partnerLonger[0], closeTo(1.0, 1e-6));
-      expect(partnerLonger[2], closeTo(0.3, 1e-6)); // partner tail alone
-    });
-
-    test('an empty partner mixes to the primary share alone (the engine '
-        'guards empty partner renders before mixing)', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([0.5, -0.5, 0.25]),
-        Float32List(0),
-        0.7,
-      );
-      // The mix keeps the primary's 70% share over the full extent; the
-      // ENGINE worker never mixes an empty partner render — it keeps the
-      // primary at full solo volume instead (kokoro_engine.dart's
-      // partner.samples.isNotEmpty guard), so a failed partner render
-      // never just quiets the slot.
-      expect(mix[0], closeTo(0.35, 1e-6));
-      expect(mix[1], closeTo(-0.35, 1e-6));
-      expect(mix[2], closeTo(0.175, 1e-6));
-    });
-
-    test('a 50/50 ratio averages the two renders', () {
-      final mix = mixKokoroBlend(
-        Float32List.fromList([1.0, -1.0]),
-        Float32List.fromList([0.5, 0.5]),
-        0.5,
-      );
-      expect(mix[0], closeTo(0.75, 1e-6));
-      expect(mix[1], closeTo(-0.25, 1e-6));
+      final cases = [
+        (KokoroVoice.bible, 'en', 'am_michael', 16),
+        (KokoroVoice.bible, 'es', 'em_alex', 29),
+        (KokoroVoice.rosary, 'en', 'af_aoede', 1),
+        (KokoroVoice.rosary, 'es', 'af_aoede', 1),
+      ];
+      for (final (voice, lang, name, sid) in cases) {
+        final line = slotReadoutLine(voice, lang);
+        expect(line, contains('voice=$name($sid)'));
+        expect(line, isNot(contains('blend=')));
+        expect(line, isNot(contains('fused(')));
+      }
     });
   });
 

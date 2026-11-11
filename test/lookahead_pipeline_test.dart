@@ -47,7 +47,7 @@ void main() {
   /// mid-playback) and returns that player.
   Future<GatedPlayer> waitPendingPlay() => waitPendingPlayOn(platform);
 
-  test('solo slot (depth 2): the next chunk renders while the current '
+  test('solo slot (depth 4): the next chunk renders while the current '
       'chunk plays', () async {
     final requests = <String>[];
     KokoroEngine.debugSynthesizeOverride = (text, lang, {voice}) async {
@@ -79,10 +79,17 @@ void main() {
       onWordRange: (_, _, _) {},
     ).then((_) => done.complete()));
 
-    // THE SOLO DEPTH-2 LOOKAHEAD: while sentence 1 PLAYS (the play result
-    // is pending), sentences 2 AND 3 are already rendering.
+    // THE DEPTH-4 LOOKAHEAD: while sentence 1 PLAYS (the play result is
+    // pending), sentences 2-4 are already rendering — the whole rest of
+    // chunk 1 AND chunk 2's first sentence.
     var player = await waitPendingPlay();
-    expect(requests, ['Alpha one.', 'Alpha two.', 'Alpha three.']);
+    expect(requests, [
+      'Alpha one.',
+      'Alpha two.',
+      'Alpha three.',
+      'Bravo one.',
+      'Bravo two.',
+    ]);
     // THE ENGINE LINE FIRES AT THE FIRST SENTENCE (defect D): the readout
     // names the engine DURING playback, not after the whole chunk.
     expect(lines.where((l) => l.contains('engine=kokoro')), isNotEmpty);
@@ -122,8 +129,8 @@ void main() {
     expect(ttsCalls.where((c) => c == 'speak'), isEmpty);
   });
 
-  test('blend slot (depth 4 — the doubled budget): the whole next page '
-      'renders while the current chunk plays', () async {
+  test('the depth-4 lookahead: the whole next page renders while the '
+      'current chunk plays', () async {
     final requests = <String>[];
     KokoroEngine.debugSynthesizeOverride = (text, lang, {voice}) async {
       requests.add(text);
@@ -151,8 +158,8 @@ void main() {
       onWordRange: (_, _, _) {},
     ).then((_) => done.complete()));
 
-    // THE BLEND BUDGET (double): while sentence 1 PLAYS, the lookahead has
-    // already issued FOUR renders — including BOTH of chunk 2's sentences.
+    // THE DEPTH-4 LOOKAHEAD: every slot renders ONCE per sentence — while
+    // sentence 1 PLAYS, all five sentences are already rendering.
     // The cross-chunk lookahead is the point: chunk 2 renders while chunk
     // 1 plays, so the boundary costs no synthesis silence.
     final player = await waitPendingPlay();
@@ -163,6 +170,10 @@ void main() {
       'Bravo one.',
       'Bravo two.',
     ]);
+    // ONE RENDER PER SENTENCE: no duplicates — the removed two-render
+    // blend path would have issued every sentence twice.
+    expect(requests.length, requests.toSet().length,
+        reason: 'each sentence renders exactly once (the fused voice)');
 
     for (var i = 0; i < 4; i++) {
       player.completePlayback();
@@ -220,6 +231,9 @@ void main() {
 
   test('prefetch: the cache serves a later playback of the same content '
       'without a new synthesis request', () async {
+    // Test isolation: earlier suites' prefetch entries must not serve
+    // this test's playback (the cache asserts ZERO new synthesis).
+    TtsService.debugResetPrefetchState();
     final requests = <String>[];
     KokoroEngine.debugSynthesizeOverride = (text, lang, {voice}) async {
       requests.add(text);
@@ -228,7 +242,7 @@ void main() {
 
     const hailMary =
         'Hail Mary, full of grace. Blessed art thou amongst women.';
-    // The rosary's next-step prefetch (fire-and-forget).
+    // The screen-open/next-step prefetch (fire-and-forget).
     unawaited(TtsService.prefetch(hailMary, 'en', KokoroVoice.rosary));
     await waitFor(() => requests.length >= 2);
     expect(requests.length, 2);
@@ -245,12 +259,67 @@ void main() {
       onSentenceSynthesized: (_, _, _) {},
       onWordRange: (_, _, _) {},
     ).then((_) => done.complete()));
+    // THE INSTANT START: the FIRST sentence's play begins with ZERO new
+    // synthesis requests — the prefetched audio is already in the cache,
+    // so Play does not wait on synthesis.
     var player = await waitPendingPlay();
+    expect(requests.length, before,
+        reason: 'the play started from the prefetched audio — no synthesis '
+            'waited before the first sentence played');
     player.completePlayback();
     player = await waitPendingPlay();
     player.completePlayback();
     await done.future.timeout(const Duration(seconds: 5));
     expect(requests.length, before,
         reason: 'the prefetch cache served the playback — no new synthesis');
+  });
+
+  test('prefetch: a playback starting MID-PREFETCH awaits the in-flight '
+      'render instead of duplicating it', () async {
+    final requests = <String>[];
+    var inFlight = 0;
+    KokoroEngine.debugSynthesizeOverride = (text, lang, {voice}) async {
+      requests.add(text);
+      inFlight++;
+      // Hold the FIRST render open until the release flag flips, so the
+      // playback starts while the prefetch render is still in flight.
+      while (text == 'Hail Mary, full of grace.' && inFlight < 2) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+      }
+      return audioFor(text);
+    };
+
+    // Test isolation: the previous test's cache entries would serve this
+    // playback without any synthesis — the in-flight path must be live.
+    TtsService.debugResetPrefetchState();
+
+    const hailMary =
+        'Hail Mary, full of grace. Blessed art thou amongst women.';
+    unawaited(TtsService.prefetch(hailMary, 'en', KokoroVoice.rosary));
+    await waitFor(() => requests.isNotEmpty);
+
+    // Play while the opening sentence's prefetch render is still in
+    // flight: the stream AWAITS it — no duplicate request is issued.
+    final done = Completer<void>();
+    unawaited(TtsService.speakSequence(
+      const [AudioChunk(text: hailMary, lang: 'en', voice: KokoroVoice.rosary)],
+      lang: 'en',
+      onChunkStart: (_) {},
+      onSentenceStart: (_, _) {},
+      onSentenceTiming: (_, _, _, _) {},
+      onSentenceSynthesized: (_, _, _) {},
+      onWordRange: (_, _, _) {},
+    ).then((_) => done.complete()));
+    await waitFor(() => requests.length >= 2);
+    // The opening sentence was requested exactly ONCE (the prefetch's
+    // in-flight render, awaited by the playback — not re-issued).
+    expect(
+        requests.where((r) => r == 'Hail Mary, full of grace.').length, 1);
+
+    var player = await waitPendingPlay();
+    player.completePlayback();
+    player = await waitPendingPlay();
+    player.completePlayback();
+    await done.future.timeout(const Duration(seconds: 5));
   });
 }

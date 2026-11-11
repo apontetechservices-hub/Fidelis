@@ -10,14 +10,13 @@
 /// from.
 library;
 
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 /// Per-slot Kokoro synthesis profile: the voice sid per language in
-/// voices.bin, the speaking speed, an optional synthesis-level blend
-/// partner per language (both sids render the sentence and the PCM is
-/// mixed at [blendRatio]), an optional Android-equalizer shaping per
-/// language, and the voice names the pronunciation lexicon is keyed by.
+/// voices.bin, the speaking speed, an optional Android-equalizer shaping
+/// per language, and the voice names the pronunciation lexicon is keyed
+/// by. Every slot speaks ONE voice — one render per sentence, no blends,
+/// no PCM mixing.
 class KokoroVoice {
   final int enSid;
   final int esSid;
@@ -26,23 +25,6 @@ class KokoroVoice {
   /// Kokoro voice names (lexicon keys), e.g. 'bm_daniel'.
   final String enName;
   final String esName;
-
-  /// Blend partner sid per language (null = solo synthesis for that
-  /// language). The partner renders the SAME text under the SAME engine
-  /// phonemization as the primary; the two renders are PCM-mixed at
-  /// [blendRatio] (see [mixKokoroBlend]).
-  final int? enBlendSid;
-  final int? esBlendSid;
-
-  /// Blend partner voice names (documentation/debug; the partner never
-  /// carries its own lexicon — the primary's lexicon shapes the shared
-  /// spoken text).
-  final String? enBlendName;
-  final String? esBlendName;
-
-  /// The PRIMARY voice's share of the PCM mix when a blend partner is set
-  /// (0.7 = 70% primary + 30% partner). Ignored without a partner.
-  final double blendRatio;
 
   /// Android-equalizer shaping per language (band index → dB gain), applied
   /// slot-scoped at playback (see TtsService.applySlotEqualizer). Null or
@@ -65,11 +47,6 @@ class KokoroVoice {
     required this.speed,
     required this.enName,
     required this.esName,
-    this.enBlendSid,
-    this.esBlendSid,
-    this.enBlendName,
-    this.esBlendName,
-    this.blendRatio = 1.0,
     this.enEqualizer,
     this.esEqualizer,
     this.enSlotLexicon,
@@ -81,13 +58,6 @@ class KokoroVoice {
 
   /// Voice name for [lang] — the pronunciation-lexicon key.
   String nameFor(String lang) => lang == 'es' ? esName : enName;
-
-  /// Blend partner sid for [lang], or null when the slot speaks solo.
-  int? blendSidFor(String lang) => lang == 'es' ? esBlendSid : enBlendSid;
-
-  /// Blend partner voice name for [lang], or null when the slot speaks solo.
-  String? blendNameFor(String lang) =>
-      lang == 'es' ? esBlendName : enBlendName;
 
   /// The slot's equalizer shaping for [lang], or null when flat.
   Map<int, double>? equalizerFor(String lang) =>
@@ -114,38 +84,34 @@ class KokoroVoice {
   );
 
   /// Bible voices — the owner's voice-grid decision: EN am_michael (sid
-  /// 16) blended 70/30 with am_echo (sid 12) at the synthesis level, at
-  /// speed 0.81, with a gentle boom-softening equalizer on the English
-  /// slot only; ES em_alex (sid 29, voice unchanged) solo, no EQ.
+  /// 16) SOLO at speed 0.81, softened by a gentle boom-softening
+  /// equalizer on the English slot only (the softening IS the equalizer —
+  /// no voice mixing); ES em_alex (sid 29) solo, no EQ. The lexicon key
+  /// is 'am_michael'.
   static const KokoroVoice bible = KokoroVoice(
     enSid: 16,
     enName: 'am_michael',
-    enBlendSid: 12,
-    enBlendName: 'am_echo',
     esSid: 29,
     esName: 'em_alex',
     speed: 0.81,
-    blendRatio: 0.7,
     enEqualizer: {0: -4.0, 1: -2.0},
   );
 
   /// Rosary voices — the runtime-TTS slot (steps without a pre-rendered
-  /// file): EN af_aoede (sid 1); ES af_aoede blended 70/30 with ef_dora
-  /// (sid 28), both rendered under Spanish phonemization (the existing es
-  /// engine path). Speed 0.9 — the auditioned rosary pace. No EQ. The
-  /// English slot carries the rosary-scoped bless-ed correction (the Hail
-  /// Mary's 'blessed' renders as two syllables; it never leaks into Bible
-  /// processing, and the Spanish rosary is unaffected). ef_dora ships ONLY
-  /// as this blend partner — never solo in any slot.
+  /// file): EN af_aoede (sid 1); ES af_aoede (sid 1) speaking Spanish
+  /// (the es phonemization) — ONE voice across both languages, the
+  /// owner's accepted trade-off (her non-native Spanish accent stays).
+  /// Speed 0.9 — the auditioned rosary pace. No EQ. The English slot
+  /// carries the rosary-scoped bless-ed correction (the Hail Mary's
+  /// 'blessed' renders as two syllables; it never leaks into Bible
+  /// processing, and the Spanish rosary is unaffected). ef_dora appears
+  /// NOWHERE — no slot speaks it.
   static const KokoroVoice rosary = KokoroVoice(
     enSid: 1,
     enName: 'af_aoede',
     esSid: 1,
     esName: 'af_aoede',
-    esBlendSid: 28,
-    esBlendName: 'ef_dora',
     speed: 0.9,
-    blendRatio: 0.7,
     enSlotLexicon: {'blessed': 'bless-ed'},
   );
 }
@@ -176,55 +142,16 @@ typedef KokoroGenerate = (Float32List, int) Function(
     String text, int sid, double speed);
 
 /// The app's ONE slot-synthesis path: renders [text] for [voice]'s slot in
-/// [lang] through [generate] — the primary sid at the slot's speed, plus the
-/// blend partner render PCM-mixed at the slot's ratio when the slot carries
-/// a partner for [lang]. Both renders run under the SAME engine
-/// phonemization; the mixed length (the longer render) is the schedule's
-/// timing source. The engine worker (kokoro_engine.dart) and the
+/// [lang] through [generate] — the slot's sid at the slot's speed, ONE
+/// render per sentence. Every slot is a single voice: no blend partner
+/// renders, no PCM mixing. The engine worker (kokoro_engine.dart) and the
 /// word-timing verifier (tool/word_timing_verify.dart) BOTH synthesize
-/// through this function — the tool's synthesis call is the app's playback
-/// path by construction, not a replica.
+/// through this function — the tool's synthesis call is the app's
+/// playback path by construction, not a replica.
 (Float32List, int) synthesizeSlotSentence(
     KokoroGenerate generate, String text, KokoroVoice voice, String lang) {
-  final (samples, rate, _, _, _) =
-      synthesizeSlotSentenceDetailed(generate, text, voice, lang);
-  return (samples, rate);
-}
-
-/// The full slot-synthesis record: the mixed samples, the rate, and the
-/// blend execution — whether the partner rendered and the PCM mix executed
-/// (the owner's proof that the directed blend actually rendered), plus the
-/// two renders' sample counts (the mixed length is the LONGER render).
-typedef SlotRender = (
-  Float32List samples,
-  int rate,
-  bool blended,
-  int primarySamples,
-  int? partnerSamples,
-);
-
-SlotRender synthesizeSlotSentenceDetailed(
-    KokoroGenerate generate, String text, KokoroVoice voice, String lang) {
   final sid = voice.sidFor(lang);
-  final (primary, rate) = generate(text, sid, voice.speed);
-  var samples = primary;
-  var blended = false;
-  int? partnerSamples;
-  final blendSid = voice.blendSidFor(lang);
-  if (blendSid != null &&
-      blendSid != sid &&
-      voice.blendRatio > 0.0 &&
-      voice.blendRatio < 1.0) {
-    final (partner, partnerRate) = generate(text, blendSid, voice.speed);
-    partnerSamples = partner.length;
-    // A failed/empty partner render never quiets the slot: the primary
-    // keeps full solo volume instead of mixing with silence.
-    if (partner.isNotEmpty && partnerRate == rate) {
-      samples = mixKokoroBlend(primary, partner, voice.blendRatio);
-      blended = true;
-    }
-  }
-  return (samples, rate, blended, primary.length, partnerSamples);
+  return generate(text, sid, voice.speed);
 }
 
 /// The slot label for the readout line: the grid's named slots, or
@@ -243,11 +170,7 @@ String slotNameFor(KokoroVoice voice) {
 /// every verified slot (one format, one source).
 String slotReadoutLine(KokoroVoice voice, String lang) {
   final sid = voice.sidFor(lang);
-  final blendSid = voice.blendSidFor(lang);
-  final voiceDesc = blendSid == null
-      ? '${voice.nameFor(lang)}($sid)'
-      : '${voice.nameFor(lang)}($sid)+${voice.blendNameFor(lang)}'
-          '($blendSid) blend=${voice.blendRatio.toStringAsFixed(2)}';
+  final voiceDesc = '${voice.nameFor(lang)}($sid)';
   final eq = voice.equalizerFor(lang);
   final eqDesc = (eq == null || eq.isEmpty)
       ? 'flat'
@@ -255,29 +178,6 @@ String slotReadoutLine(KokoroVoice voice, String lang) {
   return 'slot=${slotNameFor(voice)} lang=$lang voice=$voiceDesc '
       'speed=${voice.speed.toStringAsFixed(2)} eq=$eqDesc '
       'lexicon=${voice.lexiconFor(lang).length}';
-}
-
-/// PCM-mixes two renders of the SAME text at [primaryRatio] — the primary
-/// voice's share (the partner gets 1 - primaryRatio) — for the synthesis-
-/// level voice blend. Each voice contributes over its own extent: a
-/// weighted sum with the other render's missing tail treated as silence,
-/// so no speech content is lost when the two sids render slightly
-/// different lengths and the mixed duration is the LONGER render's (the
-/// word schedule derives from this same mixed length). Weights summing to
-/// 1.0 keep the mix within each voice's own peak range — no clipping.
-Float32List mixKokoroBlend(
-    Float32List primary, Float32List partner, double primaryRatio) {
-  assert(primaryRatio >= 0.0 && primaryRatio <= 1.0);
-  final partnerRatio = 1.0 - primaryRatio;
-  final n = math.max(primary.length, partner.length);
-  final out = Float32List(n);
-  for (var i = 0; i < n; i++) {
-    var v = 0.0;
-    if (i < primary.length) v += primaryRatio * primary[i];
-    if (i < partner.length) v += partnerRatio * partner[i];
-    out[i] = v;
-  }
-  return out;
 }
 
 /// Word characters the highlight mapping treats as part of a word (same

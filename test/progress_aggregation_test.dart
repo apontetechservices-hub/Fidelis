@@ -272,7 +272,11 @@ void main() {
     expect(progress.position, const Duration(seconds: 3));
     expect(progress.duration, const Duration(milliseconds: 7500));
 
+    // Release the remaining gates: the pump lets the NEXT sentence's gate
+    // form before the final advance (a synchronous pair would no-op the
+    // second advance — the gate only exists after a microtask).
     fake.advance();
+    await tester.pump();
     fake.advance();
     await started;
   });

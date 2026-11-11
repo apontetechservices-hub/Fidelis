@@ -11,9 +11,9 @@
 //      the same code TtsService speaks with),
 //   4. synthesizes every sentence with the app's bundled Kokoro engine
 //      (sherpa-onnx 1.13.8 FFI, assets/kokoro int8 model, the slot's sid +
-//      speed — and the slot's BLEND: both sids render, PCM-mixed at the
-//      slot's ratio, exactly what the engine worker does) and measures each
-//      MIXED sentence's REAL duration,
+//      speed — every slot is a single voice, ONE render per sentence,
+//      exactly what the engine worker does) and measures each
+//      sentence's REAL duration,
 //   5. computes the word schedule with the app's own computeWordSchedule
 //      (per-sentence real durations + the within-sentence proportional
 //      mapping the AudioController applies live — no separate estimate),
@@ -26,8 +26,8 @@
 // languages through BOTH timing mechanisms the rosary path uses:
 //   - runtime slots: the decade's step texts (announcement + Our Father +
 //     Hail Mary + Glory Be + Fatima prayer) synthesized with the rosary
-//     slot config (EN af_aoede; ES af_aoede blended 70/30 with ef_dora
-//     under Spanish phonemization) — the synthesis-pass schedule the
+//     slot config (EN af_aoede; ES af_aoede under Spanish phonemization)
+//     — the synthesis-pass schedule the
 //     runtime path highlights with;
 //   - pre-rendered assets: the bundled .ogg files the decade actually
 //     plays, against the app's asset-timeline schedule (timing-only
@@ -195,8 +195,8 @@ Map<String, Object?> verifyChapter(
     final sentences = splitSpeakableSentences(spoken);
     if (sentences.isEmpty) continue;
 
-    // Synthesize every sentence with the app's engine (the slot's blend
-    // included); measure the REAL generated duration of each MIXED render
+    // Synthesize every sentence with the app's engine (the slot's ONE
+    // voice); measure the REAL generated duration of each render
     // (the schedule's only timing source).
     final allSamples = <Float32List>[];
     final durations = <Duration>[];
@@ -268,11 +268,6 @@ Map<String, Object?> verifyChapter(
       'es': voice.esName,
       'enSid': voice.enSid,
       'esSid': voice.esSid,
-      'enBlendSid': voice.enBlendSid,
-      'esBlendSid': voice.esBlendSid,
-      'enBlendName': voice.enBlendName,
-      'esBlendName': voice.esBlendName,
-      'blendRatio': voice.blendRatio,
       'speed': voice.speed,
       // JSON object keys must be strings: the EQ map is band-index → dB.
       'enEqualizer': voice.enEqualizer == null
@@ -374,11 +369,6 @@ Map<String, Object?> _rosaryVoiceConfig(KokoroVoice voice, String lang,
       'es': voice.esName,
       'enSid': voice.enSid,
       'esSid': voice.esSid,
-      'enBlendSid': voice.enBlendSid,
-      'esBlendSid': voice.esBlendSid,
-      'enBlendName': voice.enBlendName,
-      'esBlendName': voice.esBlendName,
-      'blendRatio': voice.blendRatio,
       'speed': voice.speed,
       // JSON object keys must be strings: the EQ map is band-index → dB.
       'enEqualizer': voice.enEqualizer == null

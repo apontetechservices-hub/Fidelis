@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart'
+    show debugPrint, visibleForTesting;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,14 +17,14 @@ import 'tts_text.dart' as tts_text;
 ///  - Kokoro (sherpa-onnx, bundled on-device): per-slot voice-grid profiles
 ///    — the standard voices (EN bm_george / ES em_alex at speed 0.9) for
 ///    readings and the rosary's timing-only synthesis, the Bible profile
-///    (EN am_michael blended 70/30 with am_echo / ES em_alex at speed
-///    0.81) when the caller passes [KokoroVoice.bible], and the rosary's
-///    runtime slot ([KokoroVoice.rosary] — EN af_aoede / ES af_aoede
-///    blended 70/30 with ef_dora) for steps without a pre-rendered file —
-///    synthesized SENTENCE-BY-SENTENCE so playback starts after the first
-///    sentence and later sentences are generated while the current one
-///    plays. stop() interrupts cleanly between sentences. Used for
-///    'en'/'es'.
+///    (EN am_michael / ES em_alex at speed 0.81) when the caller passes
+///    [KokoroVoice.bible], and the rosary's runtime slot
+///    ([KokoroVoice.rosary] — EN af_aoede / ES af_aoede under Spanish
+///    phonemization) for steps without a pre-rendered file — synthesized
+///    SENTENCE-BY-SENTENCE so playback starts after the first sentence
+///    and later sentences are generated while the current one plays.
+///    Every slot is a single voice: one render per sentence, no blends.
+///    stop() interrupts cleanly between sentences. Used for 'en'/'es'.
 ///  - flutter_tts (system engine): Latin ('la' — Italian voice approximates
 ///    ecclesiastical pronunciation) and the fallback whenever Kokoro is
 ///    unavailable or fails, so audio NEVER breaks. The mature male-voice
@@ -391,40 +392,64 @@ class TtsService {
 
   // ---- Kokoro pipeline (en/es) ----
 
-  /// Read-through synthesis cache: sentence audio rendered AHEAD of playback
-  /// (the rosary's next step, pre-fetched while the current one plays) so
+  /// Read-through synthesis cache: sentence audio rendered AHEAD of
+  /// playback (the screens' opening-chunk prefetch, the rosary's next
+  /// step, pre-fetched while the current one plays) so a Play press or
   /// the next page starts without synthesis latency. Keyed by
-  /// (lang, voice identity, sentence); bounded FIFO. Entries are kept after
-  /// consumption — the rosary's decade repeats one Hail Mary ten times, and
-  /// every repeat then starts instantly.
+  /// (lang, voice identity, sentence); bounded FIFO. Entries are kept
+  /// after consumption — the rosary's decade repeats one Hail Mary ten
+  /// times, and every repeat then starts instantly.
   static final Map<String, KokoroAudio> _prefetchCache = {};
-  static final Set<String> _prefetchInFlight = {};
+
+  /// In-flight prefetch renders, keyed like [_prefetchCache]. A playback
+  /// starting while a screen-open prefetch is still rendering its opening
+  /// sentences AWAITS the in-flight render instead of issuing a duplicate
+  /// — the first sentence plays the moment its single render exists.
+  static final Map<String, Future<KokoroAudio?>> _prefetchInFlight = {};
   static const int _prefetchCacheMax = 8;
 
   static String _prefetchKey(String sentence, String lang, KokoroVoice voice) =>
       '$lang|${identityHashCode(voice)}|$sentence';
 
-  /// Fire-and-forget: renders [text]'s sentences into the prefetch cache so
-  /// a later playback of the same (lang, voice, text) starts without
-  /// synthesis latency. The worker is FIFO: these renders queue behind the
+  /// Test-only: clears the prefetch cache and the in-flight map (test
+  /// isolation — the static maps would otherwise leak entries between
+  /// suites and serve stale audio to a later test).
+  @visibleForTesting
+  static void debugResetPrefetchState() {
+    _prefetchCache.clear();
+    _prefetchInFlight.clear();
+  }
+
+  /// Fire-and-forget: renders [text]'s OPENING sentences into the prefetch
+  /// cache so a later playback of the same (lang, voice, text) starts
+  /// without synthesis latency. Called when a screen opens (the Bible
+  /// chapter screen, the rosary's current step) — the engine warm-up
+  /// ([KokoroEngine.ensureReady]) and the first sentences' renders happen
+  /// BEFORE Play is pressed, so Play finds the opening audio ready and
+  /// starts instantly. The worker is FIFO: these renders queue behind the
   /// playing pipeline's own lookahead syntheses and fill the idle time
-  /// between sentences. Never throws.
+  /// between sentences. Capped at the cache capacity per call — the
+  /// OPENING sentences are the ones Play needs first, and FIFO eviction
+  /// would otherwise push them out in favor of later ones. Never throws.
   static Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
     if ((lang != 'en' && lang != 'es') || text.isEmpty) return;
     try {
       if (!await KokoroEngine.ensureReady(lang)) return;
       final (spoken, _) =
           tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
+      var rendered = 0;
       for (final sentence in tts_text.splitSpeakableSentences(spoken)) {
+        if (rendered >= _prefetchCacheMax) break;
         final key = _prefetchKey(sentence, lang, voice);
         if (_prefetchCache.containsKey(key) ||
-            _prefetchInFlight.contains(key)) {
+            _prefetchInFlight.containsKey(key)) {
           continue;
         }
-        _prefetchInFlight.add(key);
+        rendered++;
+        final future = KokoroEngine.synthesize(sentence, lang, voice: voice);
+        _prefetchInFlight[key] = future;
         try {
-          final audio =
-              await KokoroEngine.synthesize(sentence, lang, voice: voice);
+          final audio = await future;
           if (audio != null && audio.samples.isNotEmpty) {
             while (_prefetchCache.length >= _prefetchCacheMax) {
               _prefetchCache.remove(_prefetchCache.keys.first);
@@ -432,7 +457,9 @@ class TtsService {
             _prefetchCache[key] = audio;
           }
         } finally {
-          _prefetchInFlight.remove(key);
+          if (identical(_prefetchInFlight[key], future)) {
+            _prefetchInFlight.remove(key);
+          }
         }
       }
     } catch (_) {}
@@ -443,8 +470,9 @@ class TtsService {
   /// SPANS CHUNK BOUNDARIES: while a sentence plays, the following
   /// sentences — including the next chunk's first — are already rendering
   /// in the worker, so a verse/page boundary costs no synthesis silence.
-  /// Blend slots budget DOUBLE (every sentence costs two renders in the
-  /// worker). Each chunk's slot readout + equalizer shaping apply at its
+  /// Every slot renders ONE voice per sentence, so the lookahead budget
+  /// is the same for all slots. Each chunk's slot readout + equalizer
+  /// shaping apply at its
   /// start; the engine line fires when the FIRST sentence is served (the
   /// readout names the engine during playback, not minutes later).
   static Future<void> speakSequence(
@@ -525,14 +553,20 @@ class TtsService {
     return stream;
   }
 
+  /// The rolling lookahead depth: sentences rendered AHEAD of playback.
+  /// 4 keeps the worker busy across verse/page boundaries on the slowest
+  /// device without over-rendering (every slot is one render per
+  /// sentence, so one depth serves all slots).
+  static const int _streamLookaheadDepth = 4;
+
   /// Runs the continuous pipeline over [stream]: a rolling lookahead of
-  /// [KokoroVoice]-budgeted syntheses (solo 2, blend 4 — two renders per
-  /// blend sentence) keeps the worker rendering ahead of playback across
-  /// chunk boundaries; each sentence's duration is reported the moment its
-  /// render lands (ahead of playback — the aggregate progress learns the
-  /// page's total as the lookahead renders); a mid-stream synthesis
-  /// failure hands THAT chunk's remainder to flutter_tts and the stream
-  /// continues with the next chunk (Kokoro again).
+  /// [_streamLookaheadDepth] syntheses keeps the worker rendering ahead of
+  /// playback across chunk boundaries; each sentence's duration is
+  /// reported the moment its render lands (ahead of playback — the
+  /// aggregate progress learns the page's total as the lookahead
+  /// renders); a mid-stream synthesis failure hands THAT chunk's
+  /// remainder to flutter_tts and the stream continues with the next
+  /// chunk (Kokoro again).
   static Future<void> _runStream(
     List<_StreamSentence> stream,
     List<AudioChunk> chunks,
@@ -541,16 +575,7 @@ class TtsService {
     _StreamCallbacks callbacks, {
     bool emitSlotReadout = true,
   }) async {
-    var blend = false;
-    for (final s in stream) {
-      if ((chunks[s.chunkIndex].voice ?? KokoroVoice.standard)
-              .blendSidFor(lang) !=
-          null) {
-        blend = true;
-        break;
-      }
-    }
-    final depth = blend ? 4 : 2;
+    final depth = _streamLookaheadDepth;
     final pending = <Future<KokoroAudio?>>[];
     var issued = 0;
     void issue() {
@@ -643,14 +668,20 @@ class TtsService {
     }
   }
 
-  /// Synthesizes one stream sentence: the prefetch cache first (a previous
-  /// prefetch already rendered it), else the engine. Cache hits keep the
-  /// worker free for the lookahead.
+  /// Synthesizes one stream sentence: the prefetch cache first (a screen
+  /// open or a previous prefetch already rendered it), then any in-flight
+  /// prefetch render of the same sentence (awaited, not duplicated), else
+  /// the engine. Cache hits keep the worker free for the lookahead; the
+  /// in-flight reuse is what makes Play instant even when it lands
+  /// mid-prefetch.
   static Future<KokoroAudio?> _streamSynthesize(
       _StreamSentence s, List<AudioChunk> chunks, String lang) async {
     final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
-    final cached = _prefetchCache[_prefetchKey(s.text, lang, voice)];
+    final key = _prefetchKey(s.text, lang, voice);
+    final cached = _prefetchCache[key];
     if (cached != null) return Future<KokoroAudio?>.value(cached);
+    final inflight = _prefetchInFlight[key];
+    if (inflight != null) return inflight;
     return KokoroEngine.synthesize(s.text, lang, voice: voice);
   }
 

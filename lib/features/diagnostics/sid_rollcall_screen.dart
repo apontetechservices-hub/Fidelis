@@ -143,7 +143,7 @@ class _SidRollCallScreenState extends State<SidRollCallScreen> {
 
   Widget _row(BuildContext context, int index, Color accent) {
     final sid = index;
-    final name = kokoroSidNames[sid] ?? 'sid_$sid';
+    final name = rollCallNameFor(sid);
     final directed = directedSidLabels[sid];
     final playing = _playingSid == sid;
     final theme = Theme.of(context);

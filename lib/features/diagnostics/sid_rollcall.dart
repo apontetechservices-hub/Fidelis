@@ -69,14 +69,16 @@ const Map<int, String> kokoroSidNames = {
   53: 'em_santa',
 };
 
+/// The roster name for [sid]: the bundled speaker table, then a sid_N
+/// fallback.
+String rollCallNameFor(int sid) => kokoroSidNames[sid] ?? 'sid_$sid';
+
 /// The voice-grid sids the owner directed, labeled so the roll-call rows
 /// show where each directed voice sits in the shipped bundle.
 const Map<int, String> directedSidLabels = {
-  16: 'Bible EN primary',
-  12: 'Bible EN blend',
+  16: 'Bible EN (Michael)',
   29: 'Bible ES',
-  1: 'Rosary EN + Rosary ES primary',
-  28: 'Rosary ES blend',
+  1: 'Rosary EN + Rosary ES (Aoede)',
   26: 'Readings EN (standard)',
 };
 
@@ -86,9 +88,9 @@ const Map<int, String> directedSidLabels = {
 String rollCallLine(int sid) =>
     'I am speaker number $sid. The Lord is my shepherd; I shall not want.';
 
-/// The roll-call synthesis profile for [sid]: SOLO (no blend partner), no
-/// equalizer shaping, neutral speed — the plainest possible render of that
-/// sid through the production synthesis path. The voice name labels the
+/// The roll-call synthesis profile for [sid]: SOLO, no equalizer shaping,
+/// neutral speed — the plainest possible render of that sid through the
+/// production synthesis path. The voice name labels the
 /// pronunciation-lexicon key (a known name's per-voice lexicon applies —
 /// harmless for the roll-call text, which contains none of the respelled
 /// words).
@@ -96,6 +98,6 @@ KokoroVoice rollCallVoice(int sid) => KokoroVoice(
       enSid: sid,
       esSid: sid,
       speed: 1.0,
-      enName: kokoroSidNames[sid] ?? 'sid_$sid',
-      esName: kokoroSidNames[sid] ?? 'sid_$sid',
+      enName: rollCallNameFor(sid),
+      esName: rollCallNameFor(sid),
     );
