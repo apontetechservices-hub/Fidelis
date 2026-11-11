@@ -743,6 +743,19 @@ class AudioController with WidgetsBindingObserver {
     }());
   }
 
+  /// The media notification's Stop: halt the playback and STAY. The player
+  /// pauses at the current position, the job and its position are kept, and
+  /// the media session remains paused so the notification stays showing
+  /// Play — a later play resumes from the kept position. NOT the full
+  /// [stop]: the in-app stop (which clears the job and dismisses the
+  /// player, with play-after-stop restarting the chapter) is unchanged.
+  /// No-op when nothing is playing (already halted, parked, or stopped —
+  /// a parked stream is already halted and stays parked).
+  Future<void> haltAndStay() async {
+    if (_info.state != AudioState.playing) return;
+    await pause();
+  }
+
   /// Restarts the last-played content (the media session's play when
   /// nothing is loaded — e.g. a headset play button after a stop). No-op
   /// when nothing has played yet this session. The original owner is kept:

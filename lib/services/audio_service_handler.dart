@@ -23,6 +23,11 @@ import 'audio_controller.dart';
 ///    — the notification stays, swipeable, until the user resumes or
 ///    dismisses it. This includes a playback that ended naturally while the
 ///    app was backgrounded: the controller parks the finished job as paused.
+///  - the notification's STOP halts and stays: the playback pauses at the
+///    current position and the notification remains, showing Play — a later
+///    play resumes from the kept position. The session idles (the dismissal
+///    below) only when the controller fully stops: the in-app stop, leaving
+///    a screen, or a replacement job.
 ///  - stopped: the session idles — the service stops and the notification
 ///    is dismissed. No audio, no player.
 ///
@@ -156,5 +161,5 @@ class FidelisAudioHandler extends BaseAudioHandler {
   Future<void> pause() => AudioController.instance.pause();
 
   @override
-  Future<void> stop() => AudioController.instance.stop();
+  Future<void> stop() => AudioController.instance.haltAndStay();
 }

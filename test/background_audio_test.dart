@@ -12,6 +12,10 @@ import 'audio_controller_test.dart';
 ///  - a natural end while the app is BACKGROUNDED parks the finished job as
 ///    PAUSED so the media notification stays (resumable, dismissable)
 ///    instead of vanishing;
+///  - the media notification's stop HALTS AND STAYS (the controller's
+///    haltAndStay): the playback pauses at the current position, the job
+///    and position are kept, and a later resume continues — the full stop
+///    is the in-app path only;
 ///  - resuming a parked stream replays the chunk the playback ended on,
 ///    through the normal job loop;
 ///  - audio-focus loss (the injected externalPauseRequests stream — another
@@ -106,8 +110,8 @@ void main() {
     expect(controller.currentJobId, 'bible');
   });
 
-  test('stopping a parked stream ends it (the notification dismisses)',
-      () async {
+  test('stopping a parked stream ends it (the controller full stop — the '
+      'in-app path; the notification stop no longer routes here)', () async {
     final engine = FakeAudioEngine();
     final controller = AudioController(engine: engine);
     controller.appInForegroundForTest = false;
@@ -193,5 +197,89 @@ void main() {
     await _settle();
     expect(controller.state, AudioState.stopped,
         reason: 'a foreground end goes idle (the historical behavior)');
+  });
+
+  test('haltAndStay (the notification stop) pauses and keeps the job; a '
+      'resume continues from the kept position', () async {
+    final engine = FakeAudioEngine();
+    final controller = AudioController(engine: engine);
+    unawaited(controller.start(
+      const AudioJob(
+        id: 'bible',
+        chunks: [AudioChunk(text: 'A1'), AudioChunk(text: 'A2')],
+        title: 'James 1',
+      ),
+      owner: 'screen',
+    ));
+    await _settle();
+    expect(controller.state, AudioState.playing);
+
+    await controller.haltAndStay();
+    await _settle();
+    expect(controller.state, AudioState.paused);
+    expect(controller.currentJobId, 'bible');
+    expect(controller.currentJobTitle, 'James 1');
+    expect(engine.log.contains('pause'), isTrue);
+    expect(engine.log.where((e) => e == 'stop').length, 1,
+        reason: "exactly start()'s single-stream pre-stop: the halt itself "
+            'issues no engine stop');
+
+    unawaited(controller.resume());
+    await _settle();
+    expect(controller.state, AudioState.playing);
+    expect(engine.log.contains('resume'), isTrue);
+    expect(engine.log.where((e) => e == 'speak:A1').length, 1,
+        reason: 'the resume continues the same playback (no restart)');
+
+    // The loop continues into the second chunk from the kept position.
+    engine.finishChunk();
+    await _settle();
+    expect(engine.log.last, 'speak:A2');
+  });
+
+  test('haltAndStay is a no-op when parked or stopped', () async {
+    final engine = FakeAudioEngine();
+    final controller = AudioController(engine: engine);
+    controller.appInForegroundForTest = false;
+    await _playToEnd(controller, engine);
+    expect(controller.state, AudioState.paused); // parked
+
+    final logLength = engine.log.length;
+    await controller.haltAndStay();
+    await _settle();
+    expect(controller.state, AudioState.paused);
+    expect(engine.log.length, logLength,
+        reason: 'no engine calls: the parked stream is already halted');
+
+    await controller.stop();
+    expect(controller.state, AudioState.stopped);
+    await controller.haltAndStay();
+    await _settle();
+    expect(controller.state, AudioState.stopped,
+        reason: 'a halt on a stopped stream does not resurrect it');
+  });
+
+  test('the full stop still clears after a halt (the in-app stop is '
+      'unchanged)', () async {
+    final engine = FakeAudioEngine();
+    final controller = AudioController(engine: engine);
+    unawaited(controller.start(
+      const AudioJob(
+        id: 'bible',
+        chunks: [AudioChunk(text: 'A1')],
+        title: 'James 1',
+      ),
+      owner: 'screen',
+    ));
+    await _settle();
+
+    await controller.haltAndStay();
+    expect(controller.state, AudioState.paused);
+
+    await controller.stop();
+    expect(controller.state, AudioState.stopped);
+    expect(controller.currentJobId, isNull);
+    expect(controller.currentJobTitle, isNull);
+    expect(engine.log.contains('stop'), isTrue);
   });
 }
