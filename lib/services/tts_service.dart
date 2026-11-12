@@ -10,6 +10,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'audio_controller.dart' show AudioChunk;
 import 'kokoro_engine.dart';
+import 'tts_render_cache.dart';
 import 'tts_text.dart' as tts_text;
 
 /// On-device text-to-speech for prayer audio (free feature).
@@ -452,15 +453,32 @@ class TtsService {
   /// times, and every repeat then starts instantly.
   static final Map<String, KokoroAudio> _prefetchCache = {};
 
-  /// In-flight prefetch renders, keyed like [_prefetchCache]. A playback
-  /// starting while a screen-open prefetch is still rendering its opening
-  /// sentences AWAITS the in-flight render instead of issuing a duplicate
-  /// — the first sentence plays the moment its single render exists.
-  static final Map<String, Future<KokoroAudio?>> _prefetchInFlight = {};
+  /// In-flight sentence renders at the FILE level, keyed by the persistent
+  /// cache key. The ONE dedupe point every render consumer shares — a
+  /// playback's lookahead, the screen-open prefetch, and the render-ahead
+  /// walk all resolve through it — so a sentence is synthesized exactly
+  /// once no matter how many consumers arrive: later consumers AWAIT the
+  /// in-flight render instead of issuing a duplicate.
+  static final Map<String, Future<TtsPreparedSentence?>> _fileInFlight = {};
   static const int _prefetchCacheMax = 8;
 
   static String _prefetchKey(String sentence, String lang, KokoroVoice voice) =>
       '$lang|${identityHashCode(voice)}|$sentence';
+
+  /// The persistent render cache key for one sentence: the pipeline
+  /// version, the language, the STABLE voice identity (name(sid)@speed —
+  /// never an identity hash, which does not survive a restart), and the
+  /// spoken text (post-lexicon). The same sentence in the same slot
+  /// configuration is the same audio, regardless of which chapter or step
+  /// contains it — so a chapter heard once is instant forever, and a
+  /// Next/Previous restart (a different chunk slice of the same content)
+  /// hits the same cached sentences.
+  static String _persistentKey(
+      String sentence, String lang, KokoroVoice voice) {
+    final voiceId =
+        '${voice.nameFor(lang)}(${voice.sidFor(lang)})@${voice.speed}';
+    return TtsRenderCache.keyFor(lang: lang, voiceId: voiceId, text: sentence);
+  }
 
   /// Test-only: clears the prefetch cache and the in-flight map (test
   /// isolation — the static maps would otherwise leak entries between
@@ -468,58 +486,47 @@ class TtsService {
   @visibleForTesting
   static void debugResetPrefetchState() {
     _prefetchCache.clear();
-    _prefetchInFlight.clear();
+    _fileInFlight.clear();
     _playlistBase = 0;
     _appendedCount = 0;
     _sentenceDirSwept = false;
   }
 
-  /// Fire-and-forget: renders [text]'s OPENING sentences into the prefetch
-  /// cache so a later playback of the same (lang, voice, text) starts
-  /// without synthesis latency. Called when a screen opens (the Bible
-  /// chapter screen, the rosary's current step) — the engine warm-up
-  /// ([KokoroEngine.ensureReady]) and the first sentences' renders happen
-  /// BEFORE Play is pressed, so Play finds the opening audio ready and
-  /// starts instantly. The worker is FIFO: these renders queue behind the
-  /// playing pipeline's own lookahead syntheses and fill the idle time
-  /// between sentences. Capped at the cache capacity per call — the
-  /// OPENING sentences are the ones Play needs first, and FIFO eviction
-  /// would otherwise push them out in favor of later ones. Never throws.
+  /// Public for the render-ahead service: emits through the same
+  /// measurement sink (the [Fidelis timing] logcat path the on-device
+  /// measurements read).
+  static void measureLine(String line) => _measure(line);
+
+  /// Fire-and-forget: resolves [text]'s OPENING sentences through the
+  /// shared render path (the persistent render cache, the in-memory
+  /// cache, the engine) so a later playback of the same (lang, voice,
+  /// text) starts without synthesis latency. Called when a screen opens
+  /// (the Bible chapter screen, the rosary's current step) — the engine
+  /// warm-up ([KokoroEngine.ensureReady]) and the first sentences'
+  /// renders happen BEFORE Play is pressed, so Play finds the opening
+  /// audio ready and starts instantly. The worker is FIFO: these renders
+  /// queue behind the playing pipeline's own lookahead syntheses and
+  /// fill the idle time between sentences. Capped at the cache capacity
+  /// per call — the OPENING sentences are the ones Play needs first.
+  /// Never throws.
   static Future<void> prefetch(String text, String lang, KokoroVoice voice) async {
     if ((lang != 'en' && lang != 'es') || text.isEmpty) return;
     _measure('prefetch-start lang=$lang cap=$_prefetchCacheMax');
     try {
       if (!await KokoroEngine.ensureReady(lang)) return;
-      final (spoken, _) =
-          tts_text.applyPronunciationLexicon(text, voice.lexiconFor(lang));
+      final chunk = AudioChunk(text: text, lang: lang, voice: voice);
+      final stream = _buildStream([chunk], lang);
       var rendered = 0;
-      for (final sentence in tts_text.splitSpeakableSentences(spoken)) {
+      for (final s in stream) {
         if (rendered >= _prefetchCacheMax) break;
-        final key = _prefetchKey(sentence, lang, voice);
-        if (_prefetchCache.containsKey(key) ||
-            _prefetchInFlight.containsKey(key)) {
-          continue;
-        }
-        rendered++;
         final issuedAt = DateTime.now().microsecondsSinceEpoch;
-        final future = KokoroEngine.synthesize(sentence, lang, voice: voice);
-        _prefetchInFlight[key] = future;
-        try {
-          final audio = await future;
-          if (audio != null && audio.samples.isNotEmpty) {
-            while (_prefetchCache.length >= _prefetchCacheMax) {
-              _prefetchCache.remove(_prefetchCache.keys.first);
-            }
-            _prefetchCache[key] = audio;
-            _measure('prefetch-land n=$rendered '
-                'synthMs=${((DateTime.now().microsecondsSinceEpoch - issuedAt) / 1000).toStringAsFixed(0)} '
-                'audioMs=${(audio.samples.length * 1000 / audio.sampleRate).round()}');
-          }
-        } finally {
-          if (identical(_prefetchInFlight[key], future)) {
-            _prefetchInFlight.remove(key);
-          }
-        }
+        final (future, _) = _obtainPrepared(s, [chunk], lang, storePcm: true);
+        final prepared = await future;
+        if (prepared == null) break; // the engine failed: stop prefetching
+        rendered++;
+        _measure('prefetch-land n=$rendered '
+            'synthMs=${((DateTime.now().microsecondsSinceEpoch - issuedAt) / 1000).toStringAsFixed(0)} '
+            'audioMs=${prepared.duration.inMilliseconds}');
       }
     } catch (_) {}
   }
@@ -599,9 +606,9 @@ class TtsService {
   /// The continuous sentence stream across [chunks]: lexicon-applied,
   /// split, and aligned to each chunk's ORIGINAL text coordinates (the
   /// same split the engine speaks — highlight mapping stays exact).
-  static List<_StreamSentence> _buildStream(
+  static List<TtsStreamSentence> _buildStream(
       List<AudioChunk> chunks, String lang) {
-    final stream = <_StreamSentence>[];
+    final stream = <TtsStreamSentence>[];
     for (var ci = 0; ci < chunks.length; ci++) {
       final chunk = chunks[ci];
       final text = chunk.text ?? '';
@@ -615,11 +622,28 @@ class TtsService {
           (align[start], align[end]),
       ];
       for (var si = 0; si < sentences.length && si < ranges.length; si++) {
-        stream.add(_StreamSentence(ci, si, sentences[si], ranges[si]));
+        stream.add(TtsStreamSentence(ci, si, sentences[si], ranges[si]));
       }
     }
     return stream;
   }
+
+  /// Public for the render-ahead service: builds the continuous sentence
+  /// stream across [chunks] — the exact split the playback path speaks —
+  /// so the render-ahead walks and resolves the same sentences a playback
+  /// will ask for.
+  static List<TtsStreamSentence> buildStream(
+          List<AudioChunk> chunks, String lang) =>
+      _buildStream(chunks, lang);
+
+  /// Public for the render-ahead service: resolves one stream sentence
+  /// through the shared path (the persistent render cache, the in-memory
+  /// cache, the engine) — the same resolution a playback's lookahead
+  /// uses, so the render-ahead and a playback never duplicate a render
+  /// and never starve each other's worker requests.
+  static Future<TtsPreparedSentence?> obtainSentence(
+          TtsStreamSentence s, List<AudioChunk> chunks, String lang) =>
+      _obtainPrepared(s, chunks, lang).$1;
 
   /// The rolling lookahead depth: sentences rendered AHEAD of playback.
   /// 4 keeps the worker busy across verse/page boundaries on the slowest
@@ -642,7 +666,7 @@ class TtsService {
   /// playlist and hands THAT chunk's remainder to flutter_tts, then the
   /// stream continues with the next chunk (Kokoro again).
   static Future<void> _runStream(
-    List<_StreamSentence> stream,
+    List<TtsStreamSentence> stream,
     List<AudioChunk> chunks,
     String lang,
     int myEpoch,
@@ -650,13 +674,13 @@ class TtsService {
     bool emitSlotReadout = true,
   }) async {
     final depth = _streamLookaheadDepth;
-    final pending = <_PendingSynth>[];
+    final pending = <_PendingPrepared>[];
     var issued = 0;
     void issue() {
       while (issued < stream.length && pending.length < depth) {
         final s = stream[issued];
-        final (future, source) = _streamSynthesize(s, chunks, lang);
-        pending.add(_PendingSynth(
+        final (future, source) = _obtainPrepared(s, chunks, lang);
+        pending.add(_PendingPrepared(
           future: future,
           source: source,
           issuedAt: DateTime.now().microsecondsSinceEpoch,
@@ -747,12 +771,12 @@ class TtsService {
           continue;
         }
         final ps = pending.removeAt(0);
-        final audio = await ps.future;
+        final prepared = await ps.future;
         if (myEpoch != _epoch) return; // stop() while generating
         issue();
         final landedAt = DateTime.now().microsecondsSinceEpoch;
         final synthMs = (landedAt - ps.issuedAt) / 1000.0;
-        if (audio == null || audio.samples.isEmpty) {
+        if (prepared == null) {
           failedChunks.add(s.chunkIndex);
           _emitReadout('FALLBACK mid-pipeline engine=flutter_tts (system '
               'voice) reason=sentence ${s.sentenceInChunk + 1} of chunk '
@@ -800,22 +824,24 @@ class TtsService {
           if (myEpoch != _epoch) return;
           continue;
         }
-        final duration = Duration(
-            milliseconds:
-                (audio.samples.length * 1000 / audio.sampleRate).round());
-        // The render just landed — AHEAD of its playback (the lookahead):
-        // the aggregate progress learns the page's total from here.
+        final duration = prepared.duration;
+        // The render just landed — AHEAD of its playback (the lookahead,
+        // or already complete in the render cache): the aggregate progress
+        // learns the page's total from here. The schedule comes from the
+        // SAME synthesis that produced the audio, cached or live.
         callbacks.onSentenceSynthesized
             ?.call(s.chunkIndex, s.sentenceInChunk, duration);
         if (!engineLineServed) {
           engineLineServed = true;
           _emitReadout('engine=kokoro (the slot config above executed)');
         }
-        final prepared = await _prepareSentenceWav(audio);
-        if (myEpoch != _epoch) return; // stopped while preparing
-        sentenceFiles.add(prepared.file);
+        // Cache-hit files (the persistent render cache) are never owned
+        // by this stream — the LRU sweep governs them; only freshly
+        // prepared temp files are deleted at the stream's end.
+        if (prepared.owned) sentenceFiles.add(prepared.file);
+        final src = ps.source == 'inflight' ? 'inflight' : prepared.source;
         _measure('wav-ready i=$i synthMs=${synthMs.toStringAsFixed(0)} '
-            'audioMs=${duration.inMilliseconds} src=${ps.source} '
+            'audioMs=${duration.inMilliseconds} src=$src '
             'peakIn=${prepared.peakInDb}dB peakOut=${prepared.peakOutDb}dB '
             'clipIn=${prepared.clipIn} clipOut=${prepared.clipOut} '
             'scaled=${prepared.scaled} writeMs=${prepared.writeMs}');
@@ -924,27 +950,186 @@ class TtsService {
     }
   }
 
-  /// Synthesizes one stream sentence: the prefetch cache first (a screen
-  /// open or a previous prefetch already rendered it), then any in-flight
-  /// prefetch render of the same sentence (awaited, not duplicated), else
-  /// the engine. Cache hits keep the worker free for the lookahead; the
-  /// in-flight reuse is what makes Play instant even when it lands
-  /// mid-prefetch. Returns the future plus WHERE the audio comes from
-  /// ('cache' | 'inflight' | 'engine') — the measurement's prefetch-
-  /// engagement marker.
-  static (Future<KokoroAudio?>, String) _streamSynthesize(
-      _StreamSentence s, List<AudioChunk> chunks, String lang) {
+  /// Resolves one stream sentence to its prepared playback file through
+  /// the ONE shared path every render consumer uses (the playback's
+  /// lookahead, the screen-open prefetch, the render-ahead walk):
+  ///
+  ///   1. the file-level in-flight registry — a consumer AWAITS another
+  ///      consumer's in-flight render instead of issuing a duplicate (the
+  ///      worker never renders the same sentence twice);
+  ///   2. the persistent render cache — a cache hit is pure I/O: the
+  ///      prepared WAV already on disk plays as-is (no synthesis, no
+  ///      decode);
+  ///   3. the in-memory PCM cache — the render-cache-unavailable layer
+  ///      (tests, storage failures): the cached PCM is re-prepared into a
+  ///      file;
+  ///   4. the engine — the render is synthesized, gain-staged, resampled,
+  ///      and STORED (the persistent cache when ready, the in-memory
+  ///      cache otherwise) so the next consumer — the next play, the
+  ///      render-ahead, a repeat — never renders it again.
+  ///
+  /// Returns the future plus the ISSUE-TIME source marker ('inflight'
+  /// when the registry served it; the resolved record carries the final
+  /// source — 'cache' | 'engine' — which the wav-ready line reports).
+  static (Future<TtsPreparedSentence?>, String) _obtainPrepared(
+      TtsStreamSentence s, List<AudioChunk> chunks, String lang,
+      {bool storePcm = false}) {
     final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
-    final key = _prefetchKey(s.text, lang, voice);
-    final cached = _prefetchCache[key];
-    if (cached != null) {
-      return (Future<KokoroAudio?>.value(cached), 'cache');
+    final key = _persistentKey(s.text, lang, voice);
+    final shared = _fileInFlight[key];
+    if (shared != null) return (shared, 'inflight');
+    final future = _resolvePrepared(key, s, chunks, lang, storePcm: storePcm);
+    _fileInFlight[key] = future;
+    unawaited(future.whenComplete(() {
+      if (identical(_fileInFlight[key], future)) _fileInFlight.remove(key);
+    }));
+    return (future, 'engine');
+  }
+
+  /// The resolution behind [_obtainPrepared] (registered in the in-flight
+  /// registry before its first await — no dedupe gap).
+  static Future<TtsPreparedSentence?> _resolvePrepared(String key,
+      TtsStreamSentence s, List<AudioChunk> chunks, String lang,
+      {required bool storePcm}) async {
+    final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
+    // 1. The persistent render cache: the prepared WAV is already on
+    //    disk — pure I/O, zero synthesis.
+    final hit = TtsRenderCache.lookupSync(key, expectText: s.text);
+    if (hit != null) {
+      return TtsPreparedSentence(
+        file: hit.file,
+        duration: hit.duration,
+        source: 'cache',
+        owned: false,
+        peakInDb: hit.peakInDb,
+        peakOutDb: hit.peakOutDb,
+        clipIn: hit.clipIn,
+        clipOut: hit.clipOut,
+        scaled: hit.scaled,
+        writeMs: 0,
+      );
     }
-    final inflight = _prefetchInFlight[key];
-    if (inflight != null) return (inflight, 'inflight');
-    return (
-      KokoroEngine.synthesize(s.text, lang, voice: voice),
-      'engine'
+    // 2. The in-memory PCM cache (the render cache unavailable — tests,
+    //    storage failures): re-prepare the cached PCM into a file.
+    final pcm = _prefetchCache[_prefetchKey(s.text, lang, voice)];
+    if (pcm != null && pcm.samples.isNotEmpty) {
+      return _prepareSentenceFile(pcm,
+          key: key,
+          spokenText: s.text,
+          lang: lang,
+          voice: voice,
+          source: 'cache',
+          storePcm: storePcm);
+    }
+    // 3. The engine: synthesize, prepare, store.
+    final audio = await KokoroEngine.synthesize(s.text, lang, voice: voice);
+    if (audio == null || audio.samples.isEmpty) return null;
+    return _prepareSentenceFile(audio,
+        key: key,
+        spokenText: s.text,
+        lang: lang,
+        voice: voice,
+        source: 'engine',
+        storePcm: storePcm);
+  }
+
+  /// Prepares one sentence's playback file from synthesized PCM (no
+  /// playback — the playlist loads/appends it): the synthesis PCM is
+  /// gain-staged to the headroom target first (peaks ≤ [pcmHeadroomScale]
+  /// — the resampler's exact worst-case bound, so the post-conversion
+  /// peak can never pass full scale; see stagePcmHeadroom), then
+  /// RESAMPLED to 48000 Hz: the owner's phone doubles/distorts raw
+  /// 24000 Hz sentence WAVs while the pre-rendered opus files (whose
+  /// decoder delivers 48000 Hz mono to the same sink) played clean for
+  /// weeks. The WAV declares 48000 Hz mono 16-bit. The measured peaks
+  /// and clip counts ride the wav-ready timing line (the gain-staging
+  /// evidence).
+  ///
+  /// THE PERSISTENT STORE (round 4): when the render cache is ready, the
+  /// prepared WAV IS the cache entry — written once into the cache
+  /// directory (never deleted by the stream; the LRU sweep governs it) —
+  /// so the next play of this sentence is a pure-I/O cache hit. When the
+  /// cache is unavailable, the historical temp-file path applies (the
+  /// stream deletes the file at its end) and the PCM lands in the
+  /// in-memory cache for reuse.
+  static Future<TtsPreparedSentence> _prepareSentenceFile(
+    KokoroAudio audio, {
+    required String? key,
+    required String spokenText,
+    required String lang,
+    required KokoroVoice voice,
+    required String source,
+    required bool storePcm,
+  }) async {
+    final sw = Stopwatch()..start();
+    final (staged, scaled) = stagePcmHeadroom(audio.samples);
+    final peakInDb = _dbfs(pcmPeak(audio.samples));
+    final clipIn = pcmClippedCount(audio.samples);
+    final rate = audio.sampleRate == 24000 ? 48000 : audio.sampleRate;
+    final resampled = resamplePcmTo48k(staged, audio.sampleRate);
+    final peakOutDb = _dbfs(pcmPeak(resampled));
+    final clipOut = pcmClippedCount(resampled);
+    final duration = Duration(
+        milliseconds:
+            (audio.samples.length * 1000 / audio.sampleRate).round());
+    final wav = encodeWav16(resampled, rate);
+    if (key != null && TtsRenderCache.isReady) {
+      final stored = await TtsRenderCache.store(
+        key: key,
+        text: spokenText,
+        lang: lang,
+        voiceId:
+            '${voice.nameFor(lang)}(${voice.sidFor(lang)})@${voice.speed}',
+        durationMs: duration.inMilliseconds,
+        wav: wav,
+        peakInDb: peakInDb,
+        peakOutDb: peakOutDb,
+        clipIn: clipIn,
+        clipOut: clipOut,
+        scaled: scaled,
+      );
+      if (stored != null) {
+        return TtsPreparedSentence(
+          file: stored,
+          duration: duration,
+          source: source,
+          owned: false,
+          peakInDb: peakInDb,
+          peakOutDb: peakOutDb,
+          clipIn: clipIn,
+          clipOut: clipOut,
+          scaled: scaled,
+          writeMs: sw.elapsedMilliseconds,
+        );
+      }
+      // The store failed: fall through to the temp-file path.
+    }
+    final file = await _sentenceWavFile();
+    await file.writeAsBytes(wav, flush: false);
+    // The in-memory PCM cache keeps the PREFETCH's synthesis for reuse
+    // when the render cache is unavailable (the decade's repeated Hail
+    // Marys, the prefetch suites' zero-new-request assertions). Only the
+    // prefetch stores here — a playback's own renders must not leak into
+    // a later playback's expectations (test isolation, and the historical
+    // semantics: only the prefetch populated this cache).
+    if (storePcm && !TtsRenderCache.isReady) {
+      final pcmKey = _prefetchKey(spokenText, lang, voice);
+      while (_prefetchCache.length >= _prefetchCacheMax) {
+        _prefetchCache.remove(_prefetchCache.keys.first);
+      }
+      _prefetchCache[pcmKey] = audio;
+    }
+    return TtsPreparedSentence(
+      file: file,
+      duration: duration,
+      source: source,
+      owned: true,
+      peakInDb: peakInDb,
+      peakOutDb: peakOutDb,
+      clipIn: clipIn,
+      clipOut: clipOut,
+      scaled: scaled,
+      writeMs: sw.elapsedMilliseconds,
     );
   }
 
@@ -1001,42 +1186,6 @@ class TtsService {
     } catch (_) {
       return false;
     }
-  }
-
-  /// Prepares one sentence's playback WAV (no playback — the playlist
-  /// loads/appends it): the synthesis PCM is gain-staged to the headroom
-  /// target first (peaks ≤ [pcmHeadroomScale] — the resampler's exact
-  /// worst-case bound, so the post-conversion peak can never pass full
-  /// scale; see stagePcmHeadroom), then RESAMPLED to 48000 Hz: the owner's
-  /// phone doubles/distorts raw 24000 Hz sentence WAVs while the
-  /// pre-rendered opus files (whose decoder delivers 48000 Hz mono to the
-  /// same sink) played clean for weeks — the 24 kHz raw-PCM path is the
-  /// one corrupted output path (see resamplePcmTo48k). The WAV declares
-  /// 48000 Hz mono 16-bit. The measured peaks and clip counts ride the
-  /// wav-ready timing line (the gain-staging evidence).
-  static Future<_PreparedWav> _prepareSentenceWav(KokoroAudio audio) async {
-    final sw = Stopwatch()..start();
-    final (staged, scaled) = stagePcmHeadroom(audio.samples);
-    final peakInDb = _dbfs(pcmPeak(audio.samples));
-    final clipIn = pcmClippedCount(audio.samples);
-    final rate = audio.sampleRate == 24000 ? 48000 : audio.sampleRate;
-    final resampled = resamplePcmTo48k(staged, audio.sampleRate);
-    final peakOutDb = _dbfs(pcmPeak(resampled));
-    final clipOut = pcmClippedCount(resampled);
-    final file = await _sentenceWavFile();
-    await file.writeAsBytes(
-      encodeWav16(resampled, rate),
-      flush: false,
-    );
-    return _PreparedWav(
-      file: file,
-      peakInDb: peakInDb,
-      peakOutDb: peakOutDb,
-      clipIn: clipIn,
-      clipOut: clipOut,
-      scaled: scaled,
-      writeMs: sw.elapsedMilliseconds,
-    );
   }
 
   /// A peak in dBFS ('-inf' for silence) — the gain-staging measurement's
@@ -1219,25 +1368,28 @@ class TtsService {
 /// One sentence in the continuous pipeline stream: which chunk it belongs
 /// to, its index within that chunk, its spoken text, and its character
 /// range within the chunk's ORIGINAL text (through the lexicon alignment).
-class _StreamSentence {
+/// Public for the render-ahead service, which walks and resolves the same
+/// sentences a playback will ask for.
+class TtsStreamSentence {
   final int chunkIndex;
   final int sentenceInChunk;
   final String text;
   final (int, int) range;
 
-  const _StreamSentence(
+  const TtsStreamSentence(
       this.chunkIndex, this.sentenceInChunk, this.text, this.range);
 }
 
-/// One lookahead synthesis in flight: its future, where its audio comes
-/// from ('cache' | 'inflight' | 'engine' — the measurement's prefetch-
-/// engagement marker), and the issue timestamp (the synthesis wall time).
-class _PendingSynth {
-  final Future<KokoroAudio?> future;
+/// One sentence resolution in flight: its future (the prepared playback
+/// file), the ISSUE-TIME source marker ('cache' | 'inflight' | 'engine' —
+/// the measurement's prefetch-engagement marker), and the issue timestamp
+/// (the resolve wall time the wav-ready line reports).
+class _PendingPrepared {
+  final Future<TtsPreparedSentence?> future;
   final String source;
   final int issuedAt;
 
-  const _PendingSynth({
+  const _PendingPrepared({
     required this.future,
     required this.source,
     required this.issuedAt,
@@ -1261,10 +1413,20 @@ class _PlaylistItemMeta {
   });
 }
 
-/// One sentence's prepared playback WAV plus its measured gain staging
-/// (the peaks and clip counts ride the wav-ready timing line).
-class _PreparedWav {
+/// One sentence's prepared playback file plus its measured gain staging
+/// (the peaks and clip counts ride the wav-ready timing line) and its
+/// round-4 provenance: the audio duration (the timing data the highlight
+/// schedule derives from — the same synthesis that produced the audio,
+/// cached or live), the final source ('cache' — served from the
+/// persistent render cache — or 'engine'), and whether the file is a
+/// temp file this stream must delete at its end (a cache entry is never
+/// stream-owned; the LRU sweep governs it). Public for the render-ahead
+/// service.
+class TtsPreparedSentence {
   final File file;
+  final Duration duration;
+  final String source;
+  final bool owned;
   final String peakInDb;
   final String peakOutDb;
   final int clipIn;
@@ -1272,8 +1434,11 @@ class _PreparedWav {
   final bool scaled;
   final int writeMs;
 
-  const _PreparedWav({
+  const TtsPreparedSentence({
     required this.file,
+    required this.duration,
+    required this.source,
+    required this.owned,
     required this.peakInDb,
     required this.peakOutDb,
     required this.clipIn,

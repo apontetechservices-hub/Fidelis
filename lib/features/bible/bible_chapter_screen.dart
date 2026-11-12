@@ -8,6 +8,7 @@ import '../../services/audio_controller.dart';
 import '../../services/bible_service.dart';
 import '../../services/billing_service.dart';
 import '../../services/kokoro_engine.dart';
+import '../../services/render_ahead.dart';
 import '../../services/tts_service.dart';
 import '../diagnostics/playback_readout.dart';
 import '../premium/paywall_screen.dart';
@@ -189,6 +190,12 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       // prefetch cache — so pressing Play finds the opening audio READY
       // and starts instantly. Fire-and-forget; never blocks the load.
       _prefetchOpeningChunk();
+      // THE RENDER-AHEAD (round 4): the WHOLE chapter renders to
+      // completion in the background — begun the moment the chapter is
+      // on screen — into the persistent render cache, so Play and the
+      // verse-level Next/Previous start from completed audio (no
+      // synthesis wait). Fire-and-forget; never blocks the load.
+      _beginRenderAhead();
       if (widget.autoPlay) unawaited(_startAudio());
     }
   }
@@ -216,6 +223,46 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       lang: lang,
       voice: KokoroVoice.bible,
     ));
+  }
+
+  /// THE RENDER-AHEAD (round 4): the WHOLE chapter renders to completion
+  /// in the background — on screen-open (fromVerse 0) and on every Play
+  /// (from the played verse, so the urgent sentences render first) — into
+  /// the persistent render cache, so Play and the verse-level
+  /// Next/Previous start from completed audio (no synthesis wait). The
+  /// chunks compose through [_verseGroups] — the same grouping the
+  /// playback job builds from, so the render-ahead renders exactly the
+  /// audio Play asks for. Fire-and-forget; never blocks the caller.
+  void _beginRenderAhead({int fromVerse = 0}) {
+    final verses = _verses;
+    if (verses == null || verses.isEmpty) return;
+    final lang = AppStrings.isSpanish ? 'es' : 'en';
+    final chunks = <AudioChunk>[
+      for (final (_, group) in _verseGroups(fromVerse: fromVerse))
+        AudioChunk(
+          text: group.map((v) => v.text).join(' '),
+          lang: lang,
+          voice: KokoroVoice.bible,
+        ),
+    ];
+    if (chunks.isEmpty) return;
+    // The from-verse's first stream sentence index: the walk starts at
+    // the played position (the urgent sentences first); everything before
+    // it is usually already cached (heard) or covered by the screen-open
+    // walk.
+    var fromSentence = 0;
+    for (final (start, group) in _verseGroups()) {
+      if (start >= fromVerse) break;
+      fromSentence +=
+          TtsService.splitSentences(group.map((v) => v.text).join(' '))
+              .length;
+    }
+    RenderAhead.begin(
+      chunks: chunks,
+      lang: lang,
+      fromSentence: fromSentence,
+      label: 'bible ${BibleService.bookName(widget.book)} ${widget.chapter}',
+    );
   }
 
   /// Language switch while this chapter is open (the toggle lives in
@@ -320,6 +367,29 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
       _buildJob(fromVerse: fromVerse),
       owner: this,
     );
+    // THE RENDER-AHEAD (round 4): every Play re-targets the background
+    // walk at the played position — the whole chapter still renders to
+    // completion, the played verse's sentences first (the Next/Previous
+    // restarts and the uncached frontier serve from the walk).
+    _beginRenderAhead(fromVerse: fromVerse);
+  }
+
+  /// The chapter's verse groups — the ~10-verse TTS chunks — as
+  /// (firstVerseIndex, verses) pairs. The ONE grouping the playback job
+  /// and the render-ahead both compose from: the same chunk texts, so the
+  /// render-ahead renders exactly the audio Play asks for.
+  List<(int, List<BibleVerse>)> _verseGroups({int fromVerse = 0}) {
+    final verses = _verses!;
+    final groups = <(int, List<BibleVerse>)>[];
+    for (var start = fromVerse;
+        start < verses.length;
+        start += _versesPerChunk) {
+      final end = (start + _versesPerChunk < verses.length)
+          ? start + _versesPerChunk
+          : verses.length;
+      groups.add((start, verses.sublist(start, end)));
+    }
+    return groups;
   }
 
   /// Builds the chapter's playback job from [fromVerse] onward: the
@@ -336,13 +406,7 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     _chunkFirstVerse.clear();
     _chunkSentenceCounts.clear();
     var streamIndex = 0;
-    for (var start = fromVerse;
-        start < verses.length;
-        start += _versesPerChunk) {
-      final end = (start + _versesPerChunk < verses.length)
-          ? start + _versesPerChunk
-          : verses.length;
-      final group = verses.sublist(start, end);
+    for (final (start, group) in _verseGroups(fromVerse: fromVerse)) {
       final text = group.map((v) => v.text).join(' ');
       final verseForSentence = _sentenceVerseIndices(group, start, text);
       final chunkIndex = chunks.length;

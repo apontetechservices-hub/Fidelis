@@ -14,6 +14,7 @@ import 'services/audio_service_handler.dart';
 import 'services/bible_address_migration.dart';
 import 'services/kokoro_engine.dart';
 import 'services/notification_service.dart';
+import 'services/tts_render_cache.dart';
 import 'services/tts_service.dart';
 
 Future<void> main() async {
@@ -81,6 +82,13 @@ Future<void> main() async {
   // ~155 MB of model files to app storage; later launches are a no-op
   // marker check). Synthesis itself stays lazy.
   unawaited(TtsService.warmAssets());
+  // THE PERSISTENT RENDER CACHE (round 4): completed sentence audio is
+  // cached on disk (LRU, size-capped) so a chapter or rosary heard once is
+  // instant forever — the next open plays from completed audio with zero
+  // synthesis. Explicit init: without it the cache stays inert (every
+  // lookup/store no-ops and the pipeline behaves exactly as before), which
+  // is what the test suites' isolation depends on.
+  unawaited(TtsRenderCache.init());
   runApp(const FidelisApp());
 }
 

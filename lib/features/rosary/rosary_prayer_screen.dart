@@ -10,6 +10,7 @@ import 'rosary_prayers.dart';
 import 'mystery_data.dart';
 import '../../services/audio_controller.dart';
 import '../../services/kokoro_engine.dart';
+import '../../services/render_ahead.dart';
 import '../../services/tts_service.dart';
 import '../diagnostics/playback_readout.dart';
 import 'litany_of_loreto.dart';
@@ -147,6 +148,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     // so pressing Play finds the opening audio READY and starts
     // instantly. Fire-and-forget; never blocks the open.
     _prefetchCurrentStep();
+    // THE RENDER-AHEAD (round 4): the WHOLE rosary renders to completion
+    // in the background — begun the moment the prayer screen opens — into
+    // the persistent render cache, so Play and every Next/Previous start
+    // from completed audio (no synthesis wait). Fire-and-forget; never
+    // blocks the open.
+    _beginRenderAhead();
   }
 
   @override
@@ -457,6 +464,54 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     // pipeline's own syntheses), so pressing Next starts without synthesis
     // latency. The decade's repeated Hail Marys hit the cache instantly.
     _prefetchNextStep();
+    // THE RENDER-AHEAD (round 4): every step start re-targets the
+    // background walk at the played step — the whole rosary still renders
+    // to completion, the played step's sentences first (the Next/Previous
+    // restarts and the uncached frontier serve from the walk).
+    _beginRenderAhead(fromStep: _currentStep);
+  }
+
+  /// THE RENDER-AHEAD (round 4): the WHOLE rosary — every step's text, in
+  /// order — as the playback chunks the background walk renders into the
+  /// persistent render cache. The decade's repeated Hail Marys resolve to
+  /// the same cached sentences (the same spoken text, the same slot
+  /// configuration). en/es only: Latin keeps the flutter_tts path, which
+  /// needs no render cache.
+  List<AudioChunk> _allStepChunks() {
+    if (_language != 'en' && _language != 'es') return const [];
+    return [
+      for (final step in _steps)
+        AudioChunk(
+            text: _fallbackSpeechText(step),
+            lang: _language,
+            voice: KokoroVoice.rosary),
+    ];
+  }
+
+  /// [stepIndex]'s first sentence index within the all-steps stream (the
+  /// render-ahead walks from the played step forward — the urgent
+  /// sentences first).
+  int _stepSentenceIndex(int stepIndex) {
+    var index = 0;
+    for (var i = 0; i < stepIndex && i < _steps.length; i++) {
+      index +=
+          TtsService.splitSentences(_fallbackSpeechText(_steps[i])).length;
+    }
+    return index;
+  }
+
+  /// Begins (or re-targets) the whole-rosary background render — on
+  /// screen-open (fromStep 0) and on every step start (from the played
+  /// step). Fire-and-forget; never blocks the caller.
+  void _beginRenderAhead({int fromStep = 0}) {
+    final chunks = _allStepChunks();
+    if (chunks.isEmpty) return;
+    RenderAhead.begin(
+      chunks: chunks,
+      lang: _language,
+      fromSentence: _stepSentenceIndex(fromStep),
+      label: 'rosary ${widget.mysteryType}',
+    );
   }
 
   /// Renders the CURRENT step's sentences into the prefetch cache (en/es
