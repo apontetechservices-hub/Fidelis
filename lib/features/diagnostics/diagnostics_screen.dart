@@ -7,6 +7,7 @@ import '../../config/theme.dart';
 import '../../services/audio_controller.dart';
 import '../../services/audio_diagnostics.dart';
 import '../../services/kokoro_engine.dart';
+import '../../services/tts_service.dart';
 import 'playback_readout.dart';
 import 'sid_rollcall_screen.dart';
 
@@ -57,9 +58,25 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     ),
   ];
 
+  /// THE DISTORTION BISECTION (round 5, defect D): the same sentence
+  /// played twice — once rendered LIVE (both caches bypassed: the
+  /// synthesis + write + play path) and once FROM the persistent render
+  /// cache (pure I/O of the exact bytes the live play stored). The
+  /// pipeline log names each play's source (src=engine / src=cache) so
+  /// the owner's observations map to a verdict: identical crackle on
+  /// both plays = baked into the render; only the live play crackles =
+  /// the playback path. The rosary slot's voice (the owner's most-used
+  /// slot; the bless-ed lexicon applies to both plays identically).
+  static const _abText =
+      'Hail Mary, full of grace, the Lord is with thee; blessed art thou '
+      'among women, and blessed is the fruit of thy womb, Jesus. Holy '
+      'Mary, Mother of God, pray for us sinners, now and at the hour of '
+      'our death. Amen.';
+
   Future<KokoroEngineStatus>? _status;
   String? _probeResult;
   bool _probing = false;
+  bool _abPlaying = false;
 
   @override
   void initState() {
@@ -110,6 +127,32 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
     );
   }
 
+  /// The cache-vs-live A/B play (see [_abText]). The bypass flag governs
+  /// exactly this play and is ALWAYS restored (try/finally) — a stuck
+  /// flag would silently disable the render cache app-wide.
+  Future<void> _playAb({required bool fromCache}) async {
+    if (_abPlaying) return;
+    setState(() => _abPlaying = true);
+    TtsService.diagnosticBypassRenderCache = !fromCache;
+    try {
+      await AudioController.instance.start(
+        AudioJob(
+          id: _jobId,
+          chunks: [
+            AudioChunk(text: _abText, lang: 'en', voice: KokoroVoice.rosary),
+          ],
+          title: fromCache
+              ? 'A/B: FROM the persistent render cache'
+              : 'A/B: LIVE synthesis (caches bypassed)',
+        ),
+        owner: this,
+      );
+    } finally {
+      TtsService.diagnosticBypassRenderCache = false;
+      if (mounted) setState(() => _abPlaying = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -128,6 +171,8 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
           _engineStatusCard(context, theme, accent),
           const SizedBox(height: 16),
           _rendersCard(context, theme, accent),
+          const SizedBox(height: 16),
+          _abCard(context, theme, accent),
           const SizedBox(height: 16),
           _rollCallCard(context, theme, accent),
           const SizedBox(height: 16),
@@ -257,6 +302,59 @@ class _DiagnosticsScreenState extends State<DiagnosticsScreen> {
                   onPressed: () => _playRender(asset, label),
                 ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// THE DISTORTION BISECTION card (round 5, defect D): the cache-vs-live
+  /// A/B — the same sentence played twice (LIVE with both caches bypassed,
+  /// then FROM the persistent render cache), the pipeline log naming each
+  /// play's source. The verdict mapping is on the card.
+  Widget _abCard(BuildContext context, ThemeData theme, Color accent) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Distortion bisection: cache vs live',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(color: accent, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'The SAME sentence twice. Play LIVE first (the synthesis + '
+              'write + play path), then FROM CACHE (pure I/O — the exact '
+              'bytes the live play stored). The pipeline log names each '
+              "play's source (src=engine / src=cache). Identical crackle "
+              'on both plays = baked into the render; only the live play '
+              'crackles = the playback path. Listen on the speaker AND '
+              'headphones.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton.icon(
+                  onPressed:
+                      _abPlaying ? null : () => _playAb(fromCache: false),
+                  icon: const Icon(Icons.bolt, size: 18),
+                  label: const Text('Play LIVE'),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed:
+                      _abPlaying ? null : () => _playAb(fromCache: true),
+                  icon: const Icon(Icons.cached, size: 18),
+                  label: const Text('Play FROM CACHE'),
+                ),
+              ],
+            ),
           ],
         ),
       ),

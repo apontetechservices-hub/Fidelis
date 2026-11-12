@@ -35,6 +35,54 @@ class PlaybackReadoutVisibility {
   }
 }
 
+/// THE SILENT-FALLBACK KILLER (round 5, defect 1c): the prayer screens'
+/// fallback banner — shown whenever the loaded playback was served (whole
+/// or in part) by the system voice, INDEPENDENT of the diagnostics readout
+/// toggle. A substituted voice playing with no sign is worse than a
+/// visible failure: the user must SEE the engine state. Hidden while the
+/// audio is stopped (the playback ended — the diagnostics screen keeps
+/// the history) and never shown for Latin (flutter_tts is Latin's
+/// DESIGNED engine — no FALLBACK line fires for it).
+class PlaybackFallbackBanner extends StatelessWidget {
+  const PlaybackFallbackBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: AudioDiagnostics.instance,
+      builder: (context, _) => ValueListenableBuilder<AudioPlaybackInfo>(
+        valueListenable: AudioController.instance.listenable,
+        builder: (context, info, _) {
+          final line = AudioDiagnostics.instance.fallbackLine;
+          if (line == null || info.state == AudioState.stopped) {
+            return const SizedBox.shrink();
+          }
+          final theme = Theme.of(context);
+          return Container(
+            width: double.infinity,
+            margin: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFFB3261E).withValues(alpha: 0.12),
+              border: Border.all(color: const Color(0xFFB3261E), width: 1.2),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              'Playing with the device voice — the offline voice engine '
+              'is unavailable.\n$line',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: const Color(0xFFB3261E),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
 /// The diagnostic build's on-screen playback readout: what the pipeline
 /// REQUESTED (the slot config — sids, speed, phonemizer
 /// language, EQ), what actually SERVED the audio (Kokoro or the

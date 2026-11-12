@@ -462,6 +462,65 @@ class TtsService {
   static final Map<String, Future<TtsPreparedSentence?>> _fileInFlight = {};
   static const int _prefetchCacheMax = 8;
 
+  /// Live engine renders issued but not yet landed — every in-flight
+  /// [KokoroEngine.synthesize] this service issued (the playback
+  /// pipeline's lookahead, the screen-open prefetch, the timing
+  /// synthesis). THE RENDER-AHEAD WALK YIELDS WHILE THIS IS NON-ZERO
+  /// (round 5, the Bible/rosary latency asymmetry): the worker is FIFO,
+  /// so a walk render issued while the pipeline has requests pending
+  /// would queue ahead of the pipeline's FUTURE lookahead requests and
+  /// halve the playback's synthesis throughput. The rosary's step
+  /// pipeline covers only the CURRENT step, so the whole-rosary walk's
+  /// theft starved the step's own frontier; the Bible's pipeline covers
+  /// the whole chapter, so its walk only ever deduped onto the pipeline's
+  /// own renders — the measured asymmetry. The walk waits for a gap: the
+  /// pipeline's renders land first, the walk fills the idle capacity;
+  /// cache-hit stretches leave the gap open instantly.
+  static int _liveEngineRenders = 0;
+
+  /// The number of engine renders currently in flight (see
+  /// [_liveEngineRenders]). The render-ahead walk polls this.
+  static int get liveEngineRenders => _liveEngineRenders;
+
+  /// The render-ahead walk's gap waiters (see [waitForRenderGap]).
+  static final List<Completer<void>> _renderGapWaiters = [];
+
+  /// Resolves when the live-render demand drains to zero (immediately if
+  /// it already has). THE WALK AWAITS THIS INSTEAD OF POLLING WITH TIMERS
+  /// (round 5): a 50 ms poll keeps a timer pending at every instant, which
+  /// trips the widget tests' pending-timer invariant and burns wakeups in
+  /// production; the completer-based wait parks the walk with no timer
+  /// and wakes it the moment a render lands and the demand drains.
+  static Future<void> waitForRenderGap() async {
+    if (_liveEngineRenders == 0) return;
+    final c = Completer<void>();
+    _renderGapWaiters.add(c);
+    return c.future;
+  }
+
+  /// Completes every gap waiter when the demand has drained (and on an
+  /// explicit wake — a superseded walk re-checks its generation and
+  /// exits). Never throws.
+  static void notifyRenderGap() {
+    if (_liveEngineRenders > 0) return;
+    final waiters = List.of(_renderGapWaiters);
+    _renderGapWaiters.clear();
+    for (final w in waiters) {
+      if (!w.isCompleted) w.complete();
+    }
+  }
+
+  /// The diagnostics A/B harness (round 5, the distortion bisection):
+  /// when true, sentence resolution skips the persistent render cache AND
+  /// the in-memory cache and renders LIVE — the same sentence then plays
+  /// from synthesis instead of from the cached WAV. The diagnostics
+  /// screen's cache-vs-live A/B buttons flip it for one play (play LIVE
+  /// first — the synthesis + write + play path — then FROM CACHE — pure
+  /// I/O of the exact bytes the live play stored; identical crackle on
+  /// both = baked into the render, only the live play crackles = the
+  /// playback path). Always restored by the caller (try/finally).
+  static bool diagnosticBypassRenderCache = false;
+
   static String _prefetchKey(String sentence, String lang, KokoroVoice voice) =>
       '$lang|${identityHashCode(voice)}|$sentence';
 
@@ -993,44 +1052,57 @@ class TtsService {
       {required bool storePcm}) async {
     final voice = chunks[s.chunkIndex].voice ?? KokoroVoice.standard;
     // 1. The persistent render cache: the prepared WAV is already on
-    //    disk — pure I/O, zero synthesis.
-    final hit = TtsRenderCache.lookupSync(key, expectText: s.text);
-    if (hit != null) {
-      return TtsPreparedSentence(
-        file: hit.file,
-        duration: hit.duration,
-        source: 'cache',
-        owned: false,
-        peakInDb: hit.peakInDb,
-        peakOutDb: hit.peakOutDb,
-        clipIn: hit.clipIn,
-        clipOut: hit.clipOut,
-        scaled: hit.scaled,
-        writeMs: 0,
-      );
+    //    disk — pure I/O, zero synthesis. (The diagnostics A/B harness
+    //    bypasses both caches to force the live render.)
+    if (!diagnosticBypassRenderCache) {
+      final hit = TtsRenderCache.lookupSync(key, expectText: s.text);
+      if (hit != null) {
+        return TtsPreparedSentence(
+          file: hit.file,
+          duration: hit.duration,
+          source: 'cache',
+          owned: false,
+          peakInDb: hit.peakInDb,
+          peakOutDb: hit.peakOutDb,
+          clipIn: hit.clipIn,
+          clipOut: hit.clipOut,
+          scaled: hit.scaled,
+          writeMs: 0,
+        );
+      }
+      // 2. The in-memory PCM cache (the render cache unavailable — tests,
+      //    storage failures): re-prepare the cached PCM into a file.
+      final pcm = _prefetchCache[_prefetchKey(s.text, lang, voice)];
+      if (pcm != null && pcm.samples.isNotEmpty) {
+        return _prepareSentenceFile(pcm,
+            key: key,
+            spokenText: s.text,
+            lang: lang,
+            voice: voice,
+            source: 'cache',
+            storePcm: storePcm);
+      }
     }
-    // 2. The in-memory PCM cache (the render cache unavailable — tests,
-    //    storage failures): re-prepare the cached PCM into a file.
-    final pcm = _prefetchCache[_prefetchKey(s.text, lang, voice)];
-    if (pcm != null && pcm.samples.isNotEmpty) {
-      return _prepareSentenceFile(pcm,
+    // 3. The engine: synthesize, prepare, store. The live-render demand
+    //    counter rises for exactly this render's duration — the
+    //    render-ahead walk yields while it is non-zero (the worker is
+    //    FIFO: a walk render issued now would queue ahead of the playback
+    //    pipeline's future lookahead requests and starve the frontier).
+    _liveEngineRenders++;
+    try {
+      final audio = await KokoroEngine.synthesize(s.text, lang, voice: voice);
+      if (audio == null || audio.samples.isEmpty) return null;
+      return await _prepareSentenceFile(audio,
           key: key,
           spokenText: s.text,
           lang: lang,
           voice: voice,
-          source: 'cache',
+          source: 'engine',
           storePcm: storePcm);
+    } finally {
+      _liveEngineRenders--;
+      notifyRenderGap();
     }
-    // 3. The engine: synthesize, prepare, store.
-    final audio = await KokoroEngine.synthesize(s.text, lang, voice: voice);
-    if (audio == null || audio.samples.isEmpty) return null;
-    return _prepareSentenceFile(audio,
-        key: key,
-        spokenText: s.text,
-        lang: lang,
-        voice: voice,
-        source: 'engine',
-        storePcm: storePcm);
   }
 
   /// Prepares one sentence's playback file from synthesized PCM (no

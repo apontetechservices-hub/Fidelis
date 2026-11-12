@@ -89,6 +89,10 @@ class KokoroEngine {
     _prepFuture = null;
     _modelDirPath = null;
     _loadedLang = null;
+    _spawnInFlight = null;
+    _readyInFlight.clear();
+    debugSpawnAttempts = 0;
+    debugSpawnOverride = null;
     lastError = null;
     debugPrepDirOverride = null;
     debugAssetLoaderOverride = null;
@@ -143,11 +147,45 @@ class KokoroEngine {
 
   /// Ensures the worker can synthesize [lang] ('en' | 'es').
   /// Returns false on any failure (caller must fall back to flutter_tts).
+  ///
+  /// SINGLE-FLIGHT (round 5, the upgrade-install regression): concurrent
+  /// callers — the screen-open prefetch and the render-ahead walk both
+  /// fire the moment a prayer screen opens — share ONE preparation, ONE
+  /// worker spawn, and ONE engine init. The unguarded version let two
+  /// callers race two isolates into clobbered statics: the second spawn
+  /// overwrote the first's hello completer (one caller hung the full 30 s
+  /// spawn timeout — the diagnostics banner's 'worker spawn failed:
+  /// TimeoutException after 0:00:30') and the worker SendPort
+  /// flip-flopped between the two isolates (gens routed to the worker
+  /// that never received init — the pipeline log's 'Null check operator
+  /// used on a null value') — every slot fell back to the system voice.
+  /// The upgrade path made it deterministic (the unchanged stamp takes
+  /// the fast prep path, so both screen-open consumers reach the spawn in
+  /// the same event-loop drain); a fresh install only escaped when the
+  /// owner's flow ran the diagnostics probe first (a single-caller
+  /// spawn). Installing over old data is NOT the fault — the carried-over
+  /// preparation is valid and trusted (see [_prepComplete]).
   static Future<bool> ensureReady(String lang) async {
     // Scripted-synthesis mode (the pipeline tests): no worker, no native
     // lib — the override IS the engine.
     if (debugSynthesizeOverride != null) return true;
     if (_failed || (lang != 'en' && lang != 'es')) return false;
+    final inFlight = _readyInFlight[lang];
+    if (inFlight != null) return inFlight;
+    final future = _ensureReadyNow(lang);
+    _readyInFlight[lang] = future;
+    unawaited(future.whenComplete(() {
+      if (identical(_readyInFlight[lang], future)) _readyInFlight.remove(lang);
+    }));
+    return future;
+  }
+
+  /// The per-language in-flight ensure futures (see [ensureReady]).
+  static final Map<String, Future<bool>> _readyInFlight = {};
+
+  /// The uncached ensure path — ONE runner per language at a time (the
+  /// single-flight wrapper in [ensureReady] admits exactly one).
+  static Future<bool> _ensureReadyNow(String lang) async {
     try {
       if (!await prepareAssets()) {
         _failed = true;
@@ -231,6 +269,8 @@ class KokoroEngine {
 
   static void _failAll(String error) {
     _failed = true;
+    _spawnInFlight = null;
+    _readyInFlight.clear();
     for (final c in _pending.values) {
       if (!c.isCompleted) {
         c.complete(<Object?, Object?>{'ok': false, 'error': error});
@@ -251,7 +291,46 @@ class KokoroEngine {
     _failAll('worker killed');
   }
 
-  static Future<bool> _spawnWorker() async {
+  /// SINGLE-FLIGHT worker spawn (round 5): concurrent ensure callers share
+  /// one spawn attempt instead of racing two isolates into clobbered
+  /// statics (the 1.4.98 upgrade-install failure — see [ensureReady]).
+  /// The future is cached while in flight; on success the isolate lives
+  /// (later callers short-circuit on [_isolate]); on failure or kill the
+  /// cache clears so a later attempt can retry (the sticky [_failed] gate
+  /// governs whether it does).
+  static Future<bool>? _spawnInFlight;
+
+  static Future<bool> _spawnWorker() {
+    if (_isolate != null) return Future<bool>.value(true);
+    final inFlight = _spawnInFlight;
+    if (inFlight != null) return inFlight;
+    debugSpawnAttempts++;
+    final future = debugSpawnOverride?.call() ?? _doSpawnWorker();
+    _spawnInFlight = future;
+    unawaited(future.whenComplete(() {
+      if (identical(_spawnInFlight, future)) _spawnInFlight = null;
+    }));
+    return future;
+  }
+
+  /// Test seam: how many times the real spawn path was entered (the
+  /// single-flight guard's regression probe: concurrent ensure callers
+  /// must produce exactly ONE attempt).
+  @visibleForTesting
+  static int debugSpawnAttempts = 0;
+
+  /// Test seam: whether a spawn attempt is currently in flight (the
+  /// single-flight guard's clearing invariant: a failed attempt must
+  /// leave no cached future behind).
+  @visibleForTesting
+  static bool get debugSpawnInFlight => _spawnInFlight != null;
+
+  /// Test seam: replaces the spawn body (the single-flight tests run
+  /// without the native engine — the override stands in for the isolate).
+  @visibleForTesting
+  static Future<bool> Function()? debugSpawnOverride;
+
+  static Future<bool> _doSpawnWorker() async {
     final dir = _modelDirPath;
     if (dir == null) {
       _recordFailure('worker spawn failed: model directory not prepared');

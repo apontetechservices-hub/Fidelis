@@ -304,7 +304,17 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
   /// navigate silently.
   Future<void> _goTo(BibleBook book, int chapter) async {
     if (book.key == widget.book.key && chapter == widget.chapter) return;
-    final listening = _listening;
+    // NEXT ADVANCES IN BOTH ENGINE STATES (round 5, defect 1d): the
+    // auto-continue decision reads the LIVE playback state — a stream
+    // resumed from the notification plays without this screen's play
+    // button having set the flag, and the stale-false flag opened the
+    // next chapter SILENTLY (the playback stopped with the old screen —
+    // the owner's 'Next stopped playback'). Playing now always
+    // auto-continues; the paused semantics are unchanged.
+    final controller = AudioController.instance;
+    final listening = _listening ||
+        (controller.currentJobId == _jobId &&
+            controller.state == AudioState.playing);
     await Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -363,15 +373,18 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
     final verses = _verses;
     if (verses == null || verses.isEmpty) return;
     _listening = true; // starting playback: listening mode ON
+    // THE RENDER-AHEAD re-targets BEFORE the start (round 5, defect C —
+    // the frontier stalls): a jump must supersede the old walk
+    // IMMEDIATELY — the old walk's renders (nearer content) would
+    // otherwise keep the worker busy ahead of the target sentence's own
+    // renders (the frontier stall). The new walk starts at the played
+    // verse and YIELDS to the playback pipeline's own renders (the
+    // live-render demand), so the target sentence wins the worker.
+    _beginRenderAhead(fromVerse: fromVerse);
     await AudioController.instance.start(
       _buildJob(fromVerse: fromVerse),
       owner: this,
     );
-    // THE RENDER-AHEAD (round 4): every Play re-targets the background
-    // walk at the played position — the whole chapter still renders to
-    // completion, the played verse's sentences first (the Next/Previous
-    // restarts and the uncached frontier serve from the walk).
-    _beginRenderAhead(fromVerse: fromVerse);
   }
 
   /// The chapter's verse groups — the ~10-verse TTS chunks — as
@@ -655,6 +668,11 @@ class _BibleChapterScreenState extends State<BibleChapterScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // THE SILENT-FALLBACK KILLER (round 5, defect 1c): the
+            // system-voice banner — independent of the diagnostics
+            // toggle: a substituted voice playing with no sign is worse
+            // than a visible failure.
+            const PlaybackFallbackBanner(),
             // The playback readout lives behind Settings → About → Audio
             // diagnostics; the off-by-default toggle puts it back on this
             // screen for on-screen debugging during playback.

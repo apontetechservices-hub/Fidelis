@@ -265,6 +265,12 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
             minHeight: 3,
           ),
 
+          // THE SILENT-FALLBACK KILLER (round 5, defect 1c): the
+          // system-voice banner — independent of the diagnostics toggle:
+          // a substituted voice playing with no sign is worse than a
+          // visible failure.
+          const PlaybackFallbackBanner(),
+
           // The playback readout lives behind Settings → About → Audio
           // diagnostics; the off-by-default toggle puts it back on this
           // screen for on-screen debugging during playback.
@@ -458,17 +464,20 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     _listening = true;
     _speakingLine = null;
     _speakingWord = null;
+    // THE RENDER-AHEAD re-targets BEFORE the start (round 5, defect C —
+    // the frontier stalls): the played step's sentences are the urgent
+    // ones — the walk re-targets first so a step advance supersedes the
+    // old walk immediately (the old walk's renders would otherwise keep
+    // the worker busy ahead of the new position's renders), and the walk
+    // yields to the playback pipeline's own renders once the start lands
+    // (the live-render demand) — the target sentence wins the worker.
+    _beginRenderAhead(fromStep: _currentStep);
     await AudioController.instance.start(_stepJob(), owner: this);
     // Lookahead: while this step plays, the NEXT step's sentences are
     // already rendering into the prefetch cache (queued behind the playing
     // pipeline's own syntheses), so pressing Next starts without synthesis
     // latency. The decade's repeated Hail Marys hit the cache instantly.
     _prefetchNextStep();
-    // THE RENDER-AHEAD (round 4): every step start re-targets the
-    // background walk at the played step — the whole rosary still renders
-    // to completion, the played step's sentences first (the Next/Previous
-    // restarts and the uncached frontier serve from the walk).
-    _beginRenderAhead(fromStep: _currentStep);
   }
 
   /// THE RENDER-AHEAD (round 4): the WHOLE rosary — every step's text, in
@@ -1099,7 +1108,19 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
   void _advanceStep(int direction, {bool keepPausedStream = false}) {
     final target = _currentStep + direction;
     if (target < 0 || target > _steps.length - 1) return;
-    final listening = _listening;
+    final controller = AudioController.instance;
+    // NEXT ADVANCES IN BOTH ENGINE STATES (round 5, defect 1d): the
+    // listening decision reads the LIVE playback state, not just the
+    // screen flag — a playback resumed from the notification (or any
+    // path that did not pass through this screen's own play button)
+    // leaves the flag stale-false while the stream is audibly playing,
+    // and the old silent-navigation branch then STOPPED the playing
+    // audio on Next (the owner's 'Next stopped playback; Play restarted
+    // at the same place'). Playing now always advances with audio; the
+    // paused semantics are unchanged (the governing rule).
+    final listening = _listening ||
+        (controller.currentJobId == _jobId &&
+            controller.state == AudioState.playing);
     setState(() {
       _currentStep = target;
       _showLitany = _steps[_currentStep].type == RosaryStepType.litany;
@@ -1109,7 +1130,6 @@ class _RosaryPrayerScreenState extends State<RosaryPrayerScreen> {
     });
     _scrollToTop();
     _saveState();
-    final controller = AudioController.instance;
     if (listening) {
       // start() replaces the current stream (playing or paused).
       unawaited(_startCurrentStepAudio());

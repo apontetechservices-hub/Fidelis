@@ -73,6 +73,10 @@ class RenderAhead {
     _label = label;
     _running = true;
     _walk = _walkStream(chunks, lang, fromSentence, gen, label);
+    // Wake any walk parked on the render-demand gap: the superseded walk
+    // re-checks its generation and exits promptly instead of waiting for
+    // the next drain.
+    TtsService.notifyRenderGap();
   }
 
   /// Stops the running walk (a screen exit that wants the background
@@ -98,8 +102,34 @@ class RenderAhead {
           'sentences=${stream.length} from=$from');
       var rendered = 0;
       var cached = 0;
+      var yieldedMs = 0;
       final sw = Stopwatch()..start();
       for (var i = from; i < stream.length; i++) {
+        if (gen != _generation) {
+          TtsService.measureLine('render-ahead superseded at=$i '
+              'rendered=$rendered cached=$cached');
+          return;
+        }
+        // THE YIELD (round 5, the Bible/rosary latency asymmetry and the
+        // frontier stalls): the worker is FIFO — a walk render issued
+        // while the playback pipeline has synthesis in flight would queue
+        // ahead of the pipeline's FUTURE lookahead requests and halve the
+        // playback's synthesis throughput. The rosary's step pipeline
+        // covers only the CURRENT step, so the whole-rosary walk's theft
+        // starved the step's own frontier; the Bible's pipeline covers
+        // the whole chapter, so its walk only ever deduped onto the
+        // pipeline's own renders — the measured asymmetry. Wait for a
+        // gap: the pipeline's renders land first, the walk fills the idle
+        // capacity; cache-hit stretches leave the gap open instantly.
+        // The wait is COMPLETER-BASED (no timers): the walk parks until a
+        // render lands and the demand drains — a timer-based poll would
+        // keep a timer pending at every instant (the widget tests'
+        // pending-timer invariant, and pointless production wakeups).
+        final waitStart = DateTime.now();
+        while (gen == _generation && TtsService.liveEngineRenders > 0) {
+          await TtsService.waitForRenderGap();
+        }
+        yieldedMs += DateTime.now().difference(waitStart).inMilliseconds;
         if (gen != _generation) {
           TtsService.measureLine('render-ahead superseded at=$i '
               'rendered=$rendered cached=$cached');
@@ -112,7 +142,7 @@ class RenderAhead {
           // The engine failed (sticky): the walk aborts — playback's own
           // path falls back to flutter_tts; the next begin retries.
           TtsService.measureLine('render-ahead abort at=$i '
-              'rendered=$rendered reason=synthesis-failed');
+              'rendered=$rendered cached=$cached reason=synthesis-failed');
           return;
         }
         if (prepared.source == 'cache') {
@@ -122,7 +152,8 @@ class RenderAhead {
         }
       }
       TtsService.measureLine('render-ahead done rendered=$rendered '
-          'cached=$cached ms=${sw.elapsedMilliseconds}');
+          'cached=$cached ms=${sw.elapsedMilliseconds} '
+          'yieldedMs=$yieldedMs');
     } catch (_) {
       // Never throws into the caller: the render-ahead is background
       // preparation, not playback.
